@@ -1,0 +1,294 @@
+@page "/care-guide/emergency"
+
+<PageTitle>Emergency — GoatLab</PageTitle>
+
+<div class="page-hero" style="background:linear-gradient(135deg,#b71c1c,#c62828,#e53935);">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.Emergency" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Emergency Quick-Cards</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">If this is happening right now…</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">
+            Tap a scenario for the top-of-mind steps. <strong>Always call your vet for serious cases.</strong>
+        </MudText>
+    </div>
+    <div style="position:relative;z-index:1;">
+        <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#b71c1c;"
+                   StartIcon="@Icons.Material.Filled.ArrowBack" Href="/care-guide">Back</MudButton>
+    </div>
+</div>
+
+<MudAlert Severity="Severity.Warning" Class="mb-4" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Warning">
+    This is a field-reference, not a substitute for veterinary care. When in doubt, call your vet.
+</MudAlert>
+
+<MudGrid>
+    @foreach (var card in emergencies)
+    {
+        <MudItem xs="12" sm="6" md="4">
+            <MudPaper Class="emergency-card" Outlined Elevation="0" @onclick="() => expanded = expanded == card.Id ? null : card.Id"
+                      Style="cursor:pointer;">
+                <div class="emergency-card-header">
+                    <div class="emergency-card-icon">
+                        <MudIcon Icon="@card.Icon" />
+                    </div>
+                    <div style="flex:1;">
+                        <MudText Typo="Typo.subtitle1" Style="font-weight:700;">@card.Title</MudText>
+                        <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.85);">@card.Summary</MudText>
+                    </div>
+                    <MudIcon Icon="@(expanded == card.Id ? Icons.Material.Filled.ExpandLess : Icons.Material.Filled.ExpandMore)"
+                             Style="color:#fff;" />
+                </div>
+
+                @if (expanded == card.Id)
+                {
+                    <div class="emergency-card-body">
+                        <div class="emergency-symptoms">
+                            <MudText Typo="Typo.caption" Class="emergency-label">Signs</MudText>
+                            <div>@card.Symptoms</div>
+                        </div>
+
+                        <div class="mt-3">
+                            <MudText Typo="Typo.caption" Class="emergency-label">Do this now</MudText>
+                            <ol class="emergency-steps">
+                                @foreach (var step in card.Steps)
+                                {
+                                    <li>@step</li>
+                                }
+                            </ol>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(card.CallVetIf))
+                        {
+                            <div class="emergency-call-vet">
+                                <MudIcon Icon="@Icons.Material.Filled.Call" Size="Size.Small" />
+                                <strong>Call vet immediately if:</strong> @card.CallVetIf
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(card.Prevention))
+                        {
+                            <div class="mt-2">
+                                <MudText Typo="Typo.caption" Class="emergency-label">Prevention</MudText>
+                                <div style="font-size:0.85rem;color:rgba(255,255,255,0.9);">@card.Prevention</div>
+                            </div>
+                        }
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+    }
+</MudGrid>
+
+<style>
+.emergency-card {
+    background: linear-gradient(135deg, #c62828, #b71c1c) !important;
+    color: #fff;
+    border-radius: 14px !important;
+    overflow: hidden;
+    border: none !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.emergency-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(198,40,40,0.35);
+}
+.emergency-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+}
+.emergency-card-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.emergency-card-icon .mud-icon-root { color: #fff; font-size: 1.6rem; }
+.emergency-card-body {
+    background: rgba(0,0,0,0.15);
+    padding: 16px;
+    color: #fff;
+}
+.emergency-label {
+    color: rgba(255,255,255,0.85) !important;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    font-weight: 700 !important;
+    display: block;
+    margin-bottom: 4px;
+}
+.emergency-symptoms { font-size: 0.9rem; line-height: 1.4; }
+.emergency-steps {
+    padding-left: 20px;
+    margin: 0;
+    line-height: 1.5;
+}
+.emergency-steps li { margin-bottom: 4px; }
+.emergency-call-vet {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: #ffc107;
+    color: #212121;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+.emergency-call-vet .mud-icon-root { color: #212121; margin-top: 2px; flex-shrink: 0; }
+</style>
+
+@code {
+    private int? expanded;
+
+    private record EmergencyCard(int Id, string Title, string Summary, string Icon, string Symptoms,
+                                 List<string> Steps, string? CallVetIf = null, string? Prevention = null);
+
+    private readonly List<EmergencyCard> emergencies = new()
+    {
+        new EmergencyCard(1, "Bloat (Ruminal Tympany)", "Rumen gas buildup — can kill in hours",
+            Icons.Material.Filled.ErrorOutline,
+            "Distended left flank, reluctant to move, kicking at belly, rapid breathing, drooling, no cud chewing. Tap the left flank — sounds like a drum.",
+            new List<string> {
+                "Get the goat up and walking — movement helps gas move.",
+                "Dose with vegetable / mineral oil (60–120 mL adult) OR baking soda in water OR commercial anti-bloat (poloxalene).",
+                "Massage the left flank in downward strokes.",
+                "If frothy bloat: use surfactant (Therabloat) — NOT oil alone.",
+                "Elevate front end on a slope so gas can escape.",
+                "If critical: trocar in the upper left flank only as last resort."
+            },
+            "Can't stand, eyes rolling back, tongue blue, unresponsive — trocar or emergency surgery needed.",
+            "Limit lush wet pasture on empty stomach. Always provide hay before grain. Free-choice baking soda."),
+
+        new EmergencyCard(2, "Kidding Complications / Dystocia", "Labor stalled or presenting wrong",
+            Icons.Material.Filled.ChildCare,
+            "Active labor > 30 min with no progress, only one hoof showing, tail first, yellow/green discharge, exhausted doe, nothing progressing after water breaks.",
+            new List<string> {
+                "Wash hands, trim nails, lube up with OB lube.",
+                "Gently examine — feel for head + two front hooves (or two back hooves for breech).",
+                "If malpositioned: push kid back into uterus, then reposition head/legs.",
+                "Pull WITH contractions, down and toward doe's hocks.",
+                "After delivery: ensure airway is clear, rub kid vigorously with towel.",
+                "Check for retained twin every delivery."
+            },
+            "More than 30 min of hard straining with nothing visible, or you cannot identify a presentation, or doe is exhausted. Get vet NOW.",
+            "Feed grain to bucklings only 4–6 weeks before due; avoid over-conditioning does; breed at appropriate size and age."),
+
+        new EmergencyCard(3, "Hypothermic / Chilled Kid", "Newborn goat cold and limp",
+            Icons.Material.Filled.AcUnit,
+            "Cold to touch, especially mouth. Limp, unresponsive, body temp < 100°F. No suckle reflex.",
+            new List<string> {
+                "Take rectal temp. Normal newborn: 101.5–103.5°F.",
+                "If cold + alert: towel dry, blow-dry, warm box or heat lamp, bottle colostrum.",
+                "If cold + limp (< 100°F) + NO suckle: do NOT bottle — will aspirate. Warm FIRST.",
+                "Warm method: submerge body (not head) in 100–105°F water until temp rises, OR heat lamp + warm blankets.",
+                "Once temp reaches 100°F, give oral warm colostrum or — if severely weak — IP (intraperitoneal) dextrose injection.",
+                "Keep with mom or in kid warmer for 24–48 hrs."
+            },
+            "Temp below 95°F, no improvement within 30 min of warming, seizures.",
+            "Dry kids immediately at birth, colostrum within 1 hour, kidding pens bedded deep, close off drafts."),
+
+        new EmergencyCard(4, "Urinary Calculi (Stones)", "Wether/buck blockage — deadly within 36 hrs",
+            Icons.Material.Filled.LocalHospital,
+            "Straining to urinate, tail twitching, standing tucked, crying, grinding teeth, distended abdomen. NO urine or dribbling only.",
+            new List<string> {
+                "Confirm blockage: bladder enlargement, no urine output.",
+                "Call vet — this is an emergency. Surgery or catheter often needed.",
+                "Until vet: ammonium chloride 0.5–1 tsp in water orally.",
+                "Offer warm water with electrolytes.",
+                "Do NOT give diuretics."
+            },
+            "Always. Urinary blockage in wethers/bucks is life-threatening within 24–36 hrs.",
+            "Feed Ca:P ratio of 2:1, ammonium chloride in mineral mix, adequate fresh water, don't wether too early (< 3 months)."),
+
+        new EmergencyCard(5, "Worm Overload / Anemia", "Haemonchus (barber pole) wiping out goats",
+            Icons.Material.Filled.BugReport,
+            "Pale inner eyelid (FAMACHA 4–5), bottle jaw (swelling under jaw), weight loss, weakness, dark tarry poop, rough coat, lagging behind herd.",
+            new List<string> {
+                "Check FAMACHA score — inner lower eyelid. White/pale = severe anemia.",
+                "Deworm with correct class (moxidectin, levamisole, or per resistance tests).",
+                "Give Red Cell / iron supplement orally (6–12 mL for adults).",
+                "Support with B-complex, fluids.",
+                "Repeat fecal egg count 10–14 days post deworm.",
+                "Rotate off infected pasture for 60+ days if possible."
+            },
+            "Animal is down and can't rise, FAMACHA 5 with respiratory distress, or bottle jaw is severe.",
+            "Rotate pastures on 21-day cycles (worm lifecycle), don't overgraze to < 3in, selective dewormer use, record & cull repeat offenders."),
+
+        new EmergencyCard(6, "Pregnancy Toxemia / Ketosis", "Late-gestation doe starving",
+            Icons.Material.Filled.Warning,
+            "Last 4 weeks of pregnancy. Lethargy, teeth grinding, sweet acetone smell on breath, stargazing, refuses food, twitching, eventual recumbency.",
+            new List<string> {
+                "Drench with propylene glycol (60 mL twice daily) OR molasses + karo syrup.",
+                "Offer high-quality grain, leafy alfalfa, and warm water.",
+                "Give B-complex (especially thiamine) + Vitamin B12.",
+                "If severe: IV dextrose / Ca-dextrose per vet.",
+                "Consider induced kidding or emergency C-section if saveable.",
+                "Check urine ketones with dipstick — moderate/high confirms."
+            },
+            "Down and unable to rise, severe staggering, or no improvement within 12 hours.",
+            "Increase grain gradually in last 6 weeks, avoid over-conditioning, ensure adequate forage quality, don't stress does in late gestation."),
+
+        new EmergencyCard(7, "Milk Fever (Hypocalcemia)", "Post-kidding calcium crash",
+            Icons.Material.Filled.Thermostat,
+            "Within 48 hrs before or after kidding. Weakness, cold ears, muscle tremors, inability to rise, glazed eyes, bloating, subnormal temp.",
+            new List<string> {
+                "Give oral CMPK (calcium propionate) drench — immediate effect.",
+                "Or SQ calcium gluconate (60–100 mL warmed, split into multiple sites).",
+                "NEVER IV calcium without vet — can stop the heart.",
+                "Follow up with oral Ca for 3–5 days.",
+                "Keep doe warm, upright if possible."
+            },
+            "Unable to rise for over 2 hours, irregular heart rhythm, or no improvement after one dose.",
+            "Avoid high-calcium diet pre-kidding, feed anionic salts last 2 weeks, ensure vitamin D, free-choice minerals."),
+
+        new EmergencyCard(8, "Enterotoxemia (Overeating Disease)", "Clostridium perfringens C/D toxin",
+            Icons.Material.Filled.Sick,
+            "Sudden death in well-fed kids/adults. Warning signs: staggering, seizures, bloating, severe abdominal pain, green/bloody diarrhea, kid found dead near grain bucket.",
+            new List<string> {
+                "C/D antitoxin: 5–10 mL SQ immediately (NOT the CDT vaccine — antitoxin).",
+                "Large doses of penicillin (double adult dose) SQ or IM.",
+                "Oral activated charcoal or Kaopectate to absorb toxins.",
+                "IV or SQ fluids if dehydrated.",
+                "Thiamine for neurological signs.",
+                "Restrict feed and keep animal quiet."
+            },
+            "Seizures, sudden collapse, or unresponsive — these often progress to death within hours.",
+            "Vaccinate CDT at 6 weeks + booster, then annually. Pregnant does 30 days pre-kidding. Don't over-grain, ferment silage carefully."),
+
+        new EmergencyCard(9, "Heat Stress", "Above 85°F + humidity",
+            Icons.Material.Filled.WbSunny,
+            "Panting, open-mouth breathing, drooling, weakness, staggering, temp > 105°F, collapse.",
+            new List<string> {
+                "Move to shade + airflow IMMEDIATELY.",
+                "Cool water on legs, belly, underside — NOT top of back.",
+                "Offer cool (not ice-cold) water with electrolytes.",
+                "Wet towels on groin and neck.",
+                "Monitor temp every 15 min — aim for 103°F.",
+                "Do NOT use ice — causes vasoconstriction."
+            },
+            "Temp above 106°F, collapse, unresponsive, or seizures.",
+            "Shade in every pasture, always-full clean water, salt + mineral block, avoid working mid-day in summer."),
+
+        new EmergencyCard(10, "Choke", "Food stuck in esophagus",
+            Icons.Material.Filled.ReportProblem,
+            "Extended neck, drooling, coughing, attempting to swallow repeatedly, retching without vomiting, distress.",
+            new List<string> {
+                "Do NOT pour liquid — can aspirate.",
+                "Massage the neck downward from throat toward chest.",
+                "Often clears on its own in a few minutes.",
+                "Remove food and water until cleared.",
+                "Check for persistent choke — vet will pass a stomach tube.",
+                "Watch for aspiration pneumonia for 48 hrs after."
+            },
+            "Doesn't clear within 15–20 min, or signs of aspiration (rattled breathing, fever).",
+            "Soak grain, feed grain in small meals, don't feed whole apples/pumpkins without chopping.")
+    };
+}

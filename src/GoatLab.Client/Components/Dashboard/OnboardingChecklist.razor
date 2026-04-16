@@ -1,0 +1,71 @@
+@inject OnboardingService Onboarding
+@inject NavigationManager Nav
+
+@if (_status is not null && !_status.AllDone)
+{
+    <MudPaper Class="pa-4 mb-4 onboarding-card" Outlined Elevation="0">
+        <div class="d-flex align-center mb-3">
+            <MudIcon Icon="@Icons.Material.Filled.RocketLaunch" Color="Color.Primary" Class="mr-2" />
+            <div style="flex:1;">
+                <MudText Typo="Typo.h6" Style="font-weight:600;">Get your farm set up</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @_status.DoneCount of @_status.TotalCount complete
+                </MudText>
+            </div>
+            <div style="position:relative;width:48px;height:48px;">
+                <MudProgressCircular Value="@Percent" Color="Color.Primary" Size="Size.Medium" />
+                <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+                    <MudText Typo="Typo.caption" Style="font-weight:700;">@Percent%</MudText>
+                </div>
+            </div>
+        </div>
+
+        <MudList T="string" Dense>
+            @foreach (var s in _status.Steps)
+            {
+                <MudListItem T="string"
+                             Icon="@(s.Done ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)"
+                             IconColor="@(s.Done ? Color.Success : Color.Default)"
+                             OnClick="@(() => Go(s))"
+                             Style="@(s.Done ? "opacity:0.55;" : "")">
+                    <div class="d-flex align-center" style="width:100%;gap:10px;">
+                        <div style="flex:1;">
+                            <MudText Typo="Typo.body2" Style="@(s.Done ? "text-decoration:line-through;font-weight:500;" : "font-weight:600;")">
+                                @s.Title
+                            </MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@s.Description</MudText>
+                        </div>
+                        @if (!s.Done)
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" />
+                        }
+                    </div>
+                </MudListItem>
+            }
+        </MudList>
+    </MudPaper>
+}
+
+<style>
+.onboarding-card {
+    border-left: 4px solid #2e7d32;
+    background: linear-gradient(180deg, rgba(46,125,50,0.05), transparent 60%);
+}
+</style>
+
+@code {
+    private OnboardingStatus? _status;
+    private int Percent => _status is null || _status.TotalCount == 0 ? 0
+        : (int)Math.Round(100.0 * _status.DoneCount / _status.TotalCount);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _status = await Onboarding.GetStatusAsync(); }
+        catch { /* not authenticated / network blip — hide silently */ }
+    }
+
+    private void Go(OnboardingStep step)
+    {
+        if (!step.Done) Nav.NavigateTo(step.Href);
+    }
+}

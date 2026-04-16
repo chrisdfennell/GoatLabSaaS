@@ -1,0 +1,258 @@
+@page "/herd/weigh-in"
+@inject GoatService GoatSvc
+@inject HealthService HealthSvc
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Bulk Weigh-In — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-green">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.Scale" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Weigh-In Day</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Bulk Weight Logging</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">One row per goat — punch in weights and save them all at once.</MudText>
+        <div class="page-hero-stats">
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(goats?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Goats</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@EnteredCount</MudText>
+                <MudText Class="page-hero-stat-label">Entered</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@AvgEntered.ToString("F1")</MudText>
+                <MudText Class="page-hero-stat-label">Avg (lbs)</MudText>
+            </div>
+        </div>
+    </div>
+    <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:8px;">
+        <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#1b5e20;"
+                   StartIcon="@Icons.Material.Filled.SaveAlt"
+                   OnClick="SaveAll" Disabled="@(EnteredCount == 0 || saving)">
+            @(saving ? "Saving…" : $"Save {EnteredCount}")
+        </MudButton>
+        <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                   StartIcon="@Icons.Material.Filled.ArrowBack" Href="/herd">Back</MudButton>
+    </div>
+</div>
+
+<MudPaper Class="polished-section" Elevation="0">
+    <div class="polished-section-header">
+        <div class="polished-section-header-title">
+            <MudIcon Icon="@Icons.Material.Filled.CalendarToday" />
+            <div>
+                <MudText Typo="Typo.h6">Session Date</MudText>
+                <MudText Typo="Typo.body2" Class="section-hint">Every weight you enter will be stamped with this date.</MudText>
+            </div>
+        </div>
+    </div>
+    <MudGrid>
+        <MudItem xs="12" sm="4">
+            <MudDatePicker @bind-Date="sessionDate" Label="Date" Variant="Variant.Outlined" Editable />
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudSelect T="GoatStatus?" @bind-Value="filterStatus" Label="Filter by status" Variant="Variant.Outlined"
+                       Clearable AnchorOrigin="Origin.BottomCenter">
+                @foreach (var s in Enum.GetValues<GoatStatus>())
+                {
+                    <MudSelectItem Value="@((GoatStatus?)s)">@s</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudTextField @bind-Value="searchText" Label="Search" Variant="Variant.Outlined"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate DebounceInterval="200" />
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudPaper Class="polished-section" Elevation="0">
+    <div class="polished-section-header">
+        <div class="polished-section-header-title">
+            <MudIcon Icon="@Icons.Material.Filled.FormatListNumbered" />
+            <div>
+                <MudText Typo="Typo.h6">Herd</MudText>
+                <MudText Typo="Typo.body2" Class="section-hint">Empty rows will be skipped on save.</MudText>
+            </div>
+        </div>
+    </div>
+
+    @if (goats == null)
+    {
+        <MudProgressLinear Indeterminate Color="Color.Primary" />
+    }
+    else if (FilteredGoats.Count == 0)
+    {
+        <div class="inline-empty">
+            <MudIcon Icon="@GoatLabIcons.Hoof" />
+            <MudText Typo="Typo.body1">No goats match</MudText>
+            <MudText Typo="Typo.body2">Adjust the filters above.</MudText>
+        </div>
+    }
+    else
+    {
+        <div class="record-list">
+            @foreach (var g in FilteredGoats)
+            {
+                var row = entries[g.Id];
+                <div class="record-card">
+                    <div class="record-card-icon @GetAvatarClass(g.Gender)">
+                        @GetInitials(g.Name)
+                    </div>
+                    <div class="record-card-body">
+                        <div class="record-card-primary">@g.Name</div>
+                        <div class="record-card-secondary">
+                            @g.Gender · @g.Breed
+                            @if (row.LastWeight.HasValue)
+                            {
+                                <span> · last: @row.LastWeight.Value.ToString("F1") lbs (@row.LastWeightAge)</span>
+                            }
+                            else
+                            {
+                                <span> · no prior weight</span>
+                            }
+                        </div>
+                    </div>
+                    <MudNumericField @bind-Value="row.NewWeight" Variant="Variant.Outlined"
+                                     Min="0.0" Step="0.5"
+                                     Style="max-width:140px;"
+                                     Adornment="Adornment.End" AdornmentText="lbs" />
+                    @if (row.NewWeight > 0 && row.LastWeight.HasValue)
+                    {
+                        var diff = row.NewWeight - row.LastWeight.Value;
+                        var sign = diff >= 0 ? "+" : "";
+                        <MudChip T="string" Size="Size.Small"
+                                 Color="@(diff > 0 ? Color.Success : diff < 0 ? Color.Error : Color.Default)"
+                                 Variant="Variant.Outlined">
+                            @sign@diff.ToString("F1")
+                        </MudChip>
+                    }
+                </div>
+            }
+        </div>
+    }
+</MudPaper>
+
+@code {
+    private List<Goat>? goats;
+    private Dictionary<int, WeighInRow> entries = new();
+    private DateTime? sessionDate = DateTime.Today;
+    private GoatStatus? filterStatus = GoatStatus.Healthy;
+    private string? searchText;
+    private bool saving;
+
+    private int EnteredCount => entries.Values.Count(r => r.NewWeight > 0);
+    private double AvgEntered
+    {
+        get
+        {
+            var entered = entries.Values.Where(r => r.NewWeight > 0).Select(r => r.NewWeight).ToList();
+            return entered.Count > 0 ? entered.Average() : 0;
+        }
+    }
+
+    private List<Goat> FilteredGoats
+    {
+        get
+        {
+            if (goats == null) return new();
+            IEnumerable<Goat> q = goats;
+            if (filterStatus.HasValue) q = q.Where(g => g.Status == filterStatus.Value);
+            if (!string.IsNullOrWhiteSpace(searchText))
+            {
+                var s = searchText.Trim();
+                q = q.Where(g => g.Name.Contains(s, StringComparison.OrdinalIgnoreCase)
+                              || (g.EarTag != null && g.EarTag.Contains(s, StringComparison.OrdinalIgnoreCase)));
+            }
+            return q.OrderBy(g => g.Name).ToList();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        goats = await GoatSvc.GetAllAsync();
+        if (goats == null) return;
+
+        // Preload last-weight per goat
+        var tasks = goats.Select(async g =>
+        {
+            var weights = await HealthSvc.GetWeightsAsync(g.Id);
+            var last = weights?.OrderByDescending(w => w.Date).FirstOrDefault();
+            entries[g.Id] = new WeighInRow
+            {
+                LastWeight = last?.Weight,
+                LastWeightDate = last?.Date
+            };
+        });
+        await Task.WhenAll(tasks);
+    }
+
+    private async Task SaveAll()
+    {
+        if (goats == null || sessionDate == null) return;
+        saving = true;
+        try
+        {
+            var date = sessionDate.Value;
+            var toSave = entries.Where(kv => kv.Value.NewWeight > 0).ToList();
+            foreach (var (goatId, row) in toSave)
+            {
+                await HealthSvc.CreateWeightAsync(new WeightRecord
+                {
+                    GoatId = goatId,
+                    Weight = row.NewWeight,
+                    Date = date
+                });
+            }
+            Snackbar.Add($"Logged {toSave.Count} weight{(toSave.Count == 1 ? "" : "s")}", Severity.Success);
+            Nav.NavigateTo("/herd");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2) return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        return name.Length >= 2 ? name[..2].ToUpper() : name.ToUpper();
+    }
+
+    private string GetAvatarClass(Gender g) => g switch
+    {
+        Gender.Female => "record-card-icon-pink",
+        Gender.Male => "record-card-icon-blue",
+        _ => "record-card-icon-purple"
+    };
+
+    private class WeighInRow
+    {
+        public double? LastWeight { get; set; }
+        public DateTime? LastWeightDate { get; set; }
+        public double NewWeight { get; set; }
+        public string LastWeightAge
+        {
+            get
+            {
+                if (!LastWeightDate.HasValue) return "";
+                var days = (DateTime.Now - LastWeightDate.Value).TotalDays;
+                if (days < 1) return "today";
+                if (days < 30) return $"{(int)days}d ago";
+                if (days < 365) return $"{(int)(days / 30)}mo ago";
+                return $"{(int)(days / 365)}y ago";
+            }
+        }
+    }
+}

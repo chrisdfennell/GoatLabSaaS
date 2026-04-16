@@ -1,0 +1,232 @@
+@page "/care-guide/dosage"
+@inject HealthService HealthSvc
+@inject GoatService GoatSvc
+
+<PageTitle>Dosage Calculator — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-teal">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.Calculate" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Dosage Calculator</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">mL Math, Done for You</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Pick a med, pick a goat — we pull the latest weight and compute the dose.</MudText>
+    </div>
+    <div style="position:relative;z-index:1;">
+        <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#00695c;"
+                   StartIcon="@Icons.Material.Filled.ArrowBack" Href="/care-guide">Back</MudButton>
+    </div>
+</div>
+
+<MudAlert Severity="Severity.Warning" Class="mb-4" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Info">
+    Always confirm dosage with your vet and the medication label. This is a calculator, not medical advice.
+</MudAlert>
+
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Vaccines" />
+                    <div>
+                        <MudText Typo="Typo.h6">Medication</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Pick from your medicine list or type a dosage manually.</MudText>
+                    </div>
+                </div>
+            </div>
+            <MudSelect T="Medication" @bind-Value="selectedMed" Label="Saved medication"
+                       Variant="Variant.Outlined" Clearable AnchorOrigin="Origin.BottomCenter">
+                @if (medications != null)
+                {
+                    @foreach (var m in medications)
+                    {
+                        <MudSelectItem Value="m">@m.Name</MudSelectItem>
+                    }
+                }
+            </MudSelect>
+
+            @if (selectedMed != null)
+            {
+                <MudGrid Class="mt-2">
+                    @if (!string.IsNullOrEmpty(selectedMed.Route))
+                    {
+                        <MudItem xs="6"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.MedicalServices">@selectedMed.Route</MudChip></MudItem>
+                    }
+                    @if (selectedMed.MeatWithdrawalDays.HasValue)
+                    {
+                        <MudItem xs="6"><MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Restaurant">Meat WD: @selectedMed.MeatWithdrawalDays d</MudChip></MudItem>
+                    }
+                    @if (selectedMed.MilkWithdrawalDays.HasValue)
+                    {
+                        <MudItem xs="6"><MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled" Icon="@Icons.Material.Filled.LocalDrink">Milk WD: @selectedMed.MilkWithdrawalDays d</MudChip></MudItem>
+                    }
+                </MudGrid>
+            }
+
+            <MudDivider Class="my-3" />
+
+            <MudText Class="field-label">Or enter a dosage rate manually</MudText>
+            <MudGrid>
+                <MudItem xs="8">
+                    <MudNumericField @bind-Value="manualDosagePerLb" Label="mL" Variant="Variant.Outlined" Step="0.01" Min="0.0"
+                                     Adornment="Adornment.End" AdornmentText="per lb" />
+                </MudItem>
+                <MudItem xs="4" Class="d-flex align-center">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Overrides medication if set</MudText>
+                </MudItem>
+            </MudGrid>
+
+            @if (selectedMed?.DosagePerPound.HasValue == true)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                    @selectedMed.Name default: <strong>@selectedMed.DosagePerPound.Value.ToString("F3") mL/lb</strong>
+                </MudText>
+            }
+            @if (!string.IsNullOrEmpty(selectedMed?.DosageRate))
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block">
+                    Label: <em>@selectedMed.DosageRate</em>
+                </MudText>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@GoatLabIcons.Hoof" />
+                    <div>
+                        <MudText Typo="Typo.h6">Goat &amp; Weight</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Pick a goat to auto-fill latest weight, or enter weight directly.</MudText>
+                    </div>
+                </div>
+            </div>
+            <MudSelect T="Goat" Value="selectedGoat" ValueChanged="OnGoatSelected"
+                       Label="Goat" Variant="Variant.Outlined" Clearable AnchorOrigin="Origin.BottomCenter">
+                @if (goats != null)
+                {
+                    @foreach (var g in goats)
+                    {
+                        <MudSelectItem Value="g">@g.Name @(g.EarTag != null ? $" · #{g.EarTag}" : "")</MudSelectItem>
+                    }
+                }
+            </MudSelect>
+
+            <MudNumericField @bind-Value="weightLbs" Label="Weight" Variant="Variant.Outlined"
+                             Min="0.0" Step="0.5"
+                             Adornment="Adornment.End" AdornmentText="lbs" Class="mt-3" />
+
+            @if (selectedGoat != null && latestWeightDate.HasValue)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                    Last weight recorded @latestWeightDate.Value.ToString("MMM d, yyyy")
+                </MudText>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12">
+        <MudPaper Class="polished-section dosage-result" Elevation="0">
+            @if (DosageResult.HasValue && weightLbs > 0)
+            {
+                <div class="d-flex align-center" style="gap:20px;flex-wrap:wrap;">
+                    <MudIcon Icon="@Icons.Material.Filled.Calculate" Style="font-size:3rem;color:#00695c;" />
+                    <div>
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Give this dose</MudText>
+                        <MudText Typo="Typo.h3" Style="font-weight:800;color:#00695c;line-height:1;">
+                            @DosageResult.Value.ToString("F2") mL
+                        </MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                            @EffectiveRatePerLb.ToString("F3") mL/lb × @weightLbs.ToString("F1") lbs
+                            @if (selectedMed != null) { <span> · @selectedMed.Name</span> }
+                            @if (selectedGoat != null) { <span> · @selectedGoat.Name</span> }
+                        </MudText>
+                    </div>
+                </div>
+
+                @if (selectedMed != null && (selectedMed.MeatWithdrawalDays.HasValue || selectedMed.MilkWithdrawalDays.HasValue))
+                {
+                    <MudAlert Severity="Severity.Warning" Class="mt-3" Icon="@Icons.Material.Filled.Schedule">
+                        <strong>Withdrawal reminders:</strong>
+                        @if (selectedMed.MeatWithdrawalDays.HasValue)
+                        {
+                            <span> meat safe @DateTime.Today.AddDays(selectedMed.MeatWithdrawalDays.Value).ToString("MMM d, yyyy") (@selectedMed.MeatWithdrawalDays d).</span>
+                        }
+                        @if (selectedMed.MilkWithdrawalDays.HasValue)
+                        {
+                            <span> milk safe @DateTime.Today.AddDays(selectedMed.MilkWithdrawalDays.Value).ToString("MMM d, yyyy") (@selectedMed.MilkWithdrawalDays d).</span>
+                        }
+                    </MudAlert>
+                }
+            }
+            else
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.Calculate" />
+                    <MudText Typo="Typo.body1">Need: a dosage rate and a weight</MudText>
+                    <MudText Typo="Typo.body2">Pick a medication (with dosage per lb set) or enter mL/lb, then a weight.</MudText>
+                </div>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<style>
+.dosage-result {
+    background: linear-gradient(135deg, rgba(0,105,92,0.06), rgba(0,137,123,0.06)) !important;
+    border: 2px solid rgba(0,105,92,0.15) !important;
+}
+</style>
+
+@code {
+    private List<Medication>? medications;
+    private List<Goat>? goats;
+    private Medication? selectedMed;
+    private Goat? selectedGoat;
+    private double weightLbs;
+    private double manualDosagePerLb;
+    private DateTime? latestWeightDate;
+
+    private double EffectiveRatePerLb
+    {
+        get
+        {
+            if (manualDosagePerLb > 0) return manualDosagePerLb;
+            if (selectedMed?.DosagePerPound.HasValue == true) return selectedMed.DosagePerPound.Value;
+            return 0;
+        }
+    }
+
+    private double? DosageResult => EffectiveRatePerLb > 0 && weightLbs > 0
+        ? EffectiveRatePerLb * weightLbs
+        : (double?)null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var medTask = HealthSvc.GetMedicationsAsync();
+        var goatTask = GoatSvc.GetAllAsync();
+        await Task.WhenAll(medTask, goatTask);
+        medications = medTask.Result;
+        goats = goatTask.Result;
+    }
+
+    private async Task OnGoatSelected(Goat? g)
+    {
+        selectedGoat = g;
+        if (g == null)
+        {
+            weightLbs = 0;
+            latestWeightDate = null;
+            return;
+        }
+        var weights = await HealthSvc.GetWeightsAsync(g.Id);
+        var latest = weights?.OrderByDescending(w => w.Date).FirstOrDefault();
+        if (latest != null)
+        {
+            weightLbs = latest.Weight;
+            latestWeightDate = latest.Date;
+        }
+    }
+}

@@ -1,0 +1,258 @@
+@page "/scan"
+@inject GoatService GoatSvc
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+@implements IAsyncDisposable
+
+<PageTitle>Scan Tag — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-blue">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.QrCodeScanner" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Scan Ear Tag</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">QR &amp; Barcode</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Point your camera at a QR code or barcode — we'll jump to the goat.</MudText>
+    </div>
+    <div style="position:relative;z-index:1;">
+        <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#0d47a1;"
+                   StartIcon="@Icons.Material.Filled.ArrowBack" Href="/herd">Back</MudButton>
+    </div>
+</div>
+
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Videocam" />
+                    <div>
+                        <MudText Typo="Typo.h6">Camera</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Allow camera access when prompted.</MudText>
+                    </div>
+                </div>
+                <MudButton Variant="@(scanning ? Variant.Outlined : Variant.Filled)" Color="@(scanning ? Color.Error : Color.Primary)"
+                           StartIcon="@(scanning ? Icons.Material.Filled.Stop : Icons.Material.Filled.PlayArrow)"
+                           OnClick="ToggleScan" Disabled="@starting">
+                    @(starting ? "Starting…" : scanning ? "Stop" : "Start Scanning")
+                </MudButton>
+            </div>
+
+            <div id="qr-reader" style="width:100%;min-height:320px;border-radius:12px;overflow:hidden;background:#000;"></div>
+
+            @if (!string.IsNullOrEmpty(error))
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-3">@error</MudAlert>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.History" />
+                    <div>
+                        <MudText Typo="Typo.h6">Recent Scans</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Tap to open a goat you scanned.</MudText>
+                    </div>
+                </div>
+            </div>
+
+            @if (history.Count == 0)
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.QrCodeScanner" />
+                    <MudText Typo="Typo.body2">No scans yet in this session.</MudText>
+                </div>
+            }
+            else
+            {
+                <div class="record-list">
+                    @foreach (var h in history)
+                    {
+                        <div class="record-card interactive" @onclick="() => ResolveScan(h.Code)">
+                            <div class="record-card-icon @(h.FoundGoat ? "record-card-icon-green" : "record-card-icon-neutral")">
+                                <MudIcon Icon="@(h.FoundGoat ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.HelpOutline)" />
+                            </div>
+                            <div class="record-card-body">
+                                <div class="record-card-primary">@h.Code</div>
+                                <div class="record-card-secondary">
+                                    @(h.FoundGoat ? $"→ {h.GoatName}" : "No matching goat")
+                                    · @h.At.ToString("HH:mm:ss")
+                                </div>
+                            </div>
+                            @if (h.FoundGoat)
+                            {
+                                <MudIcon Icon="@Icons.Material.Filled.ArrowForward" />
+                            }
+                        </div>
+                    }
+                </div>
+            }
+
+            <MudDivider Class="my-3" />
+
+            <MudText Class="field-label">Manual entry</MudText>
+            <MudGrid>
+                <MudItem xs="8">
+                    <MudTextField @bind-Value="manualCode" Label="Ear tag / code" Variant="Variant.Outlined"
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Tag" />
+                </MudItem>
+                <MudItem xs="4" Class="d-flex align-center">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth
+                               StartIcon="@Icons.Material.Filled.Search" OnClick="OnManualLookup"
+                               Disabled="@string.IsNullOrWhiteSpace(manualCode)">Look up</MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private bool scanning;
+    private bool starting;
+    private string? error;
+    private string manualCode = "";
+    private DotNetObjectReference<ScanTag>? dotNetRef;
+    private List<ScanEntry> history = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        dotNetRef = DotNetObjectReference.Create(this);
+    }
+
+    private async Task ToggleScan()
+    {
+        if (scanning) { await StopScan(); }
+        else { await StartScan(); }
+    }
+
+    private async Task StartScan()
+    {
+        error = null;
+        starting = true;
+        try
+        {
+            await JS.InvokeAsync<bool>("goatQr.start", "qr-reader", dotNetRef);
+            scanning = true;
+        }
+        catch (Exception ex)
+        {
+            error = $"Could not start camera: {ex.Message}";
+        }
+        finally
+        {
+            starting = false;
+        }
+    }
+
+    private async Task StopScan()
+    {
+        try { await JS.InvokeVoidAsync("goatQr.stop"); } catch { }
+        scanning = false;
+    }
+
+    [JSInvokable]
+    public async Task OnCodeDetected(string code)
+    {
+        // Debounce duplicate scans
+        if (history.Count > 0 && history[0].Code == code && (DateTime.Now - history[0].At).TotalSeconds < 2)
+            return;
+
+        await ResolveScan(code);
+    }
+
+    [JSInvokable]
+    public void OnScanError(string msg)
+    {
+        error = msg;
+        StateHasChanged();
+    }
+
+    private async Task OnManualLookup()
+    {
+        if (string.IsNullOrWhiteSpace(manualCode)) return;
+        await ResolveScan(manualCode.Trim());
+        manualCode = "";
+    }
+
+    private async Task ResolveScan(string code)
+    {
+        var entry = new ScanEntry { Code = code, At = DateTime.Now };
+
+        // Try: integer goat ID
+        if (int.TryParse(code, out var goatId))
+        {
+            var g = await GoatSvc.GetAsync(goatId);
+            if (g != null)
+            {
+                entry.FoundGoat = true;
+                entry.GoatName = g.Name;
+                entry.GoatId = g.Id;
+            }
+        }
+
+        // Try: URL containing /herd/{id}
+        if (!entry.FoundGoat && code.Contains("/herd/"))
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(code, @"/herd/(\d+)");
+            if (m.Success && int.TryParse(m.Groups[1].Value, out var urlId))
+            {
+                var g = await GoatSvc.GetAsync(urlId);
+                if (g != null)
+                {
+                    entry.FoundGoat = true;
+                    entry.GoatName = g.Name;
+                    entry.GoatId = g.Id;
+                }
+            }
+        }
+
+        // Try: match ear tag
+        if (!entry.FoundGoat)
+        {
+            var matches = await GoatSvc.GetAllAsync(search: code);
+            var match = matches?.FirstOrDefault(g => g.EarTag?.Equals(code, StringComparison.OrdinalIgnoreCase) == true)
+                     ?? matches?.FirstOrDefault();
+            if (match != null)
+            {
+                entry.FoundGoat = true;
+                entry.GoatName = match.Name;
+                entry.GoatId = match.Id;
+            }
+        }
+
+        history.Insert(0, entry);
+        if (history.Count > 10) history = history.Take(10).ToList();
+
+        if (entry.FoundGoat && entry.GoatId.HasValue)
+        {
+            Snackbar.Add($"Opening {entry.GoatName}", Severity.Success);
+            await StopScan();
+            Nav.NavigateTo($"/herd/{entry.GoatId}");
+        }
+        else
+        {
+            Snackbar.Add($"No match for \"{code}\"", Severity.Warning);
+            StateHasChanged();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("goatQr.stop"); } catch { }
+        dotNetRef?.Dispose();
+    }
+
+    private class ScanEntry
+    {
+        public string Code { get; set; } = "";
+        public DateTime At { get; set; }
+        public bool FoundGoat { get; set; }
+        public string? GoatName { get; set; }
+        public int? GoatId { get; set; }
+    }
+}

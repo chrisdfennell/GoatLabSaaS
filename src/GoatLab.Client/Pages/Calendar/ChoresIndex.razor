@@ -1,0 +1,315 @@
+@page "/chores"
+@inject CalendarService CalSvc
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+
+<PageTitle>Chores — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-amber">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.Checklist" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Chore Scheduler</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">@(activeTab == 0 ? "Today" : activeTab == 1 ? "This week" : "Templates")</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">
+            Recurring chores expand from templates into daily occurrences you can tick off.
+        </MudText>
+    </div>
+    <div style="position:relative;z-index:1;display:flex;gap:8px;">
+        <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#ef6c00;"
+                   StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => EditTemplate())">New chore</MudButton>
+    </div>
+</div>
+
+<MudTabs Elevation="0" Rounded ApplyEffectsToContainer PanelClass="pt-4" @bind-ActivePanelIndex="activeTab">
+    <MudTabPanel Text="Today" Icon="@Icons.Material.Filled.Today">
+        @if (today == null)
+        {
+            <MudProgressLinear Indeterminate Color="Color.Primary" />
+        }
+        else if (!today.Any())
+        {
+            <div class="polished-section">
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.SentimentSatisfied" />
+                    <MudText Typo="Typo.body1">No chores scheduled today</MudText>
+                    <MudText Typo="Typo.body2">Add a recurring template — twice-daily milking, weekly hoof check, etc.</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-3"
+                               StartIcon="@Icons.Material.Filled.AutoAwesome" OnClick="SeedDefaults">
+                        Add common templates
+                    </MudButton>
+                </div>
+            </div>
+        }
+        else
+        {
+            <MudGrid>
+                @foreach (var period in new[] { "Morning", "Afternoon", "Evening", "AnyTime" })
+                {
+                    var rows = today.Where(o => o.Period == period).ToList();
+                    if (!rows.Any()) continue;
+                    <MudItem xs="12" md="6" lg="3">
+                        <MudPaper Class="polished-section" Elevation="0" Style="height:100%;">
+                            <div class="polished-section-header">
+                                <div class="polished-section-header-title">
+                                    <MudIcon Icon="@PeriodIcon(period)" Style="@($"color:{PeriodColor(period)};")" />
+                                    <div>
+                                        <MudText Typo="Typo.h6">@period</MudText>
+                                        <MudText Typo="Typo.body2" Class="section-hint">@rows.Count(r => r.Completed)/@rows.Count done</MudText>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="display:flex;flex-direction:column;gap:6px;">
+                                @foreach (var occ in rows)
+                                {
+                                    <div class="@($"chore-item {(occ.Completed ? "chore-done" : "")}")">
+                                        <MudCheckBox T="bool" Value="@occ.Completed"
+                                                     ValueChanged="@(async (bool v) => await ToggleChore(occ, v))"
+                                                     Color="Color.Success" />
+                                        <div style="flex:1;min-width:0;">
+                                            <div class="chore-title">@occ.Title</div>
+                                            @if (!string.IsNullOrEmpty(occ.GoatName))
+                                            {
+                                                <div class="chore-meta">@occ.GoatName</div>
+                                            }
+                                        </div>
+                                        @if (occ.Recurrence != "None")
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@occ.Recurrence</MudChip>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </MudPaper>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="This week" Icon="@Icons.Material.Filled.DateRange">
+        @if (week == null)
+        {
+            <MudProgressLinear Indeterminate Color="Color.Primary" />
+        }
+        else
+        {
+            <MudGrid>
+                @for (int d = 0; d < 7; d++)
+                {
+                    var day = DateTime.Today.AddDays(d);
+                    var rows = week.Where(o => o.OccurrenceDate.Date == day).ToList();
+                    <MudItem xs="12" sm="6" md="4" lg="3">
+                        <MudPaper Class="polished-section" Elevation="0" Style="height:100%;">
+                            <div class="polished-section-header">
+                                <div class="polished-section-header-title">
+                                    <MudIcon Icon="@Icons.Material.Filled.CalendarToday" />
+                                    <div>
+                                        <MudText Typo="Typo.h6">@day.ToString("ddd")</MudText>
+                                        <MudText Typo="Typo.body2" Class="section-hint">@day.ToString("MMM d")</MudText>
+                                    </div>
+                                </div>
+                            </div>
+                            @if (!rows.Any())
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">Nothing scheduled.</MudText>
+                            }
+                            else
+                            {
+                                @foreach (var occ in rows)
+                                {
+                                    <div class="@($"chore-item-mini {(occ.Completed ? "chore-done" : "")}")">
+                                        <MudIcon Icon="@(occ.Completed ? Icons.Material.Filled.CheckCircle : Icons.Material.Filled.RadioButtonUnchecked)"
+                                                 Style="@($"color:{(occ.Completed ? "#2e7d32" : "#888")};")" Size="Size.Small" />
+                                        <span>@occ.Title</span>
+                                    </div>
+                                }
+                            }
+                        </MudPaper>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Templates" Icon="@Icons.Material.Filled.Settings">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Settings" />
+                    <div>
+                        <MudText Typo="Typo.h6">Chore templates</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Recurring events that show up on the today/week views.</MudText>
+                    </div>
+                </div>
+                <div class="d-flex" style="gap:6px;">
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                               StartIcon="@Icons.Material.Filled.AutoAwesome" OnClick="SeedDefaults">Seed common</MudButton>
+                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => EditTemplate())">New chore</MudButton>
+                </div>
+            </div>
+
+            @if (templates == null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (!templates.Any())
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.Settings" />
+                    <MudText Typo="Typo.body1">No templates yet</MudText>
+                </div>
+            }
+            else
+            {
+                <div class="record-list">
+                    @foreach (var t in templates)
+                    {
+                        <div class="record-card">
+                            <div class="record-card-icon" style="@($"background:linear-gradient(135deg,{PeriodColor(t.Period.ToString())},{PeriodColor(t.Period.ToString())}cc);")">
+                                <MudIcon Icon="@PeriodIcon(t.Period.ToString())" />
+                            </div>
+                            <div class="record-card-body">
+                                <div class="record-card-primary">@t.Title</div>
+                                <div class="record-card-secondary">
+                                    @t.Period · repeats @t.Recurrence
+                                    @if (t.Goat != null) { <span> · @t.Goat.Name</span> }
+                                </div>
+                            </div>
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditTemplate(t))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteTemplate(t.Id))" />
+                        </div>
+                    }
+                </div>
+            }
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+<style>
+.chore-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.03);
+}
+.mud-theme-dark .chore-item { background: rgba(255,255,255,0.04); }
+.chore-title { font-weight: 600; font-size: 0.9rem; }
+.chore-meta { font-size: 0.75rem; color: #888; }
+.chore-done .chore-title { text-decoration: line-through; opacity: 0.6; }
+
+.chore-item-mini {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    font-size: 0.85rem;
+}
+.chore-item-mini.chore-done { text-decoration: line-through; opacity: 0.6; }
+</style>
+
+@code {
+    private int activeTab;
+    private List<ExpandedOccurrence>? today;
+    private List<ExpandedOccurrence>? week;
+    private List<CalendarEvent>? templates;
+
+    protected override async Task OnInitializedAsync() => await LoadAll();
+
+    private async Task LoadAll()
+    {
+        var todayDate = DateTime.Today;
+        var weekEnd = todayDate.AddDays(6);
+        var t1 = CalSvc.GetExpandedAsync(todayDate, todayDate, choresOnly: true);
+        var t2 = CalSvc.GetExpandedAsync(todayDate, weekEnd, choresOnly: true);
+        var t3 = CalSvc.GetEventsAsync();
+        await Task.WhenAll(t1, t2, t3);
+        today = t1.Result;
+        week = t2.Result;
+        templates = t3.Result?.Where(e => e.IsChore).ToList();
+    }
+
+    private async Task ToggleChore(ExpandedOccurrence occ, bool value)
+    {
+        try
+        {
+            if (value)
+                await CalSvc.CompleteOccurrenceAsync(occ.EventId, occ.OccurrenceDate);
+            else
+                await CalSvc.UncompleteOccurrenceAsync(occ.EventId, occ.OccurrenceDate);
+            occ.Completed = value;
+        }
+        catch (Exception ex) { Snackbar.Add($"Update failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task EditTemplate(CalendarEvent? existing = null)
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters { ["Existing"] = existing };
+        var dlg = await Dialog.ShowAsync<EditChoreDialog>(existing == null ? "New chore" : "Edit chore", parameters, options);
+        var result = await dlg.Result;
+        if (result != null && !result.Canceled) await LoadAll();
+    }
+
+    private async Task DeleteTemplate(int id)
+    {
+        var confirm = await Dialog.ShowMessageBox("Delete chore?",
+            "All future occurrences will stop. Past completions are kept for the record.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirm != true) return;
+        await CalSvc.DeleteEventAsync(id);
+        await LoadAll();
+    }
+
+    private async Task SeedDefaults()
+    {
+        var seeds = new (string Title, RecurrenceInterval Rec, TaskPeriod Period)[]
+        {
+            ("Morning milking",    RecurrenceInterval.Weekly,    TaskPeriod.Morning),
+            ("Evening milking",    RecurrenceInterval.Weekly,    TaskPeriod.Evening),
+            ("Weekly hoof check",  RecurrenceInterval.Weekly,    TaskPeriod.AnyTime),
+            ("Refill mineral",     RecurrenceInterval.Monthly,   TaskPeriod.AnyTime),
+            ("Hoof trim",          RecurrenceInterval.Quarterly, TaskPeriod.AnyTime),
+            ("Pasture rotation",   RecurrenceInterval.BiWeekly,  TaskPeriod.AnyTime)
+        };
+
+        var existing = templates?.Select(t => t.Title).ToHashSet() ?? new HashSet<string>();
+        var added = 0;
+        foreach (var seed in seeds)
+        {
+            if (existing.Contains(seed.Title)) continue;
+            await CalSvc.CreateEventAsync(new CalendarEvent
+            {
+                Title = seed.Title,
+                Start = DateTime.Today,
+                AllDay = true,
+                IsChore = true,
+                Period = seed.Period,
+                Recurrence = seed.Rec
+            });
+            added++;
+        }
+        Snackbar.Add(added > 0 ? $"Added {added} chore template{(added == 1 ? "" : "s")}" : "All defaults already exist", Severity.Success);
+        await LoadAll();
+    }
+
+    private static string PeriodIcon(string period) => period switch
+    {
+        "Morning"   => Icons.Material.Filled.WbSunny,
+        "Afternoon" => Icons.Material.Filled.Brightness5,
+        "Evening"   => Icons.Material.Filled.Brightness3,
+        _           => Icons.Material.Filled.AccessTime
+    };
+
+    private static string PeriodColor(string period) => period switch
+    {
+        "Morning"   => "#fbc02d",
+        "Afternoon" => "#fb8c00",
+        "Evening"   => "#5e35b1",
+        _           => "#546e7a"
+    };
+}

@@ -1,0 +1,172 @@
+@inject GoatService GoatSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudTabs Elevation="0" Rounded ApplyEffectsToContainer @bind-ActivePanelIndex="activeTab">
+            <MudTabPanel Text="Pick from herd" Icon="@GoatLabIcons.Hoof">
+                <div class="pa-2">
+                    <MudTextField @bind-Value="search" Placeholder="Search by name or ear tag" Immediate
+                                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Variant="Variant.Outlined" DebounceInterval="200" />
+                    @if (allGoats == null)
+                    {
+                        <div class="mt-3"><MudProgressCircular Indeterminate Size="Size.Small" /></div>
+                    }
+                    else
+                    {
+                        <div class="mt-3" style="max-height:320px;overflow:auto;display:flex;flex-direction:column;gap:6px;">
+                            @foreach (var g in Filtered())
+                            {
+                                <MudPaper Outlined Class="pa-2" Style="@($"cursor:pointer;border-left:4px solid {GenderColor(g.Gender)};")"
+                                          @onclick="@(() => Select(g.Id))">
+                                    <div style="display:flex;align-items:center;gap:10px;">
+                                        <MudIcon Icon="@GenderIcon(g.Gender)" Style="@($"color:{GenderColor(g.Gender)};")" />
+                                        <div style="flex:1;">
+                                            <div style="font-weight:700;">@g.Name @(g.IsExternal ? "(external)" : "")</div>
+                                            <div style="font-size:0.8rem;color:#777;">
+                                                @(g.DateOfBirth?.ToString("MMM yyyy") ?? "")
+                                                @if (!string.IsNullOrEmpty(g.EarTag)) { <span> · #@g.EarTag</span> }
+                                                @if (!string.IsNullOrEmpty(g.Breed)) { <span> · @g.Breed</span> }
+                                            </div>
+                                        </div>
+                                    </div>
+                                </MudPaper>
+                            }
+                            @if (!Filtered().Any())
+                            {
+                                <div class="inline-empty">
+                                    <MudIcon Icon="@Icons.Material.Filled.SearchOff" />
+                                    <MudText Typo="Typo.body2">No @(ExpectedGender == Gender.Male ? "bucks" : "does") match.</MudText>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            </MudTabPanel>
+
+            <MudTabPanel Text="Add external" Icon="@Icons.Material.Filled.CloudOff">
+                <div class="pa-2">
+                    <MudAlert Severity="Severity.Info" Dense Class="mb-3" Icon="@Icons.Material.Filled.Info">
+                        External ancestors stay out of your herd list — they only show up in pedigrees. Use this for the sire or dam
+                        of a goat you purchased from another breeder.
+                    </MudAlert>
+                    <MudTextField @bind-Value="extName" Label="Name" Required Variant="Variant.Outlined" />
+                    <MudGrid Class="mt-2">
+                        <MudItem xs="6">
+                            <MudTextField @bind-Value="extRegistration" Label="Registration #" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudTextField @bind-Value="extEarTag" Label="Ear tag" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudTextField @bind-Value="extBreed" Label="Breed" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="6">
+                            <MudDatePicker @bind-Date="extDob" Label="DOB" Variant="Variant.Outlined" Editable />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="extBreeder" Label="Breeder / farm of origin" Variant="Variant.Outlined" />
+                        </MudItem>
+                    </MudGrid>
+                </div>
+            </MudTabPanel>
+        </MudTabs>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        @if (activeTab == 1)
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="CreateExternal"
+                       Disabled="@(string.IsNullOrWhiteSpace(extName) || creating)">
+                @(creating ? "Saving…" : "Create & link")
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public string Label { get; set; } = "Ancestor";
+    [Parameter] public Gender ExpectedGender { get; set; }
+
+    private int activeTab;
+    private string search = string.Empty;
+    private List<Goat>? allGoats;
+
+    // External form fields
+    private string extName = string.Empty;
+    private string? extRegistration;
+    private string? extEarTag;
+    private string? extBreed;
+    private string? extBreeder;
+    private DateTime? extDob;
+    private bool creating;
+
+    protected override async Task OnInitializedAsync()
+    {
+        allGoats = await GoatSvc.GetAllAsync(includeExternal: true);
+    }
+
+    private IEnumerable<Goat> Filtered()
+    {
+        if (allGoats == null) return Enumerable.Empty<Goat>();
+        var q = allGoats.Where(g => g.Gender == ExpectedGender);
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var s = search.Trim();
+            q = q.Where(g => g.Name.Contains(s, StringComparison.OrdinalIgnoreCase) ||
+                             (g.EarTag != null && g.EarTag.Contains(s, StringComparison.OrdinalIgnoreCase)) ||
+                             (g.RegistrationNumber != null && g.RegistrationNumber.Contains(s, StringComparison.OrdinalIgnoreCase)));
+        }
+        return q.OrderBy(g => g.Name);
+    }
+
+    private void Select(int id) => MudDialog.Close(DialogResult.Ok(id));
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task CreateExternal()
+    {
+        creating = true;
+        try
+        {
+            var g = new Goat
+            {
+                Name = extName.Trim(),
+                EarTag = string.IsNullOrWhiteSpace(extEarTag) ? null : extEarTag.Trim(),
+                Breed = string.IsNullOrWhiteSpace(extBreed) ? null : extBreed.Trim(),
+                RegistrationNumber = string.IsNullOrWhiteSpace(extRegistration) ? null : extRegistration.Trim(),
+                BreederName = string.IsNullOrWhiteSpace(extBreeder) ? null : extBreeder.Trim(),
+                Gender = ExpectedGender,
+                DateOfBirth = extDob,
+                IsExternal = true,
+                Status = GoatStatus.Healthy
+            };
+            var created = await GoatSvc.CreateAsync(g);
+            if (created != null)
+            {
+                Snackbar.Add($"External ancestor {created.Name} added", Severity.Success);
+                MudDialog.Close(DialogResult.Ok(created.Id));
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed: {ex.Message}", Severity.Error);
+        }
+        finally { creating = false; }
+    }
+
+    private static string GenderColor(Gender g) => g switch
+    {
+        Gender.Male => "#1976d2",
+        Gender.Female => "#e91e63",
+        _ => "#795548"
+    };
+
+    private static string GenderIcon(Gender g) => g switch
+    {
+        Gender.Male => Icons.Material.Filled.Male,
+        Gender.Female => Icons.Material.Filled.Female,
+        _ => GoatLabIcons.Hoof
+    };
+}

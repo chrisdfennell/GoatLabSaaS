@@ -1,0 +1,249 @@
+@page "/calendar"
+@inject CalendarService CalSvc
+@inject ISnackbar Snackbar
+
+<PageTitle>Calendar — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-indigo">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Calendar &amp; Tasks</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Day in the Life</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Farm events, daily routines, and what's next.</MudText>
+        <div class="page-hero-stats">
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@UpcomingCount</MudText>
+                <MudText Class="page-hero-stat-label">Upcoming</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(checklists?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Routines</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@TodayCompleted / @TodayTotal</MudText>
+                <MudText Class="page-hero-stat-label">Today's Tasks</MudText>
+            </div>
+        </div>
+    </div>
+</div>
+
+<MudTabs Elevation="0" Rounded ApplyEffectsToContainer PanelClass="pt-4">
+    <MudTabPanel Text="Events" Icon="@Icons.Material.Filled.CalendarMonth">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Event" />
+                    <div>
+                        <MudText Typo="Typo.h6">Farm Events</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Fair dates, deliveries, anything on the calendar.</MudText>
+                    </div>
+                </div>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="() => showEventForm = !showEventForm">
+                    @(showEventForm ? "Close" : "Add Event")
+                </MudButton>
+            </div>
+
+            @if (showEventForm)
+            {
+                <MudPaper Class="pa-4 mb-4" Outlined Style="border-radius:12px;">
+                    <MudGrid>
+                        <MudItem xs="12" sm="6"><MudTextField @bind-Value="newEvent.Title" Label="Title" Variant="Variant.Outlined" Required /></MudItem>
+                        <MudItem xs="12" sm="4"><MudDatePicker @bind-Date="eventStart" Label="Date" Variant="Variant.Outlined" Editable /></MudItem>
+                        <MudItem xs="12" sm="2" Class="d-flex align-center"><MudCheckBox @bind-Value="newEvent.AllDay" Label="All day" Color="Color.Primary" /></MudItem>
+                        <MudItem xs="12"><MudTextField @bind-Value="newEvent.Description" Label="Description" Variant="Variant.Outlined" Lines="2" /></MudItem>
+                    </MudGrid>
+                    <div class="d-flex gap-2 mt-3 justify-end">
+                        <MudButton Variant="Variant.Text" OnClick="() => showEventForm = false">Cancel</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveEvent">Save</MudButton>
+                    </div>
+                </MudPaper>
+            }
+
+            @if (events == null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (events.Count == 0)
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.Event" />
+                    <MudText Typo="Typo.body1">No events on the calendar</MudText>
+                    <MudText Typo="Typo.body2">Add the first event to keep track of what's coming up.</MudText>
+                </div>
+            }
+            else
+            {
+                <div class="record-list">
+                    @foreach (var e in events)
+                    {
+                        var isPast = e.Start < DateTime.Now.Date;
+                        var daysUntil = (e.Start.Date - DateTime.Now.Date).Days;
+                        <div class="record-card">
+                            <div class="record-card-icon @(isPast ? "record-card-icon-neutral" : "record-card-icon-blue")">
+                                <div style="text-align:center;line-height:1;">
+                                    <div style="font-size:0.6rem;opacity:0.85;">@e.Start.ToString("MMM").ToUpper()</div>
+                                    <div style="font-size:1.1rem;font-weight:800;">@e.Start.Day</div>
+                                </div>
+                            </div>
+                            <div class="record-card-body">
+                                <div class="record-card-primary">@e.Title</div>
+                                <div class="record-card-secondary">
+                                    @e.Start.ToString(e.AllDay ? "dddd" : "dddd, h:mm tt")
+                                    @if (!isPast && daysUntil >= 0 && daysUntil <= 30)
+                                    {
+                                        <span> · </span>
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                                            @(daysUntil == 0 ? "today" : daysUntil == 1 ? "tomorrow" : $"in {daysUntil} days")
+                                        </MudChip>
+                                    }
+                                    @if (!string.IsNullOrEmpty(e.Description))
+                                    {
+                                        <div style="margin-top:4px;">@(e.Description.Length > 100 ? e.Description[..100] + "…" : e.Description)</div>
+                                    }
+                                </div>
+                            </div>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="() => DeleteEvent(e.Id)" />
+                        </div>
+                    }
+                </div>
+            }
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Daily Checklists" Icon="@Icons.Material.Filled.Checklist">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Checklist" />
+                    <div>
+                        <MudText Typo="Typo.h6">Daily Routines</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">
+                            @checklistDate.ToString("dddd, MMMM d")
+                            @if (checklistDate.Date == DateTime.Today) { <span> · today</span> }
+                        </MudText>
+                    </div>
+                </div>
+                <MudDatePicker Date="checklistDatePicker" Label="Date" Variant="Variant.Outlined"
+                               Editable DateChanged="OnChecklistDateChanged"
+                               Style="max-width:180px;" />
+            </div>
+
+            @if (checklists == null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (checklists.Count == 0)
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.Checklist" />
+                    <MudText Typo="Typo.body1">No routines set up</MudText>
+                    <MudText Typo="Typo.body2">Create morning, afternoon, and evening checklists to stay on track.</MudText>
+                </div>
+            }
+            else
+            {
+                <MudGrid>
+                    @foreach (var cl in checklists.OrderBy(c => c.Period))
+                    {
+                        var totalItems = cl.Items.Count;
+                        var completedItems = cl.Items.Count(item => completions?.Any(c => c.ChecklistItemId == item.Id && c.IsCompleted) ?? false);
+                        var allDone = totalItems > 0 && completedItems == totalItems;
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudPaper Class="pa-4" Outlined Style="@($"border-radius:12px;height:100%;border-left:4px solid {GetPeriodColor(cl.Period)};")">
+                                <div class="d-flex align-center mb-3" style="gap:10px;">
+                                    <MudIcon Icon="@GetPeriodIcon(cl.Period)" Style="@($"color:{GetPeriodColor(cl.Period)};")" />
+                                    <div style="flex:1;">
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight:600;">@cl.Title</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@cl.Period</MudText>
+                                    </div>
+                                    @if (allDone)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
+                                    }
+                                </div>
+                                @if (totalItems > 0)
+                                {
+                                    <MudProgressLinear Value="@((double)completedItems / totalItems * 100)"
+                                                       Color="@(allDone ? Color.Success : Color.Primary)"
+                                                       Rounded Class="mb-3" Style="height:6px;" />
+                                }
+                                @foreach (var item in cl.Items.OrderBy(i => i.SortOrder))
+                                {
+                                    var completed = completions?.Any(c => c.ChecklistItemId == item.Id && c.IsCompleted) ?? false;
+                                    <MudCheckBox T="bool" Value="completed" ValueChanged="(v) => ToggleItem(item.Id)"
+                                                 Label="@item.Description" Color="Color.Primary" Dense
+                                                 Style="@(completed ? "text-decoration:line-through;opacity:0.6;" : "")" />
+                                }
+                            </MudPaper>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private List<CalendarEvent>? events;
+    private List<Checklist>? checklists;
+    private List<ChecklistCompletion>? completions;
+    private bool showEventForm;
+    private CalendarEvent newEvent = new();
+    private DateTime? eventStart = DateTime.Today;
+    private DateTime checklistDate = DateTime.Today;
+    private DateTime? checklistDatePicker = DateTime.Today;
+
+    private int UpcomingCount => events?.Count(e => e.Start >= DateTime.Now && e.Start <= DateTime.Now.AddDays(30)) ?? 0;
+    private int TodayTotal => checklists?.SelectMany(c => c.Items).Count() ?? 0;
+    private int TodayCompleted => completions?.Count(c => c.IsCompleted) ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadEvents(), LoadChecklists(), LoadCompletions());
+    }
+
+    private async Task LoadEvents() => events = await CalSvc.GetEventsAsync();
+    private async Task LoadChecklists() => checklists = await CalSvc.GetChecklistsAsync();
+    private async Task LoadCompletions() => completions = await CalSvc.GetCompletionsAsync(checklistDate);
+
+    private async Task SaveEvent()
+    {
+        newEvent.Start = eventStart ?? DateTime.UtcNow;
+        await CalSvc.CreateEventAsync(newEvent);
+        Snackbar.Add("Event added", Severity.Success);
+        newEvent = new(); showEventForm = false;
+        await LoadEvents();
+    }
+
+    private async Task DeleteEvent(int id) { await CalSvc.DeleteEventAsync(id); await LoadEvents(); }
+
+    private async Task ToggleItem(int itemId)
+    {
+        await CalSvc.ToggleCompletionAsync(itemId, checklistDate);
+        await LoadCompletions();
+    }
+
+    private async Task OnChecklistDateChanged(DateTime? date)
+    {
+        if (date.HasValue) { checklistDate = date.Value; checklistDatePicker = date; await LoadCompletions(); }
+    }
+
+    private string GetPeriodIcon(TaskPeriod p) => p switch
+    {
+        TaskPeriod.Morning   => Icons.Material.Filled.WbSunny,
+        TaskPeriod.Afternoon => Icons.Material.Filled.LightMode,
+        TaskPeriod.Evening   => Icons.Material.Filled.Nightlight,
+        _                    => Icons.Material.Filled.Schedule
+    };
+
+    private string GetPeriodColor(TaskPeriod p) => p switch
+    {
+        TaskPeriod.Morning   => "#fb8c00",
+        TaskPeriod.Afternoon => "#43a047",
+        TaskPeriod.Evening   => "#5e35b1",
+        _                    => "#546e7a"
+    };
+}

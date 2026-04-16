@@ -1,0 +1,104 @@
+@inject AdminService Admin
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(Existing is null ? "New announcement" : "Edit announcement")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_title" Label="Title" Variant="Variant.Outlined" MaxLength="120" Required Class="mb-2" />
+        <MudTextField @bind-Value="_body" Label="Message" Variant="Variant.Outlined" Lines="4" MaxLength="2000" Required Class="mb-2" />
+
+        <MudGrid>
+            <MudItem xs="6">
+                <MudSelect T="string" @bind-Value="_severity" Label="Severity" Variant="Variant.Outlined">
+                    <MudSelectItem Value="@("Info")">Info</MudSelectItem>
+                    <MudSelectItem Value="@("Warning")">Warning</MudSelectItem>
+                    <MudSelectItem Value="@("Critical")">Critical</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="_targetTag" Label="Target tag (blank = all tenants)"
+                              Variant="Variant.Outlined" MaxLength="50"
+                              HelperText="Only tenants with this tag see it." />
+            </MudItem>
+            <MudItem xs="6">
+                <MudDatePicker @bind-Date="_startsAt" Label="Starts" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudDatePicker @bind-Date="_endsAt" Label="Ends (optional)" Variant="Variant.Outlined" Clearable />
+            </MudItem>
+            <MudItem xs="12">
+                <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Primary" Label="Active" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync"
+                   Disabled="@(!IsValid || _saving)">
+            @(_saving ? "Saving…" : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>When set, the dialog loads these values for editing; otherwise creates.</summary>
+    [Parameter] public AdminAnnouncementRow? Existing { get; set; }
+
+    private string _title = string.Empty;
+    private string _body = string.Empty;
+    private string _severity = "Info";
+    private string _targetTag = string.Empty;
+    private DateTime? _startsAt = DateTime.UtcNow.Date;
+    private DateTime? _endsAt;
+    private bool _isActive = true;
+    private bool _saving;
+
+    private bool IsValid =>
+        !string.IsNullOrWhiteSpace(_title) && !string.IsNullOrWhiteSpace(_body) &&
+        _startsAt.HasValue;
+
+    protected override void OnInitialized()
+    {
+        if (Existing is not null)
+        {
+            _title = Existing.Title;
+            _body = Existing.Body;
+            _severity = Existing.Severity;
+            _targetTag = Existing.TargetTag ?? string.Empty;
+            _startsAt = Existing.StartsAt.ToLocalTime();
+            _endsAt = Existing.EndsAt?.ToLocalTime();
+            _isActive = Existing.IsActive;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!IsValid) return;
+        _saving = true;
+        try
+        {
+            var req = new AdminAnnouncementUpsert(
+                _title.Trim(), _body.Trim(), _severity,
+                string.IsNullOrWhiteSpace(_targetTag) ? null : _targetTag.Trim(),
+                DateTime.SpecifyKind(_startsAt!.Value.Date, DateTimeKind.Utc),
+                _endsAt is null ? null : DateTime.SpecifyKind(_endsAt.Value.Date, DateTimeKind.Utc),
+                _isActive);
+
+            if (Existing is null)
+                await Admin.CreateAnnouncementAsync(req);
+            else
+                await Admin.UpdateAnnouncementAsync(Existing.Id, req);
+
+            Snackbar.Add("Announcement saved.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add($"Save failed: {ex.Message}", Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

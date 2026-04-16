@@ -1,0 +1,139 @@
+@inject PurchaseService PurchaseSvc
+@inject GoatService GoatSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudDatePicker @bind-Date="purchaseDate" Label="Purchase date" Variant="Variant.Outlined" Editable />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="decimal" @bind-Value="purchase.Amount" Label="Amount paid"
+                                 Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentText="$" Min="0m" Step="0.01m" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="purchase.SellerName" Label="Seller / breeder" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="purchase.Description" Label="Description (optional)" Variant="Variant.Outlined"
+                              Placeholder="e.g. Hay delivery, ND doe Sapphire" />
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudDivider Class="my-1" />
+                <MudText Class="field-label">Bringing a goat into the herd?</MudText>
+                <div class="pill-group">
+                    <button type="button" class="@($"pill {(mode == "none" ? "pill-active" : "")} pill-neutral")"
+                            @onclick='@(() => SetMode("none"))'>No (input/feed/etc)</button>
+                    <button type="button" class="@($"pill {(mode == "new" ? "pill-active" : "")} pill-success")"
+                            @onclick='@(() => SetMode("new"))'>Yes — new goat</button>
+                    <button type="button" class="@($"pill {(mode == "existing" ? "pill-active" : "")} pill-info")"
+                            @onclick='@(() => SetMode("existing"))'>Yes — existing goat</button>
+                </div>
+            </MudItem>
+
+            @if (mode == "existing")
+            {
+                <MudItem xs="12">
+                    <MudSelect T="int?" @bind-Value="purchase.GoatId" Label="Pick the goat" Variant="Variant.Outlined" Clearable>
+                        @if (existingGoats != null)
+                        {
+                            @foreach (var g in existingGoats)
+                            {
+                                <MudSelectItem Value="@((int?)g.Id)">@g.Name @(g.EarTag != null ? $"· #{g.EarTag}" : "")</MudSelectItem>
+                            }
+                        }
+                    </MudSelect>
+                </MudItem>
+            }
+            else if (mode == "new")
+            {
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="newGoat.Name" Label="Goat name" Variant="Variant.Outlined" Required />
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudSelect T="Gender" @bind-Value="newGoat.Gender" Label="Gender" Variant="Variant.Outlined">
+                        <MudSelectItem Value="@Gender.Female">Doe</MudSelectItem>
+                        <MudSelectItem Value="@Gender.Male">Buck</MudSelectItem>
+                        <MudSelectItem Value="@Gender.Wether">Wether</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudTextField @bind-Value="newGoat.EarTag" Label="Ear tag" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="newGoat.Breed" Label="Breed" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudDatePicker @bind-Date="newGoatDob" Label="DOB" Variant="Variant.Outlined" Editable />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="newGoat.RegistrationNumber" Label="Registration #" Variant="Variant.Outlined" />
+                </MudItem>
+            }
+
+            <MudItem xs="12">
+                <MudTextField @bind-Value="purchase.Notes" Label="Notes" Variant="Variant.Outlined" Lines="2" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save"
+                   Disabled="@(saving || !CanSave)">
+            @(saving ? "Saving…" : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+
+    private Purchase purchase = new() { PurchaseDate = DateTime.Today };
+    private DateTime? purchaseDate = DateTime.Today;
+    private Goat newGoat = new() { Status = GoatStatus.Healthy };
+    private DateTime? newGoatDob;
+    private string mode = "none";
+    private List<Goat>? existingGoats;
+    private bool saving;
+
+    private bool CanSave => purchase.Amount > 0
+        && (mode != "new" || !string.IsNullOrWhiteSpace(newGoat.Name))
+        && (mode != "existing" || purchase.GoatId.HasValue);
+
+    protected override async Task OnInitializedAsync()
+    {
+        existingGoats = await GoatSvc.GetAllAsync();
+    }
+
+    private void SetMode(string m) => mode = m;
+
+    private async Task Save()
+    {
+        saving = true;
+        try
+        {
+            Goat? toCreate = null;
+            if (mode == "new")
+            {
+                newGoat.DateOfBirth = newGoatDob;
+                toCreate = newGoat;
+            }
+            else if (mode == "none")
+            {
+                purchase.GoatId = null;
+            }
+            purchase.PurchaseDate = purchaseDate ?? DateTime.Today;
+            var result = await PurchaseSvc.CreateAsync(purchase, toCreate);
+            Snackbar.Add(result?.Goat != null
+                ? $"Purchase recorded — {result.Goat.Name} added to the herd"
+                : "Purchase recorded", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add($"Save failed: {ex.Message}", Severity.Error); }
+        finally { saving = false; }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

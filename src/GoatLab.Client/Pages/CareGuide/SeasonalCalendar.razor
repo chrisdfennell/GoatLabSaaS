@@ -1,0 +1,282 @@
+@page "/care-guide/seasonal"
+@inject CalendarService CalSvc
+@inject ISnackbar Snackbar
+
+<PageTitle>Seasonal Care — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-orange">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.WbSunny" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Seasonal Care</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">What to Do This @months[selectedMonth - 1]</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Month-by-month priorities for Northern Hemisphere goats. Add any task to your calendar with one click.</MudText>
+    </div>
+    <div style="position:relative;z-index:1;">
+        <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#e65100;"
+                   StartIcon="@Icons.Material.Filled.ArrowBack" Href="/care-guide">Back</MudButton>
+    </div>
+</div>
+
+<MudPaper Class="polished-section" Elevation="0">
+    <div class="polished-section-header">
+        <div class="polished-section-header-title">
+            <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" />
+            <div><MudText Typo="Typo.h6">Pick a month</MudText></div>
+        </div>
+        @{
+            var season = GetSeason(selectedMonth);
+        }
+        <MudChip T="string" Size="Size.Medium" Color="@GetSeasonColor(season)" Variant="Variant.Filled" Icon="@GetSeasonIcon(season)">
+            @season
+        </MudChip>
+    </div>
+    <div class="pill-group">
+        @for (int m = 1; m <= 12; m++)
+        {
+            var month = m;
+            <button type="button"
+                    class="@($"pill {(selectedMonth == month ? "pill-warning pill-active" : "")}")"
+                    @onclick="() => SelectMonth(month)">
+                @months[month - 1]
+            </button>
+        }
+    </div>
+</MudPaper>
+
+<MudGrid>
+    @foreach (var task in GetTasks(selectedMonth))
+    {
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4 season-task" Outlined Elevation="0"
+                      Style="@($"border-left:4px solid {task.Color};")">
+                <div class="d-flex align-start" style="gap:12px;">
+                    <div class="record-card-icon" style="@($"background:{task.Color};width:40px;height:40px;")">
+                        <MudIcon Icon="@task.Icon" Size="Size.Small" />
+                    </div>
+                    <div style="flex:1;min-width:0;">
+                        <MudText Typo="Typo.subtitle1" Style="font-weight:700;">@task.Title</MudText>
+                        <MudChip T="string" Size="Size.Small" Color="@task.PriorityColor" Variant="Variant.Filled" Class="mt-1">
+                            @task.Priority
+                        </MudChip>
+                        <MudText Typo="Typo.body2" Class="mt-2">@task.Description</MudText>
+                    </div>
+                    <MudIconButton Icon="@Icons.Material.Filled.EventNote" Color="Color.Primary"
+                                   OnClick="() => AddToCalendar(task)" title="Add to Calendar" />
+                </div>
+            </MudPaper>
+        </MudItem>
+    }
+</MudGrid>
+
+<MudAlert Severity="Severity.Info" Class="mt-4" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Info">
+    These are general recommendations based on typical Northern Hemisphere breeding / management. Adjust for your climate and breed.
+</MudAlert>
+
+<style>
+.season-task {
+    border-radius: 12px !important;
+    height: 100%;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.season-task:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+}
+</style>
+
+@code {
+    private int selectedMonth = DateTime.Now.Month;
+    private readonly string[] months = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" };
+
+    private void SelectMonth(int m) => selectedMonth = m;
+
+    private string GetSeason(int m) => m switch
+    {
+        12 or 1 or 2 => "Winter",
+        3 or 4 or 5 => "Spring",
+        6 or 7 or 8 => "Summer",
+        _ => "Fall"
+    };
+
+    private Color GetSeasonColor(string season) => season switch
+    {
+        "Winter" => Color.Info,
+        "Spring" => Color.Success,
+        "Summer" => Color.Warning,
+        "Fall" => Color.Secondary,
+        _ => Color.Default
+    };
+
+    private string GetSeasonIcon(string season) => season switch
+    {
+        "Winter" => Icons.Material.Filled.AcUnit,
+        "Spring" => Icons.Material.Filled.LocalFlorist,
+        "Summer" => Icons.Material.Filled.WbSunny,
+        "Fall" => Icons.Material.Filled.Park,
+        _ => Icons.Material.Filled.CalendarMonth
+    };
+
+    private async Task AddToCalendar(SeasonTask task)
+    {
+        try
+        {
+            var year = DateTime.Now.Year;
+            if (selectedMonth < DateTime.Now.Month) year++;
+            var firstOfMonth = new DateTime(year, selectedMonth, 1);
+
+            await CalSvc.CreateEventAsync(new CalendarEvent
+            {
+                Title = task.Title,
+                Description = task.Description,
+                Start = firstOfMonth,
+                AllDay = true
+            });
+            Snackbar.Add($"Added \"{task.Title}\" to {months[selectedMonth - 1]} calendar", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private record SeasonTask(string Title, string Priority, Color PriorityColor, string Icon, string Color, string Description);
+
+    private List<SeasonTask> GetTasks(int month) => month switch
+    {
+        1 => new() // January — deep winter
+        {
+            new SeasonTask("Monitor water sources", "Critical", Color.Error, Icons.Material.Filled.WaterDrop, "#1565c0",
+                "Freezing temps mean dehydration risk. Check troughs 2x daily, use heated buckets or tank heaters."),
+            new SeasonTask("Increase hay rations", "High", Color.Warning, Icons.Material.Filled.Grain, "#8d6e63",
+                "Goats burn more calories staying warm. Increase forage by 20–30%. Ensure free-choice access."),
+            new SeasonTask("Pre-kidding vaccinations", "High", Color.Warning, Icons.Material.Filled.Vaccines, "#ad1457",
+                "For does kidding in Feb/March: CDT booster 30 days before due date."),
+            new SeasonTask("Check shelter windbreaks", "Medium", Color.Info, Icons.Material.Filled.Roofing, "#4527a0",
+                "Inspect barns for drafts. Kids and older goats are vulnerable to wind chill.")
+        },
+        2 => new() // February — pre-kidding
+        {
+            new SeasonTask("Prep kidding kit", "Critical", Color.Error, Icons.Material.Filled.MedicalServices, "#c62828",
+                "Iodine (7%), lube, towels, bulb syringe, selenium/E injection, colostrum backup, heat lamp. Assemble now."),
+            new SeasonTask("Clean kidding pens", "High", Color.Warning, Icons.Material.Filled.CleaningServices, "#2e7d32",
+                "Deep-clean, disinfect, re-bed with fresh straw. Plan one pen per expected doe."),
+            new SeasonTask("Start bumping for kids", "High", Color.Warning, Icons.Material.Filled.ChildCare, "#e91e63",
+                "Gentle flank bumping to feel kids. Confirm pregnancy if unsure."),
+            new SeasonTask("Schedule kidding watch", "Medium", Color.Info, Icons.Material.Filled.RemoveRedEye, "#00695c",
+                "Set up rotation if multiple does are close. First-timers especially need watching.")
+        },
+        3 => new() // March — kidding & weaning prep
+        {
+            new SeasonTask("Kidding season active", "Critical", Color.Error, Icons.Material.Filled.ChildCare, "#e91e63",
+                "Peak kidding month for many farms. Monitor does daily for signs, keep kidding kit ready."),
+            new SeasonTask("Disbud new kids", "High", Color.Warning, Icons.Material.Filled.ContentCut, "#f57c00",
+                "Days 4–10 after birth for horn buds. Use heat iron. Can be done at home or by vet."),
+            new SeasonTask("Kid tattoo / tagging", "Medium", Color.Info, Icons.Material.Filled.Tag, "#1565c0",
+                "Apply ear tags or registry tattoos. Record birth details in GoatLab."),
+            new SeasonTask("Mineral blocks check", "Medium", Color.Info, Icons.Material.Filled.Diamond, "#4527a0",
+                "Spring grass depletes minerals fast. Fresh loose minerals out now.")
+        },
+        4 => new() // April — spring pasture
+        {
+            new SeasonTask("Pasture rotation start", "High", Color.Warning, Icons.Material.Filled.Grass, "#2e7d32",
+                "Rotate to spring pasture gradually (4–5 days transition). Start the 21-day worm-break rotation."),
+            new SeasonTask("Hoof trim (spring)", "High", Color.Warning, Icons.Material.Filled.ContentCut, "#8d6e63",
+                "Muddy conditions cause overgrown/soft hooves. Trim whole herd. Check for scald / rot."),
+            new SeasonTask("CDT booster for herd", "High", Color.Warning, Icons.Material.Filled.Vaccines, "#ad1457",
+                "Adults: annual CDT. Kids: first shot at 6 weeks, booster 3–4 weeks later."),
+            new SeasonTask("Coccidia prevention", "Medium", Color.Info, Icons.Material.Filled.Medication, "#00695c",
+                "Treat kids 3 weeks old through weaning with prevention dose. Wet spring increases risk.")
+        },
+        5 => new() // May — full spring
+        {
+            new SeasonTask("Fly control begins", "High", Color.Warning, Icons.Material.Filled.BugReport, "#f57c00",
+                "Start fly predators, sticky traps, permethrin sprays if needed. Keep shelter dry."),
+            new SeasonTask("First FAMACHA of season", "High", Color.Warning, Icons.Material.Filled.RemoveRedEye, "#e91e63",
+                "Haemonchus is waking up. Score whole herd. Target selective deworming."),
+            new SeasonTask("Weaning (2–3 months)", "Medium", Color.Info, Icons.Material.Filled.ChildCare, "#4527a0",
+                "Kids from March are ready. Transition feed 10–14 days. Separate bucklings to prevent accidental breeding."),
+            new SeasonTask("Fence walk", "Medium", Color.Info, Icons.Material.Filled.Fence, "#8d6e63",
+                "Spring thaws + fallen branches = fence breaches. Walk every line before letting herd roam.")
+        },
+        6 => new() // June — heat + parasites
+        {
+            new SeasonTask("Heat stress prep", "Critical", Color.Error, Icons.Material.Filled.WbSunny, "#e65100",
+                "Shade in every pasture. Water troughs topped up. Watch for panting. Trim long coats."),
+            new SeasonTask("Monthly FAMACHA check", "High", Color.Warning, Icons.Material.Filled.RemoveRedEye, "#e91e63",
+                "Peak parasite season. Scoring discipline pays off. Deworm 3/4/5 scores only."),
+            new SeasonTask("Pasture rotation 21-day", "High", Color.Warning, Icons.Material.Filled.Loop, "#2e7d32",
+                "Break the parasite cycle. Don't let grass drop below 3 inches."),
+            new SeasonTask("Breeding plan for fall", "Medium", Color.Info, Icons.Material.Filled.Favorite, "#ad1457",
+                "Pick pairings for Oct/Nov breeding. Check buck condition, get semen tests if needed.")
+        },
+        7 => new() // July
+        {
+            new SeasonTask("Mid-summer hoof trim", "High", Color.Warning, Icons.Material.Filled.ContentCut, "#8d6e63",
+                "Hard ground wears hooves differently. Check for cracks and overgrowth."),
+            new SeasonTask("Mineral refresh", "High", Color.Warning, Icons.Material.Filled.Diamond, "#4527a0",
+                "Summer sweat depletes electrolytes. Ensure minerals + salt + electrolyte water available."),
+            new SeasonTask("FAMACHA check", "High", Color.Warning, Icons.Material.Filled.RemoveRedEye, "#e91e63",
+                "Parasites at peak. Score whole herd. Use combination dewormers for resistance."),
+            new SeasonTask("Hay for winter", "Medium", Color.Info, Icons.Material.Filled.Grain, "#2e7d32",
+                "First cutting available. Lock in winter supply now while prices are best.")
+        },
+        8 => new() // August
+        {
+            new SeasonTask("Check hay supply", "High", Color.Warning, Icons.Material.Filled.Inventory, "#8d6e63",
+                "Calculate: 3–5 lbs/goat/day × winter days. Order now, store dry and rodent-proof."),
+            new SeasonTask("Buck evaluation", "High", Color.Warning, Icons.Material.Filled.Male, "#1565c0",
+                "Pre-rut check-up: trim hooves, test fertility, boost condition. Trim beard if needed."),
+            new SeasonTask("FAMACHA check", "High", Color.Warning, Icons.Material.Filled.RemoveRedEye, "#e91e63",
+                "Late-summer parasite surge. Score and cull the lazy performers."),
+            new SeasonTask("Breeding group sort", "Medium", Color.Info, Icons.Material.Filled.Favorite, "#ad1457",
+                "Start creating breeding groups. Flush does 2 weeks before intro with grain.")
+        },
+        9 => new() // September
+        {
+            new SeasonTask("Pre-breeding vaccination", "High", Color.Warning, Icons.Material.Filled.Vaccines, "#ad1457",
+                "Does: CDT booster, BoSe if Se-deficient, biosecurity vaccines per region."),
+            new SeasonTask("Flushing the does", "High", Color.Warning, Icons.Material.Filled.FitnessCenter, "#2e7d32",
+                "2 weeks of increased nutrition (grain or better pasture) before buck intro boosts ovulation."),
+            new SeasonTask("Buck intro", "Medium", Color.Info, Icons.Material.Filled.Favorite, "#e91e63",
+                "Heat cycles sync with shortening days. Turn in bucks after flushing. Mark paint on brisket."),
+            new SeasonTask("Worm count post-pasture", "Medium", Color.Info, Icons.Material.Filled.RemoveRedEye, "#1565c0",
+                "Fecal egg counts before winter to confirm dewormer efficacy and plan winter treatment.")
+        },
+        10 => new() // October
+        {
+            new SeasonTask("Breeding records on", "High", Color.Warning, Icons.Material.Filled.Favorite, "#e91e63",
+                "Log every observed mount. Mark calendar for 21-day return (re-breed) check."),
+            new SeasonTask("Winter shelter prep", "High", Color.Warning, Icons.Material.Filled.Roofing, "#4527a0",
+                "Patch barns, deep clean, deep-bed with straw. Check heat lamps, heated water setups."),
+            new SeasonTask("First frost fence check", "Medium", Color.Info, Icons.Material.Filled.Fence, "#8d6e63",
+                "Frost heaves loosen posts. Walk fences before hard freeze locks soil."),
+            new SeasonTask("Hoof trim before winter", "Medium", Color.Info, Icons.Material.Filled.ContentCut, "#00695c",
+                "Trim whole herd — nails grow slower in winter and wet conditions soften them.")
+        },
+        11 => new() // November
+        {
+            new SeasonTask("Pregnancy check", "High", Color.Warning, Icons.Material.Filled.Favorite, "#ad1457",
+                "Ultrasound or blood test at 30+ days post-breeding to confirm pregnancies."),
+            new SeasonTask("Bulk-up weight", "High", Color.Warning, Icons.Material.Filled.FitnessCenter, "#2e7d32",
+                "Does need body condition 3–3.5 going into winter. Monitor and adjust feed."),
+            new SeasonTask("Deworm & last FAMACHA", "Medium", Color.Info, Icons.Material.Filled.RemoveRedEye, "#e91e63",
+                "Post-pasture deworm if indicated. FAMACHA check before winter confinement."),
+            new SeasonTask("Pull bucks (optional)", "Medium", Color.Info, Icons.Material.Filled.Male, "#1565c0",
+                "If you want a tight kidding window, pull bucks after 2 heat cycles (42 days).")
+        },
+        12 => new() // December
+        {
+            new SeasonTask("Heated water setup", "Critical", Color.Error, Icons.Material.Filled.WaterDrop, "#1565c0",
+                "Hard freezes now. Heated buckets, tank heaters, or twice-daily hauling warm water."),
+            new SeasonTask("Year-end records review", "High", Color.Warning, Icons.Material.Filled.Assessment, "#4527a0",
+                "Cull decisions, breeding success rate, weight gains, milk totals. Plan spring."),
+            new SeasonTask("Kidding date planning", "High", Color.Warning, Icons.Material.Filled.Event, "#e91e63",
+                "Mark due dates on calendar. Start gathering supplies for Feb/March kidding."),
+            new SeasonTask("Winter barn check", "Medium", Color.Info, Icons.Material.Filled.Roofing, "#8d6e63",
+                "Ventilation without drafts. Moisture = pneumonia risk. Clean + fresh bedding.")
+        },
+        _ => new()
+    };
+}

@@ -1,0 +1,214 @@
+@page "/herd/{Id:int}/pnl"
+@inject FinanceService FinanceSvc
+@inject GoatService GoatSvc
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>P&amp;L — GoatLab</PageTitle>
+
+@if (pnl == null)
+{
+    <div class="polished-section"><MudProgressCircular Indeterminate /></div>
+}
+else
+{
+    <div class="page-hero page-hero-green">
+        <div class="page-hero-icon">
+            <MudIcon Icon="@Icons.Material.Filled.AttachMoney" />
+        </div>
+        <div class="page-hero-text">
+            <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Per-goat P&amp;L</MudText>
+            <MudText Typo="Typo.h4" Class="page-hero-title">@pnl.GoatName</MudText>
+            <MudText Typo="Typo.body2" Class="page-hero-sub">
+                Every transaction tagged with this goat. Sales sync automatically from the sales module.
+            </MudText>
+        </div>
+        <div style="position:relative;z-index:1;display:flex;gap:8px;">
+            <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#1b5e20;"
+                       StartIcon="@Icons.Material.Filled.Add" OnClick="AddExpense">Log expense</MudButton>
+            <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                       StartIcon="@Icons.Material.Filled.ArrowBack" Href="@($"/herd/{Id}")">Back</MudButton>
+        </div>
+    </div>
+
+    @* Totals *@
+    <div class="pnl-tiles">
+        <div class="pnl-tile pnl-income">
+            <MudText Typo="Typo.overline">Income</MudText>
+            <MudText Typo="Typo.h4">$@pnl.Income.ToString("N2")</MudText>
+        </div>
+        <div class="pnl-tile pnl-expense">
+            <MudText Typo="Typo.overline">Expenses</MudText>
+            <MudText Typo="Typo.h4">$@pnl.Expenses.ToString("N2")</MudText>
+        </div>
+        <div class="@($"pnl-tile {(pnl.Net >= 0 ? "pnl-net-positive" : "pnl-net-negative")}")">
+            <MudText Typo="Typo.overline">Net</MudText>
+            <MudText Typo="Typo.h4">@(pnl.Net >= 0 ? "+" : "")$@pnl.Net.ToString("N2")</MudText>
+        </div>
+        @if (pnl.CostPerLbGain.HasValue)
+        {
+            <div class="pnl-tile pnl-gain">
+                <MudText Typo="Typo.overline">Cost / lb gained</MudText>
+                <MudText Typo="Typo.h4">$@pnl.CostPerLbGain.Value.ToString("N2")</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@pnl.WeightGain?.ToString("F1") lbs gained</MudText>
+            </div>
+        }
+    </div>
+
+    <MudGrid>
+        @* Category breakdown *@
+        <MudItem xs="12" md="5">
+            <MudPaper Class="polished-section" Elevation="0" Style="height:100%;">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@Icons.Material.Filled.PieChart" />
+                        <div>
+                            <MudText Typo="Typo.h6">Expenses by category</MudText>
+                        </div>
+                    </div>
+                </div>
+                @if (!pnl.ExpensesByCategory.Any())
+                {
+                    <div class="inline-empty">
+                        <MudIcon Icon="@Icons.Material.Filled.Receipt" />
+                        <MudText Typo="Typo.body2">No expenses logged for this goat yet.</MudText>
+                    </div>
+                }
+                else
+                {
+                    <div style="display:flex;flex-direction:column;gap:6px;">
+                        @foreach (var c in pnl.ExpensesByCategory)
+                        {
+                            var pct = pnl.Expenses > 0 ? (double)(c.Total / pnl.Expenses) : 0;
+                            <div>
+                                <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:3px;">
+                                    <span style="font-weight:600;">@c.Category</span>
+                                    <span>$@c.Total.ToString("N2") <span style="color:#888;">(@(pct * 100).ToString("F0")%)</span></span>
+                                </div>
+                                <div class="cat-bar">
+                                    <div class="cat-bar-fill" style="@($"width:{pct*100:F1}%;background:{CategoryColor(c.Category)};")"></div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+
+        @* Transactions list *@
+        <MudItem xs="12" md="7">
+            <MudPaper Class="polished-section" Elevation="0" Style="height:100%;">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" />
+                        <div>
+                            <MudText Typo="Typo.h6">Transactions</MudText>
+                            <MudText Typo="Typo.body2" Class="section-hint">@pnl.Transactions.Count recorded.</MudText>
+                        </div>
+                    </div>
+                </div>
+                @if (!pnl.Transactions.Any())
+                {
+                    <div class="inline-empty">
+                        <MudIcon Icon="@Icons.Material.Filled.MoneyOff" />
+                        <MudText Typo="Typo.body1">Nothing recorded yet.</MudText>
+                        <MudText Typo="Typo.body2">Log an expense or record a sale to see it here.</MudText>
+                    </div>
+                }
+                else
+                {
+                    <div style="display:flex;flex-direction:column;gap:6px;max-height:520px;overflow-y:auto;">
+                        @foreach (var t in pnl.Transactions)
+                        {
+                            var tone = t.Type == TransactionType.Income ? "pnl-row-income" : "pnl-row-expense";
+                            <div class="@($"pnl-row {tone}")">
+                                <div>
+                                    <div style="font-weight:600;">@t.Description</div>
+                                    <div style="font-size:0.75rem;color:#777;">
+                                        @t.Date.ToString("MMM d, yyyy")
+                                        @if (!string.IsNullOrEmpty(t.Category)) { <span> · @t.Category</span> }
+                                        @if (t.SaleId.HasValue) { <span> · auto from sale</span> }
+                                    </div>
+                                </div>
+                                <div style="font-weight:700;">
+                                    @(t.Type == TransactionType.Income ? "+" : "-")$@t.Amount.ToString("N2")
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+<style>
+.pnl-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+}
+.pnl-tile {
+    background: var(--mud-palette-surface);
+    border-radius: 12px;
+    padding: 18px;
+    border-left: 4px solid #888;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+.mud-theme-dark .pnl-tile { background: rgba(255,255,255,0.04); }
+.pnl-income { border-left-color: #2e7d32; color: #2e7d32; }
+.pnl-expense { border-left-color: #c62828; color: #c62828; }
+.pnl-net-positive { border-left-color: #1b5e20; color: #1b5e20; }
+.pnl-net-negative { border-left-color: #b71c1c; color: #b71c1c; }
+.pnl-gain { border-left-color: #6a1b9a; color: #6a1b9a; }
+
+.cat-bar { height: 10px; background: rgba(0,0,0,0.06); border-radius: 5px; overflow: hidden; }
+.mud-theme-dark .cat-bar { background: rgba(255,255,255,0.08); }
+.cat-bar-fill { height: 100%; transition: width .3s ease; }
+
+.pnl-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border-left: 3px solid transparent;
+    background: var(--mud-palette-surface);
+}
+.mud-theme-dark .pnl-row { background: rgba(255,255,255,0.02); }
+.pnl-row-income { border-left-color: #2e7d32; }
+.pnl-row-expense { border-left-color: #c62828; }
+</style>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private GoatPnlReport? pnl;
+
+    protected override async Task OnParametersSetAsync() => await Load();
+
+    private async Task Load() => pnl = await FinanceSvc.GetGoatPnlAsync(Id);
+
+    private async Task AddExpense()
+    {
+        var parameters = new DialogParameters { ["GoatId"] = Id };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dlg = await Dialog.ShowAsync<LogExpenseDialog>("Log expense", parameters, options);
+        var result = await dlg.Result;
+        if (result != null && !result.Canceled) await Load();
+    }
+
+    private static string CategoryColor(string cat) => cat switch
+    {
+        "Feed" => "#fb8c00",
+        "Veterinary" => "#c62828",
+        "Equipment" => "#6a1b9a",
+        "Supplies" => "#00838f",
+        "Labor" => "#455a64",
+        "Facility" => "#1565c0",
+        "Transport" => "#827717",
+        "Insurance" => "#ad1457",
+        _ => "#546e7a"
+    };
+}

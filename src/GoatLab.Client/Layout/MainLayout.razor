@@ -1,0 +1,358 @@
+@inherits LayoutComponentBase
+@inject PwaService Pwa
+@inject OfflineQueueService Queue
+@inject ISnackbar Snackbar
+@inject AuthService AuthApi
+@inject AdminService Admin
+@inject AnnouncementsService Announcements
+@inject CookieAuthStateProvider AuthState
+@inject NavigationManager Nav
+@implements IDisposable
+
+<MudThemeProvider @ref="_themeProvider" @bind-IsDarkMode="@_isDarkMode" Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Color="Color.Primary" Class="px-2">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="@ToggleDrawer" />
+        <MudIcon Icon="@GoatLabIcons.Hoof" Class="ml-2 mr-1" />
+        <MudText Typo="Typo.h6" Class="ml-1" Style="font-weight:700;letter-spacing:-0.5px;">GoatLab</MudText>
+        <MudSpacer />
+        <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit" OnClick="@ToggleDarkMode" aria-label="Toggle dark mode" />
+
+        <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Dense="true">
+            <ActivatorContent>
+                <MudTooltip Text="@(_user?.DisplayName ?? "Account")">
+                    <MudIconButton Icon="@Icons.Material.Filled.AccountCircle"
+                                   Color="Color.Inherit" aria-label="Account menu" />
+                </MudTooltip>
+            </ActivatorContent>
+            <ChildContent>
+                @if (_user is not null)
+                {
+                    <div class="pa-3" style="min-width:220px;">
+                        <MudText Typo="Typo.subtitle2" Style="font-weight:600;">@_user.DisplayName</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@_user.Email</MudText>
+                    </div>
+                    <MudDivider />
+                }
+                @if (_user is not null && _user.Memberships.Count > 1)
+                {
+                    <MudMenuItem Icon="@Icons.Material.Filled.SwapHoriz"
+                                 OnClick="@(() => Nav.NavigateTo("/select-farm"))">
+                        Switch farm
+                    </MudMenuItem>
+                    <MudDivider />
+                }
+                <MudMenuItem Icon="@Icons.Material.Filled.Logout" OnClick="SignOutAsync">
+                    Sign out
+                </MudMenuItem>
+            </ChildContent>
+        </MudMenu>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="0"
+               Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md">
+        <div class="pa-3 d-flex align-center" style="gap:10px;">
+            <MudAvatar Color="Color.Primary" Size="Size.Medium">
+                <MudIcon Icon="@GoatLabIcons.Hoof" />
+            </MudAvatar>
+            <div>
+                <MudText Typo="Typo.subtitle1" Style="font-weight:600;line-height:1.2;">GoatLab</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Herd Management</MudText>
+            </div>
+        </div>
+        <MudDivider Class="mb-1" />
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent Class="px-4 pb-4" Style="min-height:100vh;">
+        @if (_maintenance?.Enabled == true)
+        {
+            <div class="maintenance-banner">
+                <MudIcon Icon="@Icons.Material.Filled.Build" Size="Size.Small" />
+                <span>
+                    <b>Maintenance mode is on</b> —
+                    writes are blocked for non-admins. Enabled
+                    @(_maintenance.EnabledAt?.ToLocalTime().ToString("MMM d, h:mm tt") ?? "now").
+                </span>
+            </div>
+        }
+        @foreach (var a in _announcements)
+        {
+            var severity = a.Severity switch
+            {
+                "Critical" => "announcement-banner critical",
+                "Warning" => "announcement-banner warning",
+                _ => "announcement-banner info",
+            };
+            <div class="@severity">
+                <MudIcon Icon="@Icons.Material.Filled.Campaign" Size="Size.Small" />
+                <div style="flex:1;">
+                    <b>@a.Title</b>
+                    <span class="announcement-body">@a.Body</span>
+                </div>
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                               OnClick="@(() => DismissAnnouncementAsync(a.Id))" />
+            </div>
+        }
+        @if (_impersonation is not null)
+        {
+            <div class="impersonation-banner">
+                <MudIcon Icon="@Icons.Material.Filled.Visibility" Size="Size.Small" />
+                <span>
+                    Viewing as <b>@_impersonation.TenantName</b>. Your real tenant is
+                    <b>@_impersonation.OriginalTenantName</b>.
+                </span>
+                <MudSpacer />
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Default"
+                           StartIcon="@Icons.Material.Filled.ExitToApp" OnClick="ExitImpersonationAsync">
+                    Exit
+                </MudButton>
+            </div>
+        }
+        @if (!_online)
+        {
+            <div class="offline-banner">
+                <MudIcon Icon="@Icons.Material.Filled.CloudOff" Size="Size.Small" />
+                <span>Offline — viewing cached data. Saves are queued locally until you reconnect.</span>
+                @if (_queueCount > 0)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled"
+                             Icon="@Icons.Material.Filled.CloudQueue" Class="ml-2">
+                        @_queueCount pending
+                    </MudChip>
+                }
+            </div>
+        }
+        else if (_queueCount > 0)
+        {
+            <div class="sync-banner">
+                <MudIcon Icon="@Icons.Material.Filled.Sync" Size="Size.Small" />
+                <span>@_queueCount queued change@(_queueCount == 1 ? "" : "s") — syncing…</span>
+            </div>
+        }
+        @Body
+    </MudMainContent>
+</MudLayout>
+
+<style>
+.offline-banner {
+    background: #b71c1c;
+    color: #fff;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    border-radius: 8px;
+    margin: 8px 0 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+.maintenance-banner {
+    background: #424242;
+    color: #fff;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    margin: 8px 0 12px;
+}
+.announcement-banner {
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    margin: 8px 0 10px;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+.announcement-banner.info     { background: #1565c0; }
+.announcement-banner.warning  { background: #ef6c00; }
+.announcement-banner.critical { background: #c62828; }
+.announcement-banner .announcement-body { margin-left: 8px; opacity: 0.92; }
+.announcement-banner .mud-icon-button { color: #fff; }
+.impersonation-banner {
+    background: #6a1b9a;
+    color: #fff;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    border-radius: 8px;
+    margin: 8px 0 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+.impersonation-banner .mud-button { color: #6a1b9a; background: #fff; }
+.sync-banner {
+    background: #1565c0;
+    color: #fff;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    border-radius: 8px;
+    margin: 8px 0 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+</style>
+
+@code {
+    private MudThemeProvider _themeProvider = null!;
+    private bool _drawerOpen = true;
+    private bool _isDarkMode;
+    private bool _online = true;
+    private int _queueCount;
+    private DotNetObjectReference<object>? _pwaRef;
+    private GoatLab.Shared.DTOs.CurrentUserDto? _user;
+    private GoatLab.Shared.DTOs.ImpersonationState? _impersonation;
+    private GoatLab.Shared.DTOs.AdminMaintenanceStatus? _maintenance;
+    private List<GoatLab.Shared.DTOs.ActiveAnnouncement> _announcements = new();
+
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#2e7d32",
+            Secondary = "#558b2f",
+            AppbarBackground = "#2e7d32",
+            Background = "#f4f6f8",
+            Surface = "#ffffff",
+            DrawerBackground = "#ffffff",
+            DrawerText = "rgba(0,0,0,0.78)",
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#66bb6a",
+            Secondary = "#81c784",
+            AppbarBackground = "#1b5e20",
+            Background = "#121212",
+            Surface = "#1e1e1e",
+            DrawerBackground = "#1e1e1e",
+            DrawerText = "rgba(255,255,255,0.78)",
+        },
+        Typography = new Typography
+        {
+            Default = new Default { FontFamily = new[] { "Inter", "Helvetica", "Arial", "sans-serif" } }
+        },
+        LayoutProperties = new LayoutProperties
+        {
+            DefaultBorderRadius = "12px",
+        }
+    };
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+    private void ToggleDarkMode() => _isDarkMode = !_isDarkMode;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _user = await AuthApi.GetCurrentUserAsync(); }
+        catch { /* unauthenticated — leave _user null */ }
+
+        if (_user?.IsSuperAdmin == true)
+        {
+            try { _impersonation = await Admin.GetImpersonationAsync(); }
+            catch { /* banner stays hidden */ }
+            try { _maintenance = await Admin.GetMaintenanceAsync(); }
+            catch { /* banner stays hidden */ }
+        }
+
+        if (_user is not null)
+        {
+            try { _announcements = await Announcements.GetActiveAsync() ?? new(); }
+            catch { /* ignore */ }
+        }
+    }
+
+    private async Task DismissAnnouncementAsync(int id)
+    {
+        try { await Announcements.DismissAsync(id); }
+        catch { /* still hide locally */ }
+        _announcements.RemoveAll(a => a.Id == id);
+    }
+
+    private async Task ExitImpersonationAsync()
+    {
+        try
+        {
+            await Admin.ExitImpersonationAsync();
+            _user = await AuthApi.GetCurrentUserAsync();
+            AuthState.NotifyUserChanged(_user);
+            _impersonation = null;
+            Snackbar.Add("Exited impersonation.", Severity.Success);
+            Nav.NavigateTo("/admin", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Exit failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _isDarkMode = await _themeProvider.GetSystemPreference();
+            _pwaRef = DotNetObjectReference.Create<object>(this);
+            try
+            {
+                _online = await Pwa.IsOnlineAsync();
+                await Pwa.RegisterOnlineChangedAsync(_pwaRef);
+                _queueCount = await Queue.CountAsync();
+                await Queue.RegisterCountChangedAsync(_pwaRef);
+            }
+            catch { /* pwa.js may not be loaded yet in some environments */ }
+            StateHasChanged();
+        }
+    }
+
+    private async Task SignOutAsync()
+    {
+        try { await AuthApi.LogoutAsync(); }
+        catch { /* ignore — we're leaving anyway */ }
+        AuthState.NotifyUserChanged(null);
+        _user = null;
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+
+    [JSInvokable]
+    public Task OnOnlineChanged(bool online)
+    {
+        _online = online;
+        if (online && _queueCount > 0)
+        {
+            Snackbar.Add($"Back online — syncing {_queueCount} queued change{(_queueCount == 1 ? "" : "s")}", Severity.Info);
+        }
+        return InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task OnInstallAvailableChanged(bool available) => Task.CompletedTask;
+
+    [JSInvokable]
+    public Task OnQueueCountChanged(int count)
+    {
+        var wasPositive = _queueCount > 0;
+        _queueCount = count;
+        if (wasPositive && count == 0 && _online)
+        {
+            Snackbar.Add("All queued changes synced", Severity.Success);
+        }
+        return InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose() => _pwaRef?.Dispose();
+}

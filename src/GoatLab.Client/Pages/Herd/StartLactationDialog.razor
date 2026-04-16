@@ -1,0 +1,48 @@
+@inject MilkService MilkSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudDatePicker @bind-Date="freshenDate" Label="Freshening date" Variant="Variant.Outlined" Editable Required />
+        <MudTextField @bind-Value="notes" Label="Notes" Variant="Variant.Outlined" Lines="2" Class="mt-3" />
+        <MudAlert Severity="Severity.Info" Dense Icon="@Icons.Material.Filled.Info" Class="mt-3">
+            Lactation number is auto-assigned. Daily milk logs from this goat that fall inside this window will roll up automatically.
+        </MudAlert>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save" Disabled="@(saving || freshenDate == null)">
+            @(saving ? "Saving…" : "Start")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int GoatId { get; set; }
+
+    private DateTime? freshenDate = DateTime.Today;
+    private string? notes;
+    private bool saving;
+
+    private async Task Save()
+    {
+        if (freshenDate == null) return;
+        saving = true;
+        try
+        {
+            await MilkSvc.CreateLactationAsync(new Lactation
+            {
+                GoatId = GoatId,
+                FreshenDate = freshenDate.Value,
+                Notes = notes
+            });
+            Snackbar.Add("Lactation started", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add($"Save failed: {ex.Message}", Severity.Error); }
+        finally { saving = false; }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

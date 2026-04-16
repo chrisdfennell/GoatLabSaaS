@@ -1,0 +1,14 @@
+{
+  "profiles": {
+    "GoatLab.Server": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": true,
+      "launchUrl": "",
+      "applicationUrl": "http://localhost:5051",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}

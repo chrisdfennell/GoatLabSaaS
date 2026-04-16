@@ -1,0 +1,321 @@
+@page "/breeding"
+@inject BreedingService BreedingSvc
+@inject GoatService GoatSvc
+@inject ISnackbar Snackbar
+
+<PageTitle>Breeding — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-pink">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.Favorite" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Breeding &amp; Kidding</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Family Planning</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Track pairings, predict due dates, and watch for heat cycles.</MudText>
+        <div class="page-hero-stats">
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(records?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Pairings</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(season?.UpcomingDueDates?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Due Soon</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(season?.RecentBirths?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Recent Kiddings</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(heats?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Heats Logged</MudText>
+            </div>
+        </div>
+    </div>
+    <div style="position:relative;z-index:1;">
+        <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#ad1457;"
+                   StartIcon="@Icons.Material.Filled.CalendarMonth" Href="/breeding/calendar">Kidding Calendar</MudButton>
+    </div>
+</div>
+
+<MudTabs Elevation="0" Rounded ApplyEffectsToContainer PanelClass="pt-4">
+    <MudTabPanel Text="Pairings" Icon="@Icons.Material.Filled.Favorite">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Favorite" />
+                    <div>
+                        <MudText Typo="Typo.h6">Breeding Records</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Each entry estimates a kidding date ~150 days out.</MudText>
+                    </div>
+                </div>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="() => showForm = !showForm">
+                    @(showForm ? "Close" : "Record Breeding")
+                </MudButton>
+            </div>
+
+            @if (showForm)
+            {
+                <MudPaper Class="pa-4 mb-4" Outlined Style="border-radius:12px;">
+                    <MudGrid>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="int" @bind-Value="newRecord.DoeId" Label="Doe" Variant="Variant.Outlined"
+                                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Female" AnchorOrigin="Origin.BottomCenter">
+                                @if (goats != null) { @foreach (var g in goats.Where(g => g.Gender == Gender.Female)) { <MudSelectItem Value="g.Id">@g.Name</MudSelectItem> } }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="int?" @bind-Value="newRecord.BuckId" Label="Buck" Variant="Variant.Outlined" Clearable
+                                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Male" AnchorOrigin="Origin.BottomCenter">
+                                @if (goats != null) { @foreach (var g in goats.Where(g => g.Gender == Gender.Male)) { <MudSelectItem Value="@((int?)g.Id)">@g.Name</MudSelectItem> } }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudDatePicker @bind-Date="breedDate" Label="Breeding Date" Variant="Variant.Outlined" Editable />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="newRecord.Notes" Label="Notes" Variant="Variant.Outlined" Lines="2" />
+                        </MudItem>
+                    </MudGrid>
+                    <div class="d-flex gap-2 mt-3 justify-end">
+                        <MudButton Variant="Variant.Text" OnClick="() => showForm = false">Cancel</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveBreeding">Save</MudButton>
+                    </div>
+                </MudPaper>
+            }
+
+            @if (records == null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (records.Count == 0)
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.Favorite" />
+                    <MudText Typo="Typo.body1">No pairings recorded</MudText>
+                    <MudText Typo="Typo.body2">Log a breeding to start tracking due dates.</MudText>
+                </div>
+            }
+            else
+            {
+                <div class="record-list">
+                    @foreach (var r in records)
+                    {
+                        var daysUntil = r.EstimatedDueDate.HasValue ? (r.EstimatedDueDate.Value - DateTime.UtcNow).Days : (int?)null;
+                        <div class="record-card">
+                            <div class="record-card-icon @GetOutcomeIconBg(r.Outcome)">
+                                <MudIcon Icon="@GetOutcomeIcon(r.Outcome)" />
+                            </div>
+                            <div class="record-card-body">
+                                <div class="record-card-primary">
+                                    @r.Doe?.Name
+                                    <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" Style="vertical-align:middle;opacity:0.5;" />
+                                    @(r.Buck?.Name ?? "Unknown buck")
+                                </div>
+                                <div class="record-card-secondary">
+                                    Bred @r.BreedingDate.ToString("MMM d, yyyy")
+                                    @if (r.EstimatedDueDate.HasValue)
+                                    {
+                                        <span> · due @r.EstimatedDueDate.Value.ToString("MMM d, yyyy")</span>
+                                        @if (daysUntil.HasValue && daysUntil >= 0 && daysUntil <= 14)
+                                        {
+                                            <span> · </span>
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Schedule">@daysUntil days</MudChip>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                            <MudChip T="string" Size="Size.Small" Color="@GetOutcomeColor(r.Outcome)" Variant="Variant.Filled">@r.Outcome</MudChip>
+                        </div>
+                    }
+                </div>
+            }
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Kidding Season" Icon="@Icons.Material.Filled.ChildCare">
+        <MudGrid>
+            <MudItem xs="12" md="6">
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Schedule" />
+                            <div>
+                                <MudText Typo="Typo.h6">Upcoming Due Dates</MudText>
+                                <MudText Typo="Typo.body2" Class="section-hint">Does expected to kid soon.</MudText>
+                            </div>
+                        </div>
+                    </div>
+                    @if (season?.UpcomingDueDates?.Count > 0)
+                    {
+                        <div class="record-list">
+                            @foreach (var b in season.UpcomingDueDates)
+                            {
+                                var daysUntil = (b.EstimatedDueDate!.Value - DateTime.UtcNow).Days;
+                                var urgent = daysUntil <= 7;
+                                <div class="record-card">
+                                    <div class="record-card-icon @(urgent ? "record-card-icon-orange" : "record-card-icon-pink")">
+                                        <MudIcon Icon="@Icons.Material.Filled.ChildCare" />
+                                    </div>
+                                    <div class="record-card-body">
+                                        <div class="record-card-primary">@b.Doe?.Name</div>
+                                        <div class="record-card-secondary">due @b.EstimatedDueDate?.ToString("MMM d, yyyy")</div>
+                                    </div>
+                                    <MudChip T="string" Size="Size.Small" Color="@(urgent ? Color.Warning : Color.Info)" Variant="Variant.Filled">
+                                        @daysUntil day@(daysUntil == 1 ? "" : "s")
+                                    </MudChip>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="inline-empty">
+                            <MudIcon Icon="@Icons.Material.Filled.EventAvailable" />
+                            <MudText Typo="Typo.body2">No pregnancies on the calendar.</MudText>
+                        </div>
+                    }
+                </MudPaper>
+            </MudItem>
+            <MudItem xs="12" md="6">
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Celebration" />
+                            <div>
+                                <MudText Typo="Typo.h6">Recent Births</MudText>
+                                <MudText Typo="Typo.body2" Class="section-hint">Kiddings in the last 30 days.</MudText>
+                            </div>
+                        </div>
+                    </div>
+                    @if (season?.RecentBirths?.Count > 0)
+                    {
+                        <div class="record-list">
+                            @foreach (var k in season.RecentBirths)
+                            {
+                                <div class="record-card">
+                                    <div class="record-card-icon record-card-icon-green">
+                                        <MudIcon Icon="@GoatLabIcons.Hoof" />
+                                    </div>
+                                    <div class="record-card-body">
+                                        <div class="record-card-primary">@k.KiddingDate.ToString("MMM d, yyyy")</div>
+                                        <div class="record-card-secondary">@k.KidsBorn born · @k.KidsAlive alive</div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="inline-empty">
+                            <MudIcon Icon="@Icons.Material.Filled.ChildCare" />
+                            <MudText Typo="Typo.body2">No recent births.</MudText>
+                        </div>
+                    }
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Heat Detection" Icon="@Icons.Material.Filled.Thermostat">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Thermostat" />
+                    <div>
+                        <MudText Typo="Typo.h6">Heat Detection Log</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Cycles predicted on a ~21 day pattern.</MudText>
+                    </div>
+                </div>
+            </div>
+            @if (heats?.Count > 0)
+            {
+                <div class="record-list">
+                    @foreach (var h in heats)
+                    {
+                        <div class="record-card">
+                            <div class="record-card-icon record-card-icon-orange">
+                                <MudIcon Icon="@Icons.Material.Filled.Thermostat" />
+                            </div>
+                            <div class="record-card-body">
+                                <div class="record-card-primary">@h.Goat?.Name</div>
+                                <div class="record-card-secondary">
+                                    @h.DetectedDate.ToString("MMM d, yyyy")
+                                    @if (!string.IsNullOrEmpty(h.Signs)) { <span> · @h.Signs</span> }
+                                </div>
+                            </div>
+                            @if (h.PredictedNextHeat.HasValue)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                                    next ~@h.PredictedNextHeat.Value.ToString("MMM d")
+                                </MudChip>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.Thermostat" />
+                    <MudText Typo="Typo.body1">No heat cycles logged</MudText>
+                    <MudText Typo="Typo.body2">Tracking heats helps predict the best time for pairing.</MudText>
+                </div>
+            }
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private List<BreedingRecord>? records;
+    private List<Goat>? goats;
+    private KiddingSeason? season;
+    private List<HeatDetection>? heats;
+    private bool showForm;
+    private BreedingRecord newRecord = new();
+    private DateTime? breedDate = DateTime.Today;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadRecords(), LoadGoats(), LoadSeason(), LoadHeats());
+    }
+
+    private async Task LoadRecords() => records = await BreedingSvc.GetAllAsync();
+    private async Task LoadGoats() => goats = await GoatSvc.GetAllAsync();
+    private async Task LoadSeason() => season = await BreedingSvc.GetKiddingSeasonAsync();
+    private async Task LoadHeats() => heats = await BreedingSvc.GetHeatDetectionsAsync();
+
+    private async Task SaveBreeding()
+    {
+        newRecord.BreedingDate = breedDate ?? DateTime.UtcNow;
+        await BreedingSvc.CreateAsync(newRecord);
+        Snackbar.Add("Pairing recorded", Severity.Success);
+        newRecord = new(); showForm = false;
+        await Task.WhenAll(LoadRecords(), LoadSeason());
+    }
+
+    private Color GetOutcomeColor(BreedingOutcome o) => o switch
+    {
+        BreedingOutcome.Confirmed => Color.Success,
+        BreedingOutcome.Failed    => Color.Error,
+        BreedingOutcome.Aborted   => Color.Warning,
+        _                         => Color.Default
+    };
+
+    private string GetOutcomeIcon(BreedingOutcome o) => o switch
+    {
+        BreedingOutcome.Confirmed => Icons.Material.Filled.CheckCircle,
+        BreedingOutcome.Failed    => Icons.Material.Filled.Cancel,
+        BreedingOutcome.Aborted   => Icons.Material.Filled.ErrorOutline,
+        _                         => Icons.Material.Filled.HourglassBottom
+    };
+
+    private string GetOutcomeIconBg(BreedingOutcome o) => o switch
+    {
+        BreedingOutcome.Confirmed => "record-card-icon-green",
+        BreedingOutcome.Failed    => "record-card-icon-red",
+        BreedingOutcome.Aborted   => "record-card-icon-orange",
+        _                         => "record-card-icon-neutral"
+    };
+}

@@ -1,0 +1,389 @@
+@page "/herd/add"
+@page "/herd/{Id:int}/edit"
+@inject GoatService GoatSvc
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>@(Id.HasValue ? "Edit Goat" : "Add Goat") — GoatLab</PageTitle>
+
+<div class="goat-form-shell">
+
+    @* ----- Hero preview header ----- *@
+    <div class="goat-form-hero">
+        <div class="goat-form-hero-bg"></div>
+        <div class="goat-form-hero-content">
+            <div class="goat-form-hero-avatar @GetAvatarClass(goat.Gender)">
+                @GetInitials(goat.Name)
+            </div>
+            <div class="goat-form-hero-text">
+                <MudText Typo="Typo.overline" Class="goat-form-hero-eyebrow">
+                    @(Id.HasValue ? "Editing" : "New Goat")
+                </MudText>
+                <MudText Typo="Typo.h4" Class="goat-form-hero-title">
+                    @(string.IsNullOrWhiteSpace(goat.Name) ? (Id.HasValue ? "Your goat" : "Meet the newest member") : goat.Name)
+                </MudText>
+                <MudText Typo="Typo.body2" Class="goat-form-hero-sub">
+                    @(string.IsNullOrWhiteSpace(goat.Breed) ? "Fill in a few details to add them to your herd." : $"{goat.Breed} · {goat.Gender}")
+                    @if (dob.HasValue)
+                    {
+                        <span> · @AgeString(dob.Value)</span>
+                    }
+                </MudText>
+            </div>
+            <div class="goat-form-hero-chip d-none d-sm-flex">
+                <MudChip T="string" Size="Size.Small"
+                         Color="@GetStatusColor(goat.Status)" Variant="Variant.Filled"
+                         Icon="@GetStatusIcon(goat.Status)">
+                    @goat.Status
+                </MudChip>
+            </div>
+        </div>
+    </div>
+
+    <MudForm @ref="form" @bind-IsValid="isValid" Class="goat-form-body">
+
+        @* ----- Section: Identity ----- *@
+        <MudPaper Class="goat-form-section" Elevation="0" Outlined="false">
+            <div class="goat-form-section-header">
+                <MudIcon Icon="@Icons.Material.Filled.Badge" Color="Color.Primary" />
+                <div>
+                    <MudText Typo="Typo.h6">Identity</MudText>
+                    <MudText Typo="Typo.body2" Class="section-hint">What do you call this goat, and how will you find them?</MudText>
+                </div>
+            </div>
+            <MudGrid>
+                <MudItem xs="12" sm="7">
+                    <MudTextField @bind-Value="goat.Name" Label="Name" Required
+                                  RequiredError="Give your goat a name"
+                                  Variant="Variant.Outlined"
+                                  Placeholder="e.g. Clover, Biscuit, Mabel"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@GoatLabIcons.Hoof"
+                                  Immediate />
+                </MudItem>
+                <MudItem xs="12" sm="5">
+                    <MudTextField @bind-Value="goat.EarTag" Label="Ear Tag / ID"
+                                  Variant="Variant.Outlined"
+                                  Placeholder="Optional"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Tag"
+                                  HelperText="The ID on their ear tag, collar, or registry" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudText Typo="Typo.caption" Class="field-label">Gender</MudText>
+                    <div class="pill-group">
+                        @foreach (var g in Enum.GetValues<Gender>())
+                        {
+                            <button type="button"
+                                    class="@($"pill pill-{g.ToString().ToLower()} {(goat.Gender == g ? "pill-active" : "")}")"
+                                    @onclick="() => goat.Gender = g">
+                                <MudIcon Icon="@GetGenderIcon(g)" Size="Size.Small" />
+                                <span>@g</span>
+                            </button>
+                        }
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        @* ----- Section: About ----- *@
+        <MudPaper Class="goat-form-section" Elevation="0" Outlined="false">
+            <div class="goat-form-section-header">
+                <MudIcon Icon="@Icons.Material.Filled.AutoStories" Color="Color.Primary" />
+                <div>
+                    <MudText Typo="Typo.h6">About</MudText>
+                    <MudText Typo="Typo.body2" Class="section-hint">Breed, age, and current status.</MudText>
+                </div>
+            </div>
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudAutocomplete T="string" @bind-Value="goat.Breed" Label="Breed"
+                                     Variant="Variant.Outlined"
+                                     SearchFunc="SearchBreeds"
+                                     CoerceText="false" CoerceValue="true"
+                                     ResetValueOnEmptyText
+                                     ShowProgressIndicator
+                                     Placeholder="Start typing, or pick one"
+                                     Adornment="Adornment.Start"
+                                     AdornmentIcon="@Icons.Material.Filled.Category" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="dob" Label="Date of Birth"
+                                   Variant="Variant.Outlined"
+                                   DateFormat="yyyy-MM-dd"
+                                   MaxDate="DateTime.Today"
+                                   Editable
+                                   HelperText="@(dob.HasValue ? AgeString(dob.Value) + " old" : "Optional")" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudText Typo="Typo.caption" Class="field-label">Status</MudText>
+                    <div class="pill-group">
+                        @foreach (var s in Enum.GetValues<GoatStatus>())
+                        {
+                            <button type="button"
+                                    class="@($"pill status-pill status-{s.ToString().ToLower()} {(goat.Status == s ? "pill-active" : "")}")"
+                                    @onclick="() => goat.Status = s">
+                                <MudIcon Icon="@GetStatusIcon(s)" Size="Size.Small" />
+                                <span>@FormatStatus(s)</span>
+                            </button>
+                        }
+                    </div>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        @* ----- Section: Registration & IDs ----- *@
+        <MudPaper Class="goat-form-section" Elevation="0" Outlined="false">
+            <div class="goat-form-section-header">
+                <MudIcon Icon="@Icons.Material.Filled.Verified" Color="Color.Primary" />
+                <div>
+                    <MudText Typo="Typo.h6">Registration &amp; IDs</MudText>
+                    <MudText Typo="Typo.body2" Class="section-hint">Registry numbers, tattoos, scrapie tag, microchip — all searchable.</MudText>
+                </div>
+            </div>
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="GoatRegistry" @bind-Value="goat.Registry" Label="Registry" Variant="Variant.Outlined">
+                        @foreach (var r in Enum.GetValues<GoatRegistry>())
+                        {
+                            <MudSelectItem Value="@r">@r</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="goat.RegistrationNumber" Label="Registration #" Variant="Variant.Outlined"
+                                  Placeholder="e.g. N1234567" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="goat.BreederName" Label="Breeder / farm of origin" Variant="Variant.Outlined" />
+                </MudItem>
+
+                <MudItem xs="6" sm="3">
+                    <MudTextField @bind-Value="goat.TattooLeft" Label="Tattoo (left ear)" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudTextField @bind-Value="goat.TattooRight" Label="Tattoo (right ear)" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudTextField @bind-Value="goat.ScrapieTag" Label="Scrapie tag" Variant="Variant.Outlined"
+                                  HelperText="USDA flock ID" />
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudTextField @bind-Value="goat.Microchip" Label="Microchip" Variant="Variant.Outlined" />
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        @* ----- Section: Pedigree ----- *@
+        <MudPaper Class="goat-form-section" Elevation="0" Outlined="false">
+            <div class="goat-form-section-header">
+                <MudIcon Icon="@Icons.Material.Filled.FamilyRestroom" Color="Color.Primary" />
+                <div>
+                    <MudText Typo="Typo.h6">Pedigree</MudText>
+                    <MudText Typo="Typo.body2" Class="section-hint">Link parents if they're already in your herd — skip if unknown.</MudText>
+                </div>
+            </div>
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int?" @bind-Value="goat.SireId" Label="Sire (Father)"
+                               Variant="Variant.Outlined" Clearable
+                               AnchorOrigin="Origin.BottomCenter"
+                               Adornment="Adornment.Start"
+                               AdornmentIcon="@Icons.Material.Filled.Male">
+                        @if (allGoats != null)
+                        {
+                            @foreach (var g in allGoats.Where(g => g.Gender == Gender.Male && g.Id != goat.Id))
+                            {
+                                <MudSelectItem Value="@((int?)g.Id)">@g.Name @(g.EarTag != null ? $"· #{g.EarTag}" : "")</MudSelectItem>
+                            }
+                            @if (!allGoats.Any(g => g.Gender == Gender.Male && g.Id != goat.Id))
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)null)" Disabled>No male goats in your herd yet</MudSelectItem>
+                            }
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="int?" @bind-Value="goat.DamId" Label="Dam (Mother)"
+                               Variant="Variant.Outlined" Clearable
+                               AnchorOrigin="Origin.BottomCenter"
+                               Adornment="Adornment.Start"
+                               AdornmentIcon="@Icons.Material.Filled.Female">
+                        @if (allGoats != null)
+                        {
+                            @foreach (var g in allGoats.Where(g => g.Gender == Gender.Female && g.Id != goat.Id))
+                            {
+                                <MudSelectItem Value="@((int?)g.Id)">@g.Name @(g.EarTag != null ? $"· #{g.EarTag}" : "")</MudSelectItem>
+                            }
+                            @if (!allGoats.Any(g => g.Gender == Gender.Female && g.Id != goat.Id))
+                            {
+                                <MudSelectItem T="int?" Value="@((int?)null)" Disabled>No female goats in your herd yet</MudSelectItem>
+                            }
+                        }
+                    </MudSelect>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        @* ----- Section: Notes ----- *@
+        <MudPaper Class="goat-form-section" Elevation="0" Outlined="false">
+            <div class="goat-form-section-header">
+                <MudIcon Icon="@Icons.Material.Filled.EditNote" Color="Color.Primary" />
+                <div>
+                    <MudText Typo="Typo.h6">Notes</MudText>
+                    <MudText Typo="Typo.body2" Class="section-hint">Anything memorable — personality quirks, markings, story.</MudText>
+                </div>
+            </div>
+            <MudTextField @bind-Value="goat.Bio" Variant="Variant.Outlined"
+                          Lines="4"
+                          Placeholder="Clover is the friendliest in the herd — comes running for banana peels..."
+                          Counter="2000" MaxLength="2000" />
+        </MudPaper>
+    </MudForm>
+
+    @* ----- Sticky action footer ----- *@
+    <div class="goat-form-actions">
+        <MudButton Variant="Variant.Text" Href="/herd" Disabled="@saving">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@(Id.HasValue ? Icons.Material.Filled.Save : Icons.Material.Filled.AddCircle)"
+                   OnClick="Save"
+                   Disabled="@(!isValid || saving)"
+                   Size="Size.Large">
+            @if (saving)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate Class="mr-2" />
+                <span>Saving…</span>
+            }
+            else
+            {
+                <span>@(Id.HasValue ? "Save Changes" : "Add to Herd")</span>
+            }
+        </MudButton>
+    </div>
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private Goat goat = new();
+    private DateTime? dob;
+    private List<Goat>? allGoats;
+    private MudForm form = null!;
+    private bool isValid;
+    private bool saving;
+
+    private static readonly string[] CommonBreeds =
+    {
+        "Nubian", "Boer", "Alpine", "Saanen", "LaMancha", "Toggenburg",
+        "Oberhasli", "Nigerian Dwarf", "Pygmy", "Kiko", "Spanish",
+        "Myotonic (Fainting)", "Angora", "Cashmere", "Kinder", "Mini Nubian",
+        "Sable", "Mixed / Unknown"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        allGoats = await GoatSvc.GetAllAsync();
+
+        if (Id.HasValue)
+        {
+            var existing = await GoatSvc.GetAsync(Id.Value);
+            if (existing != null)
+            {
+                goat = existing;
+                dob = goat.DateOfBirth;
+            }
+        }
+    }
+
+    private Task<IEnumerable<string>> SearchBreeds(string? value, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return Task.FromResult<IEnumerable<string>>(CommonBreeds);
+        return Task.FromResult(CommonBreeds.Where(b => b.Contains(value, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private async Task Save()
+    {
+        saving = true;
+        try
+        {
+            goat.DateOfBirth = dob;
+            if (Id.HasValue)
+            {
+                await GoatSvc.UpdateAsync(goat);
+                Snackbar.Add($"{goat.Name} updated", Severity.Success);
+            }
+            else
+            {
+                await GoatSvc.CreateAsync(goat);
+                Snackbar.Add($"Welcome, {goat.Name}! 🐐", Severity.Success);
+            }
+            Nav.NavigateTo("/herd");
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2) return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        return parts[0].Length >= 2 ? parts[0][..2].ToUpper() : parts[0].ToUpper();
+    }
+
+    private string GetAvatarClass(Gender gender) => gender switch
+    {
+        Gender.Female => "goat-avatar-female",
+        Gender.Male => "goat-avatar-male",
+        _ => "goat-avatar-wether"
+    };
+
+    private Color GetStatusColor(GoatStatus s) => s switch
+    {
+        GoatStatus.Healthy => Color.Success,
+        GoatStatus.Sick => Color.Error,
+        GoatStatus.AtVet => Color.Warning,
+        GoatStatus.Deceased => Color.Dark,
+        GoatStatus.Sold => Color.Default,
+        _ => Color.Default
+    };
+
+    private string GetStatusIcon(GoatStatus s) => s switch
+    {
+        GoatStatus.Healthy => Icons.Material.Filled.Favorite,
+        GoatStatus.Sick => Icons.Material.Filled.Sick,
+        GoatStatus.AtVet => Icons.Material.Filled.LocalHospital,
+        GoatStatus.Deceased => Icons.Material.Filled.Nightlight,
+        GoatStatus.Sold => Icons.Material.Filled.Sell,
+        _ => Icons.Material.Filled.HelpOutline
+    };
+
+    private string GetGenderIcon(Gender g) => g switch
+    {
+        Gender.Male => Icons.Material.Filled.Male,
+        Gender.Female => Icons.Material.Filled.Female,
+        _ => Icons.Material.Filled.Transgender
+    };
+
+    private string FormatStatus(GoatStatus s) => s switch
+    {
+        GoatStatus.AtVet => "At Vet",
+        _ => s.ToString()
+    };
+
+    private string AgeString(DateTime dob)
+    {
+        var age = DateTime.Now - dob;
+        var years = (int)(age.TotalDays / 365.25);
+        var months = (int)((age.TotalDays % 365.25) / 30.44);
+        if (years == 0 && months == 0) return "Less than a month";
+        if (years == 0) return $"{months} month{(months == 1 ? "" : "s")}";
+        if (months == 0) return $"{years} year{(years == 1 ? "" : "s")}";
+        return $"{years}y {months}m";
+    }
+}

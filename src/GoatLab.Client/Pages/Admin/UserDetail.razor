@@ -1,0 +1,290 @@
+@page "/admin/users/{Id}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "SuperAdmin")]
+@inject AdminService Admin
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<PageTitle>@(detail?.Email ?? "User") — Admin — GoatLab</PageTitle>
+
+<div class="d-flex align-center mb-3">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/admin/users" />
+    @if (detail is not null)
+    {
+        <div class="ml-2" style="flex:1;">
+            <div class="d-flex align-center" style="gap:10px;">
+                <MudText Typo="Typo.h4" Style="font-weight:700;line-height:1.1;">@detail.DisplayName</MudText>
+                @if (detail.DeletedAt is not null)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">Deleted</MudChip>
+                }
+                else if (IsLocked)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">Locked</MudChip>
+                }
+                @if (detail.IsSuperAdmin)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
+                             Icon="@Icons.Material.Filled.Shield">Super admin</MudChip>
+                }
+            </div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">@detail.Email</MudText>
+        </div>
+    }
+</div>
+
+@if (detail is null)
+{
+    <MudProgressLinear Indeterminate Color="Color.Primary" />
+}
+else
+{
+    @if (detail.DeletedAt is not null)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-3" ShowCloseIcon="false">
+            Soft-deleted @detail.DeletedAt?.ToLocalTime().ToString("MMM d, yyyy"). Login is blocked.
+        </MudAlert>
+    }
+    else if (IsLocked)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-3" ShowCloseIcon="false">
+            Locked until @detail.LockoutEnd?.ToLocalTime().ToString("MMM d, yyyy h:mm tt").
+        </MudAlert>
+    }
+
+    <MudGrid Spacing="3" Class="mb-4">
+        <MudItem xs="12" md="5">
+            <MudPaper Class="pa-4 section-card mb-3" Outlined Elevation="0">
+                <MudText Typo="Typo.h6" Class="mb-3" Style="font-weight:600;">Access</MudText>
+                <div class="d-flex align-center justify-space-between mb-2">
+                    <div>
+                        <MudText Typo="Typo.body1" Style="font-weight:600;">Super admin</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            Full cross-tenant access. Log-worthy.
+                        </MudText>
+                    </div>
+                    <MudSwitch T="bool" Color="Color.Primary" Value="@detail.IsSuperAdmin"
+                               ValueChanged="@((bool v) => ToggleSuperAdminAsync(v))" />
+                </div>
+                <MudDivider Class="my-2" />
+                <div class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.body1" Style="font-weight:600;">Reset password</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            Generates a temp password and shows it once.
+                        </MudText>
+                    </div>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Warning"
+                               StartIcon="@Icons.Material.Filled.LockReset" OnClick="ResetPasswordAsync">Reset</MudButton>
+                </div>
+                <MudDivider Class="my-2" />
+                <div class="d-flex align-center justify-space-between">
+                    <div>
+                        <MudText Typo="Typo.body1" Style="font-weight:600;">Force sign-out</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            Invalidates all active cookies. Up to 30&nbsp;min to propagate.
+                        </MudText>
+                    </div>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Warning"
+                               StartIcon="@Icons.Material.Filled.Logout" OnClick="ForceSignOutAsync">Sign out</MudButton>
+                </div>
+            </MudPaper>
+
+            <MudPaper Class="pa-4 section-card" Outlined Elevation="0">
+                <MudText Typo="Typo.h6" Class="mb-2" Style="font-weight:600;">Lifecycle</MudText>
+                @if (detail.DeletedAt is null)
+                {
+                    <div class="d-flex flex-column gap-2">
+                        @if (!IsLocked)
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Warning"
+                                       StartIcon="@Icons.Material.Filled.Block" FullWidth
+                                       OnClick="LockAsync">Lock account…</MudButton>
+                        }
+                        else
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Success"
+                                       StartIcon="@Icons.Material.Filled.LockOpen" FullWidth
+                                       OnClick="UnlockAsync">Unlock account</MudButton>
+                        }
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                                   StartIcon="@Icons.Material.Filled.Delete" FullWidth
+                                   OnClick="DeleteAsync">Soft delete</MudButton>
+                    </div>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Success"
+                               StartIcon="@Icons.Material.Filled.Restore" FullWidth
+                               OnClick="RestoreAsync">Restore</MudButton>
+                }
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3">
+                    Joined @detail.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")
+                </MudText>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="7">
+            <MudPaper Class="pa-4 section-card" Outlined Elevation="0">
+                <MudText Typo="Typo.h6" Class="mb-2" Style="font-weight:600;">Memberships</MudText>
+                @if (detail.Memberships.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">No tenant memberships.</MudText>
+                }
+                else
+                {
+                    <MudTable Items="@detail.Memberships" Dense Hover Elevation="0">
+                        <HeaderContent>
+                            <MudTh>Tenant</MudTh>
+                            <MudTh>Role</MudTh>
+                            <MudTh>Joined</MudTh>
+                            <MudTh></MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd Style="font-weight:600;">
+                                @context.TenantName
+                                <MudText Typo="Typo.caption" Color="Color.Secondary"
+                                         Style="font-family:ui-monospace,monospace;display:block;">
+                                    @context.TenantSlug
+                                </MudText>
+                            </MudTd>
+                            <MudTd>@context.Role</MudTd>
+                            <MudTd>@context.JoinedAt.ToLocalTime().ToString("MMM d, yyyy")</MudTd>
+                            <MudTd>
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                           Href="@($"/admin/tenants/{context.TenantId}")"
+                                           EndIcon="@Icons.Material.Filled.ChevronRight">Open</MudButton>
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = string.Empty;
+
+    private AdminUserDetail? detail;
+    private bool IsLocked => detail?.LockoutEnd is { } e && e > DateTimeOffset.UtcNow;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => detail = await Admin.GetUserDetailAsync(Id);
+
+    private async Task ToggleSuperAdminAsync(bool value)
+    {
+        try
+        {
+            await Admin.ToggleSuperAdminAsync(Id, value);
+            Snackbar.Add(value ? "Super admin granted." : "Super admin revoked.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Couldn't update: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task ResetPasswordAsync()
+    {
+        var confirm = await Dialog.ShowMessageBox(
+            "Reset password?",
+            "This generates a new temporary password for the user. They'll need to sign in with the new value and change it.",
+            yesText: "Reset", cancelText: "Cancel");
+        if (confirm != true) return;
+
+        try
+        {
+            var resp = await Admin.ResetPasswordAsync(Id);
+            if (resp is null) return;
+            var parameters = new DialogParameters
+            {
+                ["Password"] = resp.NewPassword,
+                ["Email"] = detail?.Email ?? "",
+            };
+            await Dialog.ShowAsync<ResetPasswordResultDialog>("Temp password", parameters,
+                new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        }
+        catch (Exception ex) { Snackbar.Add($"Reset failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task ForceSignOutAsync()
+    {
+        var confirm = await Dialog.ShowMessageBox(
+            "Sign out everywhere?",
+            "Invalidates this user's cookies on their next request. Takes up to 30 minutes to fully propagate.",
+            yesText: "Sign out", cancelText: "Cancel");
+        if (confirm != true) return;
+
+        try
+        {
+            await Admin.ForceSignOutAsync(Id);
+            Snackbar.Add("Force sign-out issued.", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"Failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task LockAsync()
+    {
+        var parameters = new DialogParameters
+        {
+            ["Title"] = "Lock account",
+            ["Label"] = "Hours (blank = indefinite)",
+            ["InitialValue"] = string.Empty,
+            ["MaxLength"] = 10,
+        };
+        var dlg = await Dialog.ShowAsync<TextPromptDialog>("Lock account", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        var result = await dlg.Result;
+        if (result is null || result.Canceled) return;
+
+        int? hours = null;
+        if (result.Data is string s && int.TryParse(s, out var h) && h > 0) hours = h;
+
+        try
+        {
+            await Admin.LockUserAsync(Id, hours);
+            Snackbar.Add(hours is null ? "Account locked indefinitely." : $"Account locked for {hours}h.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Lock failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task UnlockAsync()
+    {
+        try
+        {
+            await Admin.UnlockUserAsync(Id);
+            Snackbar.Add("Account unlocked.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Unlock failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (detail is null) return;
+        var confirm = await Dialog.ShowMessageBox(
+            "Soft-delete this user?",
+            $"'{detail.Email}' will be signed out and blocked from signing in. Reversible via restore.",
+            yesText: "Soft delete", cancelText: "Cancel");
+        if (confirm != true) return;
+
+        try
+        {
+            await Admin.DeleteUserAsync(Id);
+            Snackbar.Add("User soft-deleted.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Delete failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task RestoreAsync()
+    {
+        try
+        {
+            await Admin.RestoreUserAsync(Id);
+            Snackbar.Add("User restored.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Restore failed: {ex.Message}", Severity.Error); }
+    }
+}

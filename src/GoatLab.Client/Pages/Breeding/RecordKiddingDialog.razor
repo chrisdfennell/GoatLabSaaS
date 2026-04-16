@@ -1,0 +1,290 @@
+@inject BreedingService BreedingSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+            @* Core kidding info *@
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="kiddingDate" Label="Kidding date" Variant="Variant.Outlined" Editable />
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudSelect T="KiddingOutcome" @bind-Value="outcome" Label="Outcome" Variant="Variant.Outlined">
+                        @foreach (var o in Enum.GetValues<KiddingOutcome>())
+                        {
+                            <MudSelectItem Value="@o">@o</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudSelect T="AssistanceLevel" @bind-Value="assistance" Label="Assistance" Variant="Variant.Outlined">
+                        @foreach (var a in Enum.GetValues<AssistanceLevel>())
+                        {
+                            <MudSelectItem Value="@a">@a</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+
+                <MudItem xs="12" sm="6">
+                    <MudText Class="field-label">Difficulty score</MudText>
+                    <div class="pill-group">
+                        @for (int i = 1; i <= 5; i++)
+                        {
+                            var val = i;
+                            <button type="button"
+                                    class="@($"pill {DifficultyPill(val)} {(difficulty == val ? "pill-active" : "")}")"
+                                    @onclick="() => difficulty = val">@val</button>
+                        }
+                        <button type="button" class="@($"pill pill-neutral {(difficulty == null ? "pill-active" : "")}")"
+                                @onclick="() => difficulty = null">—</button>
+                    </div>
+                </MudItem>
+                <MudItem xs="12" sm="6" Class="d-flex align-center">
+                    <MudSwitch T="bool" @bind-Value="colostrumGiven" Label="Colostrum given" Color="Color.Success" />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="damStatus" Label="Dam status / notes (milk letdown, tears, recovery)"
+                                  Variant="Variant.Outlined" Lines="2" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="complications" Label="Complications (if any)"
+                                  Variant="Variant.Outlined" Lines="2" />
+                </MudItem>
+            </MudGrid>
+
+            <MudDivider />
+
+            @* Kids *@
+            <div class="d-flex align-center justify-space-between">
+                <MudText Typo="Typo.h6">Kids (@kids.Count)</MudText>
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add" OnClick="AddKidRow">
+                    Add kid
+                </MudButton>
+            </div>
+
+            @if (!kids.Any())
+            {
+                <MudAlert Severity="Severity.Info" Dense Icon="@Icons.Material.Filled.Info">
+                    Add a row for each kid. Birth weight, gender, vigor. Promote to herd later.
+                </MudAlert>
+            }
+
+            @for (int i = 0; i < kids.Count; i++)
+            {
+                var idx = i;
+                var kid = kids[idx];
+                <MudPaper Outlined Class="pa-3" Style="@($"border-left:4px solid {GenderColor(kid.Gender)};")">
+                    <MudGrid>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="kid.Name" Label="Name" Variant="Variant.Outlined" />
+                        </MudItem>
+                        <MudItem xs="6" sm="2">
+                            <MudSelect T="Gender" @bind-Value="kid.Gender" Label="Gender" Variant="Variant.Outlined">
+                                <MudSelectItem Value="@Gender.Female">Doe</MudSelectItem>
+                                <MudSelectItem Value="@Gender.Male">Buck</MudSelectItem>
+                                <MudSelectItem Value="@Gender.Wether">Wether</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="6" sm="2">
+                            <MudNumericField T="double?" @bind-Value="kid.BirthWeightLbs" Label="Birth wt"
+                                             Variant="Variant.Outlined" Adornment="Adornment.End" AdornmentText="lbs"
+                                             Step="0.1" Min="0.0" />
+                        </MudItem>
+                        <MudItem xs="6" sm="2">
+                            <MudSelect T="KidPresentation" @bind-Value="kid.Presentation" Label="Presentation" Variant="Variant.Outlined">
+                                @foreach (var p in Enum.GetValues<KidPresentation>())
+                                {
+                                    <MudSelectItem Value="@p">@p</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="6" sm="2">
+                            <MudSelect T="KidVigor" @bind-Value="kid.Vigor" Label="Vigor" Variant="Variant.Outlined">
+                                @foreach (var v in Enum.GetValues<KidVigor>())
+                                {
+                                    <MudSelectItem Value="@v">@v</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12">
+                            <div class="d-flex align-center" style="gap:8px;flex-wrap:wrap;">
+                                @if (kid.Id > 0 && kid.LinkedGoatId == null)
+                                {
+                                    <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                               StartIcon="@Icons.Material.Filled.MoveToInbox"
+                                               OnClick="@(() => Promote(idx))"
+                                               Disabled="@promoting">
+                                        @(promoting ? "Promoting…" : "Promote to herd")
+                                    </MudButton>
+                                }
+                                @if (kid.LinkedGoatId != null)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled"
+                                             Icon="@Icons.Material.Filled.CheckCircle">
+                                        In herd
+                                    </MudChip>
+                                }
+                                <MudSpacer />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                               OnClick="@(() => RemoveKidRow(idx))" />
+                            </div>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            }
+
+            <MudTextField @bind-Value="notes" Label="Session notes" Variant="Variant.Outlined" Lines="2" />
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save" Disabled="@saving">
+            @(saving ? "Saving…" : Existing == null ? "Save kidding" : "Update")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public BreedingRecord Breeding { get; set; } = default!;
+    [Parameter] public KiddingRecord? Existing { get; set; }
+
+    private DateTime? kiddingDate = DateTime.Today;
+    private KiddingOutcome outcome = KiddingOutcome.Healthy;
+    private AssistanceLevel assistance = AssistanceLevel.None;
+    private int? difficulty;
+    private bool colostrumGiven = true;
+    private string? damStatus;
+    private string? complications;
+    private string? notes;
+    private List<Kid> kids = new();
+    private bool saving;
+    private bool promoting;
+
+    protected override void OnInitialized()
+    {
+        if (Existing != null)
+        {
+            kiddingDate = Existing.KiddingDate;
+            outcome = Existing.Outcome;
+            assistance = Existing.AssistanceGiven;
+            difficulty = Existing.DifficultyScore;
+            colostrumGiven = Existing.ColostrumGiven;
+            damStatus = Existing.DamStatus;
+            complications = Existing.Complications;
+            notes = Existing.Notes;
+            kids = Existing.Kids?.ToList() ?? new();
+        }
+    }
+
+    private void AddKidRow() => kids.Add(new Kid { Gender = Gender.Female });
+    private async Task RemoveKidRow(int idx)
+    {
+        var k = kids[idx];
+        if (k.Id > 0)
+        {
+            try { await BreedingSvc.DeleteKidAsync(k.Id); }
+            catch (Exception ex) { Snackbar.Add($"Delete failed: {ex.Message}", Severity.Error); return; }
+        }
+        kids.RemoveAt(idx);
+    }
+
+    private async Task Promote(int idx)
+    {
+        promoting = true;
+        try
+        {
+            var result = await BreedingSvc.PromoteKidAsync(kids[idx].Id);
+            if (result != null)
+            {
+                kids[idx].LinkedGoatId = result.Id;
+                Snackbar.Add($"{result.Name} added to the herd", Severity.Success);
+            }
+        }
+        catch (Exception ex) { Snackbar.Add($"Promote failed: {ex.Message}", Severity.Error); }
+        finally { promoting = false; }
+    }
+
+    private async Task Save()
+    {
+        if (kiddingDate == null) { Snackbar.Add("Kidding date required", Severity.Warning); return; }
+        saving = true;
+        try
+        {
+            if (Existing == null)
+            {
+                var fresh = new KiddingRecord
+                {
+                    BreedingRecordId = Breeding.Id,
+                    KiddingDate = kiddingDate.Value,
+                    KidsBorn = kids.Count,
+                    KidsAlive = kids.Count(k => k.Vigor != KidVigor.Died),
+                    Outcome = outcome,
+                    DifficultyScore = difficulty,
+                    AssistanceGiven = assistance,
+                    ColostrumGiven = colostrumGiven,
+                    DamStatus = damStatus,
+                    Complications = complications,
+                    Notes = notes,
+                    Kids = kids.Select(k => new Kid
+                    {
+                        Name = k.Name,
+                        Gender = k.Gender,
+                        BirthWeightLbs = k.BirthWeightLbs,
+                        Presentation = k.Presentation,
+                        Vigor = k.Vigor,
+                        Notes = k.Notes
+                    }).ToList()
+                };
+                await BreedingSvc.CreateKiddingAsync(Breeding.Id, fresh);
+                Snackbar.Add("Kidding recorded", Severity.Success);
+            }
+            else
+            {
+                Existing.KiddingDate = kiddingDate.Value;
+                Existing.KidsBorn = kids.Count;
+                Existing.KidsAlive = kids.Count(k => k.Vigor != KidVigor.Died);
+                Existing.Outcome = outcome;
+                Existing.DifficultyScore = difficulty;
+                Existing.AssistanceGiven = assistance;
+                Existing.ColostrumGiven = colostrumGiven;
+                Existing.DamStatus = damStatus;
+                Existing.Complications = complications;
+                Existing.Notes = notes;
+                await BreedingSvc.UpdateKiddingAsync(Existing);
+
+                // Sync kids: new rows (Id == 0) → AddKid, existing → UpdateKid
+                foreach (var k in kids)
+                {
+                    if (k.Id == 0)
+                        await BreedingSvc.AddKidAsync(Existing.Id, k);
+                    else
+                        await BreedingSvc.UpdateKidAsync(k);
+                }
+                Snackbar.Add("Kidding updated", Severity.Success);
+            }
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add($"Save failed: {ex.Message}", Severity.Error); }
+        finally { saving = false; }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private static string GenderColor(Gender g) => g switch
+    {
+        Gender.Male => "#1976d2",
+        Gender.Female => "#e91e63",
+        _ => "#795548"
+    };
+
+    private static string DifficultyPill(int score) => score switch
+    {
+        1 or 2 => "pill-success",
+        3 => "pill-warning",
+        _ => "pill-error"
+    };
+}

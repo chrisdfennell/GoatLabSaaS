@@ -1,0 +1,375 @@
+@page "/herd/report"
+@page "/herd/report/{Id:int}"
+@inject GoatService GoatSvc
+@inject HealthService HealthSvc
+@inject MilkService MilkSvc
+@inject SalesService SalesSvc
+@inject IJSRuntime JS
+
+<PageTitle>Herd Report — GoatLab</PageTitle>
+
+<div class="no-print">
+    <div class="page-hero page-hero-green">
+        <div class="page-hero-icon">
+            <MudIcon Icon="@Icons.Material.Filled.PictureAsPdf" />
+        </div>
+        <div class="page-hero-text">
+            <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Herd Report</MudText>
+            <MudText Typo="Typo.h4" Class="page-hero-title">Print-ready Profiles</MudText>
+            <MudText Typo="Typo.body2" Class="page-hero-sub">For the vet, the fair, or a buyer. Use your browser's Print to save as PDF.</MudText>
+        </div>
+        <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:8px;">
+            <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#1b5e20;"
+                       StartIcon="@Icons.Material.Filled.Print" OnClick="Print">Print / Save PDF</MudButton>
+            <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                       StartIcon="@Icons.Material.Filled.ArrowBack" Href="/herd">Back</MudButton>
+        </div>
+    </div>
+
+    @if (!Id.HasValue)
+    {
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Tune" />
+                    <div>
+                        <MudText Typo="Typo.h6">Who's on the report?</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Pick the goats you want on the printed pages.</MudText>
+                    </div>
+                </div>
+                <div class="d-flex gap-2">
+                    <MudButton Variant="Variant.Text" OnClick="SelectAll">All</MudButton>
+                    <MudButton Variant="Variant.Text" OnClick="SelectNone">None</MudButton>
+                </div>
+            </div>
+            <MudGrid>
+                @if (goats != null)
+                {
+                    @foreach (var g in goats)
+                    {
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudCheckBox T="bool" Value="@selected.Contains(g.Id)"
+                                         ValueChanged="(v) => ToggleSelection(g.Id, v)"
+                                         Color="Color.Primary"
+                                         Label="@($"{g.Name} — {g.Breed} {g.Gender}")" />
+                        </MudItem>
+                    }
+                }
+            </MudGrid>
+        </MudPaper>
+    }
+</div>
+
+<div class="herd-report">
+    @if (reportGoats.Count == 0)
+    {
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-4 no-print">Select at least one goat to preview their report below.</MudText>
+    }
+    else
+    {
+        @foreach (var (g, bundle) in reportGoats)
+        {
+            <div class="report-page">
+                <div class="report-header">
+                    <div>
+                        <div class="report-eyebrow">GoatLab · Herd Report</div>
+                        <div class="report-title">@g.Name</div>
+                        <div class="report-sub">
+                            @g.Breed · @g.Gender
+                            @if (g.EarTag != null) { <span> · #@g.EarTag</span> }
+                            @if (g.DateOfBirth.HasValue) { <span> · born @g.DateOfBirth.Value.ToString("MMM d, yyyy")</span> }
+                        </div>
+                    </div>
+                    <div class="report-status">@g.Status</div>
+                </div>
+
+                <div class="report-grid">
+                    <div>
+                        <div class="report-section-title">Identity</div>
+                        <div class="report-row"><span>Date of Birth</span><span>@(g.DateOfBirth?.ToString("yyyy-MM-dd") ?? "—")</span></div>
+                        <div class="report-row"><span>Age</span><span>@(g.DateOfBirth.HasValue ? AgeString(g.DateOfBirth.Value) : "—")</span></div>
+                        <div class="report-row"><span>Sire</span><span>@(g.Sire?.Name ?? "—")</span></div>
+                        <div class="report-row"><span>Dam</span><span>@(g.Dam?.Name ?? "—")</span></div>
+                        <div class="report-row"><span>Pen</span><span>@(g.Pen != null ? $"{g.Pen.Barn?.Name} / {g.Pen.Name}" : "—")</span></div>
+                    </div>
+                    <div>
+                        <div class="report-section-title">Production</div>
+                        <div class="report-row"><span>Current Weight</span><span>@(bundle.LatestWeight.HasValue ? $"{bundle.LatestWeight.Value:F1} lbs" : "—")</span></div>
+                        <div class="report-row"><span>Avg Daily Gain</span><span>@(bundle.Adg.HasValue ? $"{(bundle.Adg.Value >= 0 ? "+" : "")}{bundle.Adg.Value:F2} lbs/d" : "—")</span></div>
+                        <div class="report-row"><span>Lifetime Milk</span><span>@bundle.LifetimeMilk.ToString("F0") lbs</span></div>
+                        <div class="report-row"><span>Lifetime Revenue</span><span>$@bundle.LifetimeRevenue.ToString("N2")</span></div>
+                    </div>
+                </div>
+
+                @if (bundle.Weights.Count > 0)
+                {
+                    <div class="report-section-title">Weight History</div>
+                    <table class="report-table">
+                        <thead><tr><th>Date</th><th>Weight (lbs)</th><th>Notes</th></tr></thead>
+                        <tbody>
+                            @foreach (var w in bundle.Weights.OrderByDescending(w => w.Date).Take(10))
+                            {
+                                <tr>
+                                    <td>@w.Date.ToString("yyyy-MM-dd")</td>
+                                    <td>@w.Weight.ToString("F1")</td>
+                                    <td>@w.Notes</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                @if (bundle.Medical.Count > 0)
+                {
+                    <div class="report-section-title">Medical Records</div>
+                    <table class="report-table">
+                        <thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Next Due</th></tr></thead>
+                        <tbody>
+                            @foreach (var r in bundle.Medical.OrderByDescending(r => r.Date).Take(10))
+                            {
+                                <tr>
+                                    <td>@r.Date.ToString("yyyy-MM-dd")</td>
+                                    <td>@r.RecordType</td>
+                                    <td>@r.Title</td>
+                                    <td>@(r.NextDueDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(g.Bio))
+                {
+                    <div class="report-section-title">Notes</div>
+                    <div class="report-bio">@g.Bio</div>
+                }
+
+                <div class="report-footer">
+                    Report generated @DateTime.Now.ToString("yyyy-MM-dd HH:mm") · GoatLab
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<style>
+/* Screen styles */
+.herd-report {
+    background: var(--mud-palette-background);
+    padding: 16px 0;
+}
+.report-page {
+    background: white;
+    color: #222;
+    max-width: 780px;
+    margin: 0 auto 24px;
+    padding: 40px 48px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    page-break-after: always;
+    font-family: 'Inter', sans-serif;
+}
+.report-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 3px solid #2e7d32;
+    padding-bottom: 12px;
+    margin-bottom: 20px;
+}
+.report-eyebrow {
+    color: #2e7d32;
+    font-size: 0.7rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.report-title {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1;
+    color: #1b5e20;
+}
+.report-sub { color: #666; font-size: 0.9rem; margin-top: 6px; }
+.report-status {
+    background: #2e7d32;
+    color: #fff;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+.report-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-bottom: 16px;
+}
+.report-section-title {
+    color: #2e7d32;
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin: 20px 0 10px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #ddd;
+}
+.report-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px dotted #ddd;
+    font-size: 0.9rem;
+}
+.report-row span:first-child { color: #666; }
+.report-row span:last-child { font-weight: 500; color: #222; }
+.report-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.report-table th, .report-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+}
+.report-table th {
+    background: #f5f5f5;
+    color: #555;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.5px;
+}
+.report-bio {
+    white-space: pre-wrap;
+    background: #fafafa;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    border-left: 3px solid #2e7d32;
+}
+.report-footer {
+    margin-top: 24px;
+    padding-top: 12px;
+    border-top: 1px solid #ddd;
+    font-size: 0.75rem;
+    color: #999;
+    text-align: center;
+}
+
+/* Print styles */
+@@media print {
+    body { background: white; }
+    .no-print, .mud-appbar, .mud-drawer, header, nav { display: none !important; }
+    .herd-report { background: white !important; padding: 0; }
+    .report-page {
+        box-shadow: none;
+        border-radius: 0;
+        margin: 0;
+        max-width: none;
+        page-break-after: always;
+    }
+    .report-page:last-child { page-break-after: auto; }
+}
+</style>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private List<Goat>? goats;
+    private HashSet<int> selected = new();
+    private List<(Goat goat, ReportBundle bundle)> reportGoats = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            // Single-goat report
+            selected = new HashSet<int> { Id.Value };
+            await BuildReport();
+        }
+        else
+        {
+            goats = await GoatSvc.GetAllAsync();
+        }
+    }
+
+    private async Task ToggleSelection(int goatId, bool isSelected)
+    {
+        if (isSelected) selected.Add(goatId);
+        else selected.Remove(goatId);
+        await BuildReport();
+    }
+
+    private async Task SelectAll()
+    {
+        if (goats == null) return;
+        selected = goats.Select(g => g.Id).ToHashSet();
+        await BuildReport();
+    }
+
+    private async Task SelectNone()
+    {
+        selected.Clear();
+        reportGoats.Clear();
+    }
+
+    private async Task BuildReport()
+    {
+        reportGoats.Clear();
+        foreach (var goatId in selected)
+        {
+            var g = await GoatSvc.GetAsync(goatId);
+            if (g == null) continue;
+            var weights = await HealthSvc.GetWeightsAsync(goatId) ?? new();
+            var medical = await HealthSvc.GetRecordsAsync(goatId) ?? new();
+            var milk = await MilkSvc.GetAllAsync(goatId: goatId) ?? new();
+            var sales = await SalesSvc.GetAllAsync(goatId: goatId) ?? new();
+
+            var ordered = weights.OrderBy(w => w.Date).ToList();
+            double? adg = null;
+            if (ordered.Count >= 2)
+            {
+                var days = (ordered.Last().Date - ordered.First().Date).TotalDays;
+                if (days > 0) adg = (ordered.Last().Weight - ordered.First().Weight) / days;
+            }
+
+            reportGoats.Add((g, new ReportBundle
+            {
+                Weights = weights,
+                Medical = medical,
+                LatestWeight = ordered.LastOrDefault()?.Weight,
+                Adg = adg,
+                LifetimeMilk = milk.Sum(m => m.Amount),
+                LifetimeRevenue = sales.Where(s => s.PaymentStatus == PaymentStatus.PaidInFull).Sum(s => s.Amount)
+            }));
+        }
+        StateHasChanged();
+    }
+
+    private async Task Print()
+    {
+        await JS.InvokeVoidAsync("window.print");
+    }
+
+    private string AgeString(DateTime dob)
+    {
+        var age = DateTime.Now - dob;
+        var years = (int)(age.TotalDays / 365.25);
+        var months = (int)((age.TotalDays % 365.25) / 30.44);
+        if (years == 0 && months == 0) return "less than a month";
+        if (years == 0) return $"{months}mo";
+        return $"{years}y {months}mo";
+    }
+
+    private class ReportBundle
+    {
+        public List<WeightRecord> Weights { get; set; } = new();
+        public List<MedicalRecord> Medical { get; set; } = new();
+        public double? LatestWeight { get; set; }
+        public double? Adg { get; set; }
+        public double LifetimeMilk { get; set; }
+        public decimal LifetimeRevenue { get; set; }
+    }
+}

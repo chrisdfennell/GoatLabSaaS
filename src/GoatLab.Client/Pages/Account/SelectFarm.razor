@@ -1,0 +1,54 @@
+@page "/select-farm"
+@layout GoatLab.Client.Layout.AuthLayout
+@using GoatLab.Shared.DTOs
+@inject AuthService AuthApi
+@inject CookieAuthStateProvider AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Choose a farm — GoatLab</PageTitle>
+
+<MudPaper Elevation="4" Class="pa-8" Style="max-width: 520px; margin: 4rem auto;">
+    <MudText Typo="Typo.h5" GutterBottom="true">Choose a farm to manage</MudText>
+    <MudText Typo="Typo.body2" Class="mb-4" Color="Color.Secondary">
+        You have access to multiple farms. Pick one to continue.
+    </MudText>
+
+    @if (_user is null)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else
+    {
+        <MudList T="TenantMembershipDto" Dense="false">
+            @foreach (var m in _user.Memberships)
+            {
+                <MudListItem T="TenantMembershipDto" OnClick="@(() => SelectAsync(m.TenantId))">
+                    <MudText Typo="Typo.h6">@m.Name</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Role: @m.Role</MudText>
+                </MudListItem>
+            }
+        </MudList>
+    }
+</MudPaper>
+
+@code {
+    private CurrentUserDto? _user;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _user = await AuthApi.GetCurrentUserAsync();
+        if (_user is null) { Nav.NavigateTo("/login"); return; }
+        if (_user.Memberships.Count == 0) { Nav.NavigateTo("/dashboard"); return; }
+        if (_user.Memberships.Count == 1)
+        {
+            await SelectAsync(_user.Memberships[0].TenantId);
+        }
+    }
+
+    private async Task SelectAsync(int tenantId)
+    {
+        var updated = await AuthApi.SelectTenantAsync(tenantId);
+        AuthState.NotifyUserChanged(updated);
+        Nav.NavigateTo("/dashboard");
+    }
+}

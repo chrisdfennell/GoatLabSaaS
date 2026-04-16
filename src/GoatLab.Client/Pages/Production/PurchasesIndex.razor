@@ -1,0 +1,123 @@
+@page "/purchases"
+@inject PurchaseService PurchaseSvc
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Purchases — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-orange">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Purchases</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Acquisitions Ledger</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">
+            Every goat or input you bought, with the seller and the cost. Auto-creates an expense in the books.
+        </MudText>
+        @if (purchases != null)
+        {
+            <div class="page-hero-stats">
+                <div class="page-hero-stat">
+                    <MudText Typo="Typo.h5" Class="page-hero-stat-value">@purchases.Count</MudText>
+                    <MudText Class="page-hero-stat-label">Purchases</MudText>
+                </div>
+                <div class="page-hero-stat">
+                    <MudText Typo="Typo.h5" Class="page-hero-stat-value">$@purchases.Sum(p => p.Amount).ToString("N0")</MudText>
+                    <MudText Class="page-hero-stat-label">Total spent</MudText>
+                </div>
+                <div class="page-hero-stat">
+                    <MudText Typo="Typo.h5" Class="page-hero-stat-value">@purchases.Count(p => p.GoatId != null)</MudText>
+                    <MudText Class="page-hero-stat-label">Goats acquired</MudText>
+                </div>
+            </div>
+        }
+    </div>
+    <div style="position:relative;z-index:1;">
+        <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#e65100;"
+                   StartIcon="@Icons.Material.Filled.Add" OnClick="AddPurchase">Record purchase</MudButton>
+    </div>
+</div>
+
+<MudPaper Class="polished-section" Elevation="0">
+    <div class="polished-section-header">
+        <div class="polished-section-header-title">
+            <MudIcon Icon="@Icons.Material.Filled.Receipt" />
+            <div>
+                <MudText Typo="Typo.h6">Purchase history</MudText>
+                <MudText Typo="Typo.body2" Class="section-hint">Newest first.</MudText>
+            </div>
+        </div>
+    </div>
+
+    @if (purchases == null)
+    {
+        <MudProgressLinear Indeterminate Color="Color.Primary" />
+    }
+    else if (!purchases.Any())
+    {
+        <div class="inline-empty">
+            <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" />
+            <MudText Typo="Typo.body1">No purchases recorded</MudText>
+            <MudText Typo="Typo.body2">Bought a goat from another breeder or got hay delivered? Log it here.</MudText>
+        </div>
+    }
+    else
+    {
+        <div class="record-list">
+            @foreach (var p in purchases)
+            {
+                <div class="record-card">
+                    <div class="record-card-icon record-card-icon-orange">
+                        <MudIcon Icon="@(p.GoatId.HasValue ? GoatLabIcons.Hoof : Icons.Material.Filled.Inventory)" />
+                    </div>
+                    <div class="record-card-body">
+                        <div class="record-card-primary">
+                            @(p.Goat?.Name ?? p.Description ?? "Purchase")
+                            @if (p.Goat != null)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ml-2">in herd</MudChip>
+                            }
+                        </div>
+                        <div class="record-card-secondary">
+                            @p.PurchaseDate.ToString("MMM d, yyyy")
+                            @if (!string.IsNullOrEmpty(p.SellerName)) { <span> · from @p.SellerName</span> }
+                            @if (p.Goat != null) { <span> · </span> <MudLink Href="@($"/herd/{p.Goat.Id}")">view goat</MudLink> }
+                        </div>
+                    </div>
+                    <MudText Class="record-card-amount record-card-amount-expense">−$@p.Amount.ToString("F2")</MudText>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="() => DeletePurchase(p.Id)" />
+                </div>
+            }
+        </div>
+    }
+</MudPaper>
+
+@code {
+    private List<Purchase>? purchases;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load() => purchases = await PurchaseSvc.GetAllAsync();
+
+    private async Task AddPurchase()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dlg = await Dialog.ShowAsync<RecordPurchaseDialog>("Record purchase", new DialogParameters(), options);
+        var result = await dlg.Result;
+        if (result != null && !result.Canceled) await Load();
+    }
+
+    private async Task DeletePurchase(int id)
+    {
+        var confirm = await Dialog.ShowMessageBox(
+            "Delete purchase?",
+            "The linked expense in your finances will also be removed. The acquired goat (if any) stays in the herd.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirm != true) return;
+        await PurchaseSvc.DeleteAsync(id);
+        await Load();
+        Snackbar.Add("Purchase deleted", Severity.Info);
+    }
+}

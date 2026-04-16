@@ -1,0 +1,368 @@
+@page "/admin/tenants/{Id:int}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "SuperAdmin")]
+@using GoatLab.Shared.Models
+@inject AdminService Admin
+@inject AuthService AuthApi
+@inject CookieAuthStateProvider AuthState
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IDialogService Dialog
+
+<PageTitle>@(detail?.Name ?? "Tenant") — Admin — GoatLab</PageTitle>
+
+<div class="d-flex align-center mb-3">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/admin/tenants" />
+    @if (detail is not null)
+    {
+        <div class="ml-2" style="flex:1;">
+            <div class="d-flex align-center" style="gap:10px;">
+                <MudText Typo="Typo.h4" Style="font-weight:700;line-height:1.1;">@detail.Name</MudText>
+                @if (detail.DeletedAt is not null)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">Deleted</MudChip>
+                }
+                else if (detail.SuspendedAt is not null)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">Suspended</MudChip>
+                }
+                @if (!string.IsNullOrWhiteSpace(detail.Tag))
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">@detail.Tag</MudChip>
+                }
+            </div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-family:ui-monospace,monospace;">
+                @detail.Slug
+            </MudText>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Edit"
+                       OnClick="OpenRenameAsync">Rename</MudButton>
+            @if (detail.DeletedAt is null)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Visibility"
+                           OnClick="ImpersonateAsync">View as tenant</MudButton>
+            }
+        </div>
+    }
+</div>
+
+@if (detail is null)
+{
+    <MudProgressLinear Indeterminate Color="Color.Primary" />
+}
+else
+{
+    @if (detail.SuspendedAt is not null)
+    {
+        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-3"
+                  ShowCloseIcon="false">
+            <b>Suspended @detail.SuspendedAt?.ToLocalTime().ToString("MMM d, yyyy") :</b>
+            @(detail.SuspensionReason ?? "no reason given")
+        </MudAlert>
+    }
+    @if (detail.DeletedAt is not null)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-3" ShowCloseIcon="false">
+            Soft-deleted @detail.DeletedAt?.ToLocalTime().ToString("MMM d, yyyy").
+            Data is preserved but no members can sign in.
+        </MudAlert>
+    }
+
+    <MudGrid Spacing="3" Class="mb-4">
+        <MudItem xs="6" md="3">
+            <MudPaper Class="pa-3" Outlined Elevation="0">
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Goats</MudText>
+                <MudText Typo="Typo.h5" Style="font-weight:700;">@detail.GoatCount</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Class="pa-3" Outlined Elevation="0">
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Milk logs</MudText>
+                <MudText Typo="Typo.h5" Style="font-weight:700;">@detail.MilkLogCount</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Class="pa-3" Outlined Elevation="0">
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Medical records</MudText>
+                <MudText Typo="Typo.h5" Style="font-weight:700;">@detail.MedicalRecordCount</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="3">
+            <MudPaper Class="pa-3" Outlined Elevation="0">
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Created</MudText>
+                <MudText Typo="Typo.body1" Style="font-weight:600;">@detail.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Last activity @(detail.LastActivityAt?.ToLocalTime().ToString("MMM d, yyyy") ?? "—")
+                </MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="7">
+            <MudPaper Class="pa-4 section-card mb-3" Outlined Elevation="0">
+                <MudText Typo="Typo.h6" Class="mb-2" Style="font-weight:600;">Members</MudText>
+                <MudTable Items="@detail.Members" Dense Hover Elevation="0">
+                    <HeaderContent>
+                        <MudTh>Name</MudTh>
+                        <MudTh>Email</MudTh>
+                        <MudTh>Role</MudTh>
+                        <MudTh>Joined</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd Style="font-weight:600;">@context.DisplayName</MudTd>
+                        <MudTd>@context.Email</MudTd>
+                        <MudTd>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@context.Role</MudChip>
+                        </MudTd>
+                        <MudTd>@context.JoinedAt.ToLocalTime().ToString("MMM d, yyyy")</MudTd>
+                        <MudTd>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary"
+                                       Href="@($"/admin/users/{context.UserId}")"
+                                       EndIcon="@Icons.Material.Filled.ChevronRight">Open</MudButton>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+
+            <MudPaper Class="pa-4 section-card mb-3" Outlined Elevation="0">
+                <div class="d-flex align-center justify-space-between mb-2">
+                    <MudText Typo="Typo.h6" Style="font-weight:600;">Admin notes</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Private — tenant members never see this.</MudText>
+                </div>
+                <MudTextField T="string" @bind-Value="_notesDraft" Lines="4" Variant="Variant.Outlined"
+                              Placeholder="Follow-ups, support tickets, renewal reminders…" MaxLength="4000" />
+                <div class="d-flex gap-2 mt-2">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveNotesAsync"
+                               Disabled="@(_notesDraft == (detail.Notes ?? string.Empty))">Save notes</MudButton>
+                    <MudButton Variant="Variant.Text" OnClick="@(() => _notesDraft = detail.Notes ?? string.Empty)"
+                               Disabled="@(_notesDraft == (detail.Notes ?? string.Empty))">Reset</MudButton>
+                </div>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="5">
+            <MudPaper Class="pa-4 section-card mb-3" Outlined Elevation="0">
+                <MudText Typo="Typo.h6" Class="mb-2" Style="font-weight:600;">Feature flags</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                    Per-tenant toggles. Changes take effect on the tenant's next page load.
+                </MudText>
+                @foreach (var f in TenantFeatureFlags.All)
+                {
+                    var isOn = _flagsDraft.TryGetValue(f.Key, out var v) && v;
+                    <div class="d-flex align-center justify-space-between py-1">
+                        <div style="flex:1;">
+                            <MudText Typo="Typo.body2" Style="font-weight:600;">@f.Label</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@f.Description</MudText>
+                        </div>
+                        <MudSwitch T="bool" Color="Color.Primary" Value="isOn"
+                                   ValueChanged="@((bool nv) => ToggleFlagAsync(f.Key, nv))" />
+                    </div>
+                }
+            </MudPaper>
+
+            <MudPaper Class="pa-4 section-card mb-3" Outlined Elevation="0">
+                <MudText Typo="Typo.h6" Class="mb-2" Style="font-weight:600;">Tag</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2">
+                    Optional label. Used by announcement targeting.
+                </MudText>
+                <div class="d-flex gap-2 align-end">
+                    <MudTextField T="string" @bind-Value="_tagDraft" Variant="Variant.Outlined"
+                                  Placeholder="e.g. beta, vip, churn-risk" MaxLength="50" Margin="Margin.Dense" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveTagAsync"
+                               Disabled="@(_tagDraft == (detail.Tag ?? string.Empty))">Save</MudButton>
+                </div>
+            </MudPaper>
+
+            <MudPaper Class="pa-4 section-card" Outlined Elevation="0">
+                <MudText Typo="Typo.h6" Class="mb-2" Style="font-weight:600;">Lifecycle</MudText>
+                @if (detail.DeletedAt is null)
+                {
+                    <div class="d-flex flex-column gap-2">
+                        @if (detail.SuspendedAt is null)
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Warning"
+                                       StartIcon="@Icons.Material.Filled.PauseCircle" FullWidth
+                                       OnClick="SuspendAsync">Suspend</MudButton>
+                        }
+                        else
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Success"
+                                       StartIcon="@Icons.Material.Filled.PlayCircle" FullWidth
+                                       OnClick="UnsuspendAsync">Unsuspend</MudButton>
+                        }
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                                   StartIcon="@Icons.Material.Filled.Delete" FullWidth
+                                   OnClick="DeleteAsync">Soft delete</MudButton>
+                    </div>
+                }
+                else
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Success"
+                               StartIcon="@Icons.Material.Filled.Restore" FullWidth
+                               OnClick="RestoreAsync">Restore</MudButton>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private AdminTenantDetail? detail;
+    private string _notesDraft = string.Empty;
+    private string _tagDraft = string.Empty;
+    private Dictionary<string, bool> _flagsDraft = new();
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        detail = await Admin.GetTenantDetailAsync(Id);
+        if (detail is not null)
+        {
+            _notesDraft = detail.Notes ?? string.Empty;
+            _tagDraft = detail.Tag ?? string.Empty;
+            _flagsDraft = detail.FeatureFlags.ToDictionary(kv => kv.Key, kv => kv.Value);
+        }
+    }
+
+    private async Task OpenRenameAsync()
+    {
+        if (detail is null) return;
+        var parameters = new DialogParameters
+        {
+            ["Title"] = "Rename tenant",
+            ["Label"] = "Farm name",
+            ["InitialValue"] = detail.Name,
+        };
+        var dlg = await Dialog.ShowAsync<TextPromptDialog>("Rename tenant", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        var result = await dlg.Result;
+        if (result is null || result.Canceled) return;
+
+        var newName = result.Data as string;
+        if (string.IsNullOrWhiteSpace(newName)) return;
+
+        try
+        {
+            await Admin.RenameTenantAsync(Id, newName.Trim());
+            Snackbar.Add("Tenant renamed.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Rename failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task ImpersonateAsync()
+    {
+        if (detail is null) return;
+        try
+        {
+            await Admin.StartImpersonationAsync(Id);
+            var me = await AuthApi.GetCurrentUserAsync();
+            AuthState.NotifyUserChanged(me);
+            Snackbar.Add($"Impersonating '{detail.Name}'. Use the banner at top to exit.", Severity.Info);
+            Nav.NavigateTo("/dashboard", forceLoad: true);
+        }
+        catch (Exception ex) { Snackbar.Add($"Impersonation failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task SaveNotesAsync()
+    {
+        try
+        {
+            await Admin.SetTenantNotesAsync(Id, _notesDraft);
+            Snackbar.Add("Notes saved.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Save failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task SaveTagAsync()
+    {
+        try
+        {
+            await Admin.SetTenantTagAsync(Id, string.IsNullOrWhiteSpace(_tagDraft) ? null : _tagDraft.Trim());
+            Snackbar.Add("Tag saved.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Save failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task ToggleFlagAsync(string key, bool on)
+    {
+        _flagsDraft[key] = on;
+        try
+        {
+            await Admin.SetTenantFlagsAsync(Id,
+                _flagsDraft.Where(kv => kv.Value).ToDictionary(kv => kv.Key, kv => kv.Value));
+            Snackbar.Add($"{key}: {(on ? "on" : "off")}", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"Save failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task SuspendAsync()
+    {
+        var parameters = new DialogParameters
+        {
+            ["Title"] = "Suspend tenant",
+            ["Label"] = "Reason (shown in audit log)",
+            ["InitialValue"] = string.Empty,
+            ["MaxLength"] = 500,
+        };
+        var dlg = await Dialog.ShowAsync<TextPromptDialog>("Suspend tenant", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dlg.Result;
+        if (result is null || result.Canceled) return;
+
+        try
+        {
+            await Admin.SuspendTenantAsync(Id, result.Data as string);
+            Snackbar.Add("Tenant suspended. All members are signed out.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Suspend failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task UnsuspendAsync()
+    {
+        try
+        {
+            await Admin.UnsuspendTenantAsync(Id);
+            Snackbar.Add("Tenant unsuspended.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Unsuspend failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task DeleteAsync()
+    {
+        if (detail is null) return;
+        var confirm = await Dialog.ShowMessageBox(
+            "Soft-delete this tenant?",
+            $"All members of '{detail.Name}' will be signed out and can't sign back in. Data is preserved and can be restored. This is reversible.",
+            yesText: "Soft delete", cancelText: "Cancel");
+        if (confirm != true) return;
+
+        try
+        {
+            await Admin.DeleteTenantAsync(Id);
+            Snackbar.Add("Tenant soft-deleted.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Delete failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task RestoreAsync()
+    {
+        try
+        {
+            await Admin.RestoreTenantAsync(Id);
+            Snackbar.Add("Tenant restored.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Restore failed: {ex.Message}", Severity.Error); }
+    }
+}

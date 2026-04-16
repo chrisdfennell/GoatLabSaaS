@@ -1,0 +1,226 @@
+@page "/production"
+@inject MilkService MilkSvc
+@inject GoatService GoatSvc
+@inject VoiceService Voice
+@inject ISnackbar Snackbar
+@implements IDisposable
+
+<PageTitle>Milk Production — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-blue">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.WaterDrop" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Milk Production</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">At the Bucket</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Track daily yields and watch trends over time.</MudText>
+        <div class="page-hero-stats">
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@TodayTotal.ToString("F1")</MudText>
+                <MudText Class="page-hero-stat-label">Today (lbs)</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@WeekTotal.ToString("F1")</MudText>
+                <MudText Class="page-hero-stat-label">7-Day Total</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(logs?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Logs</MudText>
+            </div>
+        </div>
+    </div>
+</div>
+
+<MudPaper Class="polished-section" Elevation="0">
+    <div class="polished-section-header">
+        <div class="polished-section-header-title">
+            <MudIcon Icon="@Icons.Material.Filled.AddCircle" />
+            <div>
+                <MudText Typo="Typo.h6">Log Milk</MudText>
+                <MudText Typo="Typo.body2" Class="section-hint">Quick entry — repeat to log multiple does.</MudText>
+            </div>
+        </div>
+    </div>
+    <MudGrid>
+        <MudItem xs="12" sm="4">
+            <MudSelect T="int" @bind-Value="newLog.GoatId" Label="Doe" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter"
+                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Female">
+                @if (goats != null) { @foreach (var g in goats.Where(g => g.Gender == Gender.Female)) { <MudSelectItem Value="g.Id">@g.Name</MudSelectItem> } }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <div class="d-flex align-center" style="gap:4px;">
+                <MudNumericField @bind-Value="newLog.Amount" Label="Amount" Variant="Variant.Outlined" Min="0.0" Step="0.1"
+                                 Adornment="Adornment.End" AdornmentText="lbs" />
+                <MudIconButton Icon="@(voiceListening ? Icons.Material.Filled.MicOff : Icons.Material.Filled.Mic)"
+                               Color="@(voiceListening ? Color.Error : Color.Primary)"
+                               OnClick="ToggleVoice" title="Voice entry" />
+            </div>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudDatePicker @bind-Date="logDate" Label="Date" Variant="Variant.Outlined" Editable />
+        </MudItem>
+        <MudItem xs="12" sm="2" Class="d-flex align-end">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveLog" FullWidth Size="Size.Large"
+                       StartIcon="@Icons.Material.Filled.Add">
+                Log
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (trends?.Count > 0)
+{
+    <MudPaper Class="polished-section" Elevation="0">
+        <div class="polished-section-header">
+            <div class="polished-section-header-title">
+                <MudIcon Icon="@Icons.Material.Filled.Insights" />
+                <div>
+                    <MudText Typo="Typo.h6">Daily Production Trend</MudText>
+                    <MudText Typo="Typo.body2" Class="section-hint">Last 30 days, total pounds per day.</MudText>
+                </div>
+            </div>
+        </div>
+        <MudChart ChartType="ChartType.Line" ChartSeries="@trendSeries" XAxisLabels="@trendLabels"
+                  Width="100%" Height="280px" ChartOptions="@(new ChartOptions { YAxisTicks = 1, LineStrokeWidth = 3 })" />
+    </MudPaper>
+}
+
+<MudPaper Class="polished-section" Elevation="0">
+    <div class="polished-section-header">
+        <div class="polished-section-header-title">
+            <MudIcon Icon="@Icons.Material.Filled.WaterDrop" />
+            <div>
+                <MudText Typo="Typo.h6">Log History</MudText>
+                <MudText Typo="Typo.body2" Class="section-hint">Most recent first.</MudText>
+            </div>
+        </div>
+    </div>
+
+    @if (logs == null)
+    {
+        <MudProgressLinear Indeterminate Color="Color.Primary" />
+    }
+    else if (logs.Count == 0)
+    {
+        <div class="inline-empty">
+            <MudIcon Icon="@Icons.Material.Filled.WaterDrop" />
+            <MudText Typo="Typo.body1">No milk logged yet</MudText>
+            <MudText Typo="Typo.body2">Every morning (and evening!) log each doe's yield to build up your trend.</MudText>
+        </div>
+    }
+    else
+    {
+        <div class="record-list">
+            @foreach (var l in logs)
+            {
+                <div class="record-card">
+                    <div class="record-card-icon record-card-icon-blue">
+                        <MudIcon Icon="@Icons.Material.Filled.WaterDrop" />
+                    </div>
+                    <div class="record-card-body">
+                        <div class="record-card-primary">@l.Goat?.Name</div>
+                        <div class="record-card-secondary">
+                            @l.Date.ToString("MMM d, yyyy")
+                            @if (!string.IsNullOrEmpty(l.Notes)) { <span> · @l.Notes</span> }
+                        </div>
+                    </div>
+                    <MudText Class="record-card-amount" Style="color:#1565c0;">@l.Amount.ToString("F1") lbs</MudText>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="() => DeleteLog(l.Id)" />
+                </div>
+            }
+        </div>
+    }
+</MudPaper>
+
+@code {
+    private List<MilkLog>? logs;
+    private List<Goat>? goats;
+    private List<MilkTrend>? trends;
+    private MilkLog newLog = new();
+    private DateTime? logDate = DateTime.Today;
+    private List<ChartSeries> trendSeries = new();
+    private string[] trendLabels = Array.Empty<string>();
+
+    private double TodayTotal => logs?.Where(l => l.Date.Date == DateTime.Today).Sum(l => l.Amount) ?? 0;
+    private double WeekTotal => logs?.Where(l => l.Date >= DateTime.Today.AddDays(-7)).Sum(l => l.Amount) ?? 0;
+
+    private bool voiceListening;
+    private DotNetObjectReference<MilkIndex>? voiceRef;
+
+    private async Task ToggleVoice()
+    {
+        if (voiceListening) { await Voice.StopAsync(); voiceListening = false; return; }
+        if (!await Voice.IsSupportedAsync())
+        {
+            Snackbar.Add("Voice entry not supported in this browser", Severity.Warning);
+            return;
+        }
+        voiceRef ??= DotNetObjectReference.Create(this);
+        var ok = await Voice.StartAsync(voiceRef);
+        voiceListening = ok;
+        if (ok) Snackbar.Add("Listening… say the amount (e.g. \"four point five\")", Severity.Info);
+    }
+
+    [JSInvokable]
+    public async Task OnVoiceTranscript(string transcript)
+    {
+        var n = await Voice.ParseNumberAsync(transcript);
+        if (n.HasValue)
+        {
+            newLog.Amount = n.Value;
+            Snackbar.Add($"Heard: {transcript} → {n.Value:F1} lbs", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add($"Couldn't parse \"{transcript}\"", Severity.Warning);
+        }
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnVoiceError(string err) { voiceListening = false; StateHasChanged(); }
+
+    [JSInvokable]
+    public void OnVoiceEnd() { voiceListening = false; StateHasChanged(); }
+
+    public void Dispose() { voiceRef?.Dispose(); }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadLogs(), LoadGoats(), LoadTrends());
+    }
+
+    private async Task LoadLogs() => logs = await MilkSvc.GetAllAsync();
+    private async Task LoadGoats() => goats = await GoatSvc.GetAllAsync();
+
+    private async Task LoadTrends()
+    {
+        trends = await MilkSvc.GetTrendsAsync(days: 30);
+        if (trends?.Count > 0)
+        {
+            trendLabels = trends.Select(t => t.Date.ToString("M/d")).ToArray();
+            trendSeries = new() { new ChartSeries { Name = "Milk (lbs)", Data = trends.Select(t => t.TotalLbs).ToArray() } };
+        }
+    }
+
+    private async Task SaveLog()
+    {
+        newLog.Date = logDate ?? DateTime.UtcNow;
+        var amount = newLog.Amount;
+        try
+        {
+            await MilkSvc.CreateAsync(newLog);
+            Snackbar.Add($"Logged {amount:F1} lbs", Severity.Success);
+        }
+        catch (OfflineQueuedException)
+        {
+            Snackbar.Add($"Offline — {amount:F1} lbs queued to sync", Severity.Info);
+        }
+        newLog = new() { GoatId = newLog.GoatId };
+        await Task.WhenAll(LoadLogs(), LoadTrends());
+    }
+
+    private async Task DeleteLog(int id) { await MilkSvc.DeleteAsync(id); await Task.WhenAll(LoadLogs(), LoadTrends()); }
+}

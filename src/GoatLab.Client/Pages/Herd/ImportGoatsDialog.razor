@@ -1,0 +1,139 @@
+@inject ToolsService Tools
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.FileUpload" Class="mr-2" />
+            <MudText Typo="Typo.h6">Import goats from CSV</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (_result is null)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                Upload a CSV with your herd. Columns: <b>Name</b> (required), EarTag, Breed, Gender,
+                DateOfBirth (yyyy-MM-dd), Status, Bio, RegistrationNumber.
+            </MudText>
+
+            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"
+                       OnClick="DownloadTemplateAsync" Class="mb-3">
+                Download template
+            </MudButton>
+
+            <MudFileUpload T="IBrowserFile" @bind-Files="_file" Accept=".csv,text/csv" MaximumFileCount="1">
+                <ActivatorContent>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.UploadFile" FullWidth>
+                        @(_file?.Name ?? "Choose CSV file…")
+                    </MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
+
+            @if (_uploading)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" Class="mt-3" />
+            }
+        }
+        else
+        {
+            <MudAlert Severity="@(_result.Errors.Count == 0 ? Severity.Success : Severity.Warning)"
+                      Variant="Variant.Filled" Class="mb-3">
+                Imported <b>@_result.Imported</b> of @_result.TotalRows rows.
+                @if (_result.Skipped > 0)
+                {
+                    <text> Skipped <b>@_result.Skipped</b>.</text>
+                }
+            </MudAlert>
+
+            @if (_result.Errors.Count > 0)
+            {
+                <MudText Typo="Typo.subtitle2" Class="mb-2">Row errors</MudText>
+                <MudPaper Outlined Elevation="0" Style="max-height:260px;overflow:auto;">
+                    <MudList T="string" Dense>
+                        @foreach (var err in _result.Errors.Take(50))
+                        {
+                            <MudListItem Icon="@Icons.Material.Filled.Error" IconColor="Color.Error">
+                                <MudText Typo="Typo.body2">Row @err.Row: @err.Message</MudText>
+                            </MudListItem>
+                        }
+                    </MudList>
+                </MudPaper>
+                @if (_result.Errors.Count > 50)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                        Showing first 50 of @_result.Errors.Count errors.
+                    </MudText>
+                }
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (_result is null)
+        {
+            <MudButton OnClick="Cancel">Cancel</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       OnClick="UploadAsync" Disabled="@(_file is null || _uploading)"
+                       StartIcon="@Icons.Material.Filled.CloudUpload">
+                Import
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close">Done</MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+
+    private IBrowserFile? _file;
+    private bool _uploading;
+    private GoatImportResult? _result;
+
+    private async Task DownloadTemplateAsync()
+    {
+        try
+        {
+            var bytes = await Tools.GetGoatImportTemplateAsync();
+            await SaveFileAsync("goat-import-template.csv", bytes, "text/csv");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Template download failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task UploadAsync()
+    {
+        if (_file is null) return;
+        _uploading = true;
+        try
+        {
+            // 5 MB cap matches the server's RequestSizeLimit.
+            using var stream = _file.OpenReadStream(5_000_000);
+            _result = await Tools.ImportGoatsAsync(stream, _file.Name);
+            if (_result is not null && _result.Imported > 0)
+                Snackbar.Add($"Imported {_result.Imported} goat(s).", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Import failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private async Task SaveFileAsync(string fileName, byte[] bytes, string mime)
+    {
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("goatLab.downloadFile", fileName, mime, base64);
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Close() => MudDialog.Close(DialogResult.Ok(_result?.Imported ?? 0));
+}

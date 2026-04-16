@@ -1,0 +1,1411 @@
+@page "/herd/{Id:int}"
+@inject GoatService GoatSvc
+@inject HealthService HealthSvc
+@inject MilkService MilkSvc
+@inject SalesService SalesSvc
+@inject ShowService ShowSvc
+@inject NavigationManager Nav
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+
+<PageTitle>@(goat?.Name ?? "Goat") — GoatLab</PageTitle>
+
+@if (goat == null)
+{
+    <MudProgressLinear Indeterminate Color="Color.Primary" />
+}
+else
+{
+    @* ===== Hero ===== *@
+    <div class="page-hero @HeroVariant">
+        <div class="goat-form-hero-avatar @GetAvatarClass(goat.Gender)" style="position:relative;z-index:1;">
+            @GetInitials(goat.Name)
+        </div>
+        <div class="page-hero-text">
+            <MudText Typo="Typo.overline" Class="page-hero-eyebrow">
+                @goat.Status · @goat.Gender @(goat.EarTag != null ? $" · #{goat.EarTag}" : "")
+            </MudText>
+            <MudText Typo="Typo.h4" Class="page-hero-title">@goat.Name</MudText>
+            <MudText Typo="Typo.body2" Class="page-hero-sub">
+                @(goat.Breed ?? "Unknown breed")
+                @if (goat.DateOfBirth.HasValue) { <span> · @AgeString(goat.DateOfBirth.Value)</span> }
+                @if (goat.Pen != null) { <span> · @goat.Pen.Barn?.Name / @goat.Pen.Name</span> }
+            </MudText>
+            <div class="page-hero-stats">
+                <div class="page-hero-stat">
+                    <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(latestWeight?.ToString("F1") ?? "—")</MudText>
+                    <MudText Class="page-hero-stat-label">Current Weight (lbs)</MudText>
+                </div>
+                @if (adg.HasValue)
+                {
+                    <div class="page-hero-stat">
+                        <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(adg.Value >= 0 ? "+" : "")@adg.Value.ToString("F2")</MudText>
+                        <MudText Class="page-hero-stat-label">Avg Daily Gain (lbs)</MudText>
+                    </div>
+                }
+                @if (lifetimeMilk > 0)
+                {
+                    <div class="page-hero-stat">
+                        <MudText Typo="Typo.h5" Class="page-hero-stat-value">@lifetimeMilk.ToString("F0")</MudText>
+                        <MudText Class="page-hero-stat-label">Milk (lbs)</MudText>
+                    </div>
+                }
+                @if (lifetimeRevenue > 0)
+                {
+                    <div class="page-hero-stat">
+                        <MudText Typo="Typo.h5" Class="page-hero-stat-value">$@lifetimeRevenue.ToString("N0")</MudText>
+                        <MudText Class="page-hero-stat-label">Revenue</MudText>
+                    </div>
+                }
+            </div>
+        </div>
+        <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:8px;">
+            @if (MarketReady)
+            {
+                <MudChip T="string" Color="Color.Success" Variant="Variant.Filled"
+                         Icon="@Icons.Material.Filled.VerifiedUser" Size="Size.Large">Market Ready</MudChip>
+            }
+            <MudButton Variant="Variant.Filled" Color="Color.Surface" Style="background:rgba(255,255,255,0.92);color:#1b5e20;"
+                       StartIcon="@Icons.Material.Filled.Edit" Href="@($"/herd/{Id}/edit")">Edit</MudButton>
+            <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                       StartIcon="@Icons.Material.Filled.AccountTree" Href="@($"/herd/{Id}/pedigree")">Pedigree</MudButton>
+            <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                       StartIcon="@Icons.Material.Filled.AttachMoney" Href="@($"/herd/{Id}/pnl")">P&amp;L</MudButton>
+            <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                       StartIcon="@Icons.Material.Filled.PictureAsPdf" Href="@($"/herd/report/{Id}")">Report</MudButton>
+            <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                       StartIcon="@Icons.Material.Filled.Delete" OnClick="DeleteGoat">Delete</MudButton>
+        </div>
+    </div>
+
+    <MudTabs Elevation="0" Rounded ApplyEffectsToContainer PanelClass="pt-4">
+
+        @* ===== PROFILE TAB ===== *@
+        <MudTabPanel Text="Profile" Icon="@Icons.Material.Filled.Info">
+            <MudGrid>
+                <MudItem xs="12" md="7">
+                    <MudPaper Class="polished-section" Elevation="0">
+                        <div class="polished-section-header">
+                            <div class="polished-section-header-title">
+                                <MudIcon Icon="@Icons.Material.Filled.Badge" />
+                                <div>
+                                    <MudText Typo="Typo.h6">Details</MudText>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="detail-row"><span class="detail-label">Date of Birth</span><span>@(goat.DateOfBirth?.ToString("MMM d, yyyy") ?? "—")</span></div>
+                        @if (goat.DateOfBirth.HasValue)
+                        {
+                            <div class="detail-row"><span class="detail-label">Age</span><span>@AgeString(goat.DateOfBirth.Value)</span></div>
+                        }
+                        <div class="detail-row"><span class="detail-label">Sire</span>
+                            <span>
+                                @if (goat.Sire != null)
+                                {
+                                    <MudLink Href="@($"/herd/{goat.Sire.Id}")">@goat.Sire.Name</MudLink>
+                                }
+                                else { <span>—</span> }
+                            </span>
+                        </div>
+                        <div class="detail-row"><span class="detail-label">Dam</span>
+                            <span>
+                                @if (goat.Dam != null)
+                                {
+                                    <MudLink Href="@($"/herd/{goat.Dam.Id}")">@goat.Dam.Name</MudLink>
+                                }
+                                else { <span>—</span> }
+                            </span>
+                        </div>
+                        <div class="detail-row"><span class="detail-label">Pen</span><span>@(goat.Pen != null ? $"{goat.Pen.Barn?.Name} / {goat.Pen.Name}" : "—")</span></div>
+
+                        @if (HasRegistrationInfo)
+                        {
+                            <MudDivider Class="my-3" />
+                            @if (goat.Registry != GoatRegistry.None)
+                            {
+                                <div class="detail-row"><span class="detail-label">Registry</span>
+                                    <span>@goat.Registry @(string.IsNullOrEmpty(goat.RegistrationNumber) ? "" : $"· {goat.RegistrationNumber}")</span>
+                                </div>
+                            }
+                            else if (!string.IsNullOrEmpty(goat.RegistrationNumber))
+                            {
+                                <div class="detail-row"><span class="detail-label">Registration</span><span>@goat.RegistrationNumber</span></div>
+                            }
+                            @if (!string.IsNullOrEmpty(goat.BreederName))
+                            {
+                                <div class="detail-row"><span class="detail-label">Breeder</span><span>@goat.BreederName</span></div>
+                            }
+                            @if (!string.IsNullOrEmpty(goat.TattooLeft) || !string.IsNullOrEmpty(goat.TattooRight))
+                            {
+                                <div class="detail-row"><span class="detail-label">Tattoo (L / R)</span>
+                                    <span>@(goat.TattooLeft ?? "—") / @(goat.TattooRight ?? "—")</span>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(goat.ScrapieTag))
+                            {
+                                <div class="detail-row"><span class="detail-label">Scrapie tag</span><span>@goat.ScrapieTag</span></div>
+                            }
+                            @if (!string.IsNullOrEmpty(goat.Microchip))
+                            {
+                                <div class="detail-row"><span class="detail-label">Microchip</span><span>@goat.Microchip</span></div>
+                            }
+                        }
+
+                        @if (!string.IsNullOrWhiteSpace(goat.Bio))
+                        {
+                            <MudDivider Class="my-3" />
+                            <MudText Typo="Typo.body2" Style="white-space:pre-wrap;">@goat.Bio</MudText>
+                        }
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="12" md="5">
+                    <MudPaper Class="polished-section" Elevation="0">
+                        <div class="polished-section-header">
+                            <div class="polished-section-header-title">
+                                <MudIcon Icon="@Icons.Material.Filled.PhotoLibrary" />
+                                <div>
+                                    <MudText Typo="Typo.h6">Photos</MudText>
+                                    <MudText Typo="Typo.body2" Class="section-hint">Upload pics — the first one becomes the primary.</MudText>
+                                </div>
+                            </div>
+                            <MudFileUpload T="IBrowserFile" FilesChanged="UploadPhoto" Accept=".jpg,.jpeg,.png,.webp,.gif">
+                                <ActivatorContent>
+                                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                               StartIcon="@Icons.Material.Filled.CloudUpload"
+                                               Disabled="@uploadingPhoto">
+                                        @(uploadingPhoto ? "Uploading…" : "Upload")
+                                    </MudButton>
+                                </ActivatorContent>
+                            </MudFileUpload>
+                        </div>
+                        @if (goat.Photos?.Count > 0)
+                        {
+                            <MudGrid Spacing="2">
+                                @foreach (var photo in goat.Photos)
+                                {
+                                    <MudItem xs="6" sm="4">
+                                        <div class="photo-tile">
+                                            <img src="@($"/{photo.FilePath}")" alt="@photo.Caption" />
+                                            @if (photo.IsPrimary)
+                                            {
+                                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
+                                                         Icon="@Icons.Material.Filled.Star" Class="photo-tile-primary">Primary</MudChip>
+                                            }
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                           Class="photo-tile-delete"
+                                                           OnClick="() => DeletePhoto(photo.Id)" />
+                                        </div>
+                                    </MudItem>
+                                }
+                            </MudGrid>
+                        }
+                        else
+                        {
+                            <div class="inline-empty">
+                                <MudIcon Icon="@Icons.Material.Filled.AddAPhoto" />
+                                <MudText Typo="Typo.body1">No photos yet</MudText>
+                                <MudText Typo="Typo.body2">Upload a portrait or show pic.</MudText>
+                            </div>
+                        }
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+        @* ===== HEALTH TAB ===== *@
+        <MudTabPanel Text="Health" Icon="@Icons.Material.Filled.LocalHospital">
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@Icons.Material.Filled.Assignment" />
+                        <div>
+                            <MudText Typo="Typo.h6">Medical Records</MudText>
+                            <MudText Typo="Typo.body2" Class="section-hint">Latest treatments and checkups.</MudText>
+                        </div>
+                    </div>
+                </div>
+                @if (medicalRecords?.Count > 0)
+                {
+                    <div class="record-list">
+                        @foreach (var r in medicalRecords.Take(20))
+                        {
+                            <div class="record-card">
+                                <div class="record-card-icon record-card-icon-teal">
+                                    <MudIcon Icon="@Icons.Material.Filled.MedicalServices" />
+                                </div>
+                                <div class="record-card-body">
+                                    <div class="record-card-primary">@r.Title</div>
+                                    <div class="record-card-secondary">@r.Date.ToString("MMM d, yyyy") · @r.RecordType</div>
+                                </div>
+                                @if (r.NextDueDate.HasValue && r.NextDueDate.Value <= DateTime.UtcNow)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">Overdue</MudChip>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="inline-empty">
+                        <MudIcon Icon="@Icons.Material.Filled.HealthAndSafety" />
+                        <MudText Typo="Typo.body2">No medical records yet.</MudText>
+                    </div>
+                }
+            </MudPaper>
+
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@Icons.Material.Filled.MonitorHeart" />
+                        <div>
+                            <MudText Typo="Typo.h6">FAMACHA Scores</MudText>
+                            <MudText Typo="Typo.body2" Class="section-hint">Eyelid color — 1 (red, healthy) to 5 (white, anemic).</MudText>
+                        </div>
+                    </div>
+                </div>
+                @if (famachaScores?.Count > 0)
+                {
+                    <div class="record-list">
+                        @foreach (var f in famachaScores.Take(10))
+                        {
+                            <div class="record-card">
+                                <div class="record-card-icon @GetFamachaIconBg(f.Score)">
+                                    <span>@f.Score</span>
+                                </div>
+                                <div class="record-card-body">
+                                    <div class="record-card-primary">Score @f.Score / 5</div>
+                                    <div class="record-card-secondary">@f.Date.ToString("MMM d, yyyy")</div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="inline-empty">
+                        <MudIcon Icon="@Icons.Material.Filled.MonitorHeart" />
+                        <MudText Typo="Typo.body2">No FAMACHA scores logged.</MudText>
+                    </div>
+                }
+            </MudPaper>
+        </MudTabPanel>
+
+        @* ===== WEIGHT & MARKET TAB ===== *@
+        <MudTabPanel Text="Weight &amp; Market" Icon="@Icons.Material.Filled.Scale">
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@Icons.Material.Filled.Scale" />
+                        <div>
+                            <MudText Typo="Typo.h6">Weight Tracking</MudText>
+                            <MudText Typo="Typo.body2" Class="section-hint">
+                                @if (adg.HasValue)
+                                {
+                                    <span>ADG: <strong>@(adg.Value >= 0 ? "+" : "")@adg.Value.ToString("F2") lbs/day</strong> over the last @adgDays days</span>
+                                }
+                                else
+                                {
+                                    <span>Log at least two weights to see average daily gain.</span>
+                                }
+                            </MudText>
+                        </div>
+                    </div>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="() => showWeightForm = !showWeightForm">
+                        @(showWeightForm ? "Close" : "Log Weight")
+                    </MudButton>
+                </div>
+
+                @if (showWeightForm)
+                {
+                    <MudPaper Class="pa-4 mb-4" Outlined Style="border-radius:12px;">
+                        <MudGrid>
+                            <MudItem xs="6" sm="4">
+                                <MudNumericField @bind-Value="newWeight.Weight" Label="Weight" Variant="Variant.Outlined"
+                                                 Min="0.0" Step="0.5" Adornment="Adornment.End" AdornmentText="lbs" />
+                            </MudItem>
+                            <MudItem xs="6" sm="4">
+                                <MudDatePicker @bind-Date="newWeightDate" Label="Date" Variant="Variant.Outlined" Editable />
+                            </MudItem>
+                            <MudItem xs="12" sm="4">
+                                <MudTextField @bind-Value="newWeight.Notes" Label="Notes" Variant="Variant.Outlined" />
+                            </MudItem>
+                        </MudGrid>
+                        <div class="d-flex gap-2 mt-3 justify-end">
+                            <MudButton Variant="Variant.Text" OnClick="() => showWeightForm = false">Cancel</MudButton>
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                                       OnClick="SaveWeight">Save</MudButton>
+                        </div>
+                    </MudPaper>
+                }
+
+                @if (weightSeries.Count > 0 && weightLabels.Length > 1)
+                {
+                    <MudChart ChartType="ChartType.Line" ChartSeries="@weightSeries" XAxisLabels="@weightLabels"
+                              Width="100%" Height="280px"
+                              ChartOptions="@(new ChartOptions { YAxisTicks = 1, LineStrokeWidth = 3 })" />
+                }
+
+                @if (weights?.Count > 0)
+                {
+                    <div class="record-list mt-4">
+                        @foreach (var w in weights.OrderByDescending(w => w.Date).Take(20))
+                        {
+                            <div class="record-card">
+                                <div class="record-card-icon record-card-icon-green">
+                                    <MudIcon Icon="@Icons.Material.Filled.Scale" />
+                                </div>
+                                <div class="record-card-body">
+                                    <div class="record-card-primary">@w.Weight.ToString("F1") lbs</div>
+                                    <div class="record-card-secondary">
+                                        @w.Date.ToString("MMM d, yyyy")
+                                        @if (!string.IsNullOrEmpty(w.Notes)) { <span> · @w.Notes</span> }
+                                    </div>
+                                </div>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="() => DeleteWeight(w.Id)" />
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="inline-empty">
+                        <MudIcon Icon="@Icons.Material.Filled.Scale" />
+                        <MudText Typo="Typo.body1">No weights recorded</MudText>
+                        <MudText Typo="Typo.body2">Track weight over time to calculate ADG and monitor market readiness.</MudText>
+                    </div>
+                }
+            </MudPaper>
+
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@Icons.Material.Filled.VerifiedUser" />
+                        <div>
+                            <MudText Typo="Typo.h6">Market Readiness</MudText>
+                            <MudText Typo="Typo.body2" Class="section-hint">
+                                Configurable target weight for meat goats — typical market weight is 60-100 lbs.
+                            </MudText>
+                        </div>
+                    </div>
+                </div>
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField @bind-Value="marketTargetLbs" Label="Target Weight"
+                                         Variant="Variant.Outlined" Min="10" Max="500" Step="5"
+                                         Adornment="Adornment.End" AdornmentText="lbs" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" Class="d-flex align-center">
+                        @if (latestWeight.HasValue)
+                        {
+                            var pct = (latestWeight.Value / marketTargetLbs) * 100;
+                            <div style="flex:1;">
+                                <MudText Typo="Typo.body2" Class="mb-1">
+                                    <strong>@latestWeight.Value.ToString("F1") / @marketTargetLbs lbs</strong>
+                                    (@pct.ToString("F0")%)
+                                </MudText>
+                                <MudProgressLinear Value="@Math.Min(100, pct)"
+                                                   Color="@(pct >= 100 ? Color.Success : pct >= 80 ? Color.Info : Color.Primary)"
+                                                   Rounded Style="height:10px;" />
+                                @if (pct >= 100)
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Success" Class="mt-1">
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Style="vertical-align:text-bottom;" />
+                                        Ready for market
+                                    </MudText>
+                                }
+                                else if (adg.HasValue && adg.Value > 0)
+                                {
+                                    var daysToTarget = (marketTargetLbs - latestWeight.Value) / adg.Value;
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                                        ~@((int)daysToTarget) days to target at current ADG
+                                    </MudText>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">Log a weight to see progress toward target.</MudText>
+                        }
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+        </MudTabPanel>
+
+        @* ===== MILK TAB ===== *@
+        @if (goat.Gender == Gender.Female)
+        {
+            <MudTabPanel Text="Milk" Icon="@Icons.Material.Filled.WaterDrop">
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Insights" />
+                            <div>
+                                <MudText Typo="Typo.h6">Production Trend</MudText>
+                                <MudText Typo="Typo.body2" Class="section-hint">Last 30 days for @goat.Name.</MudText>
+                            </div>
+                        </div>
+                    </div>
+                    @if (milkTrendSeries.Count > 0 && milkTrendLabels.Length > 0)
+                    {
+                        <MudChart ChartType="ChartType.Line" ChartSeries="@milkTrendSeries" XAxisLabels="@milkTrendLabels"
+                                  Width="100%" Height="260px"
+                                  ChartOptions="@(new ChartOptions { YAxisTicks = 1, LineStrokeWidth = 3 })" />
+                    }
+                    else
+                    {
+                        <div class="inline-empty">
+                            <MudIcon Icon="@Icons.Material.Filled.WaterDrop" />
+                            <MudText Typo="Typo.body2">No recent milk logs to graph.</MudText>
+                        </div>
+                    }
+                </MudPaper>
+
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.EventNote" />
+                            <div>
+                                <MudText Typo="Typo.h6">Lactations</MudText>
+                                <MudText Typo="Typo.body2" Class="section-hint">
+                                    Freshening-to-dry-off cycles with 305-day projections and DHIR test days.
+                                </MudText>
+                            </div>
+                        </div>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                                   OnClick="StartLactation">Start lactation</MudButton>
+                    </div>
+
+                    @if (lactations == null)
+                    {
+                        <MudProgressLinear Indeterminate Color="Color.Primary" />
+                    }
+                    else if (!lactations.Any())
+                    {
+                        <div class="inline-empty">
+                            <MudIcon Icon="@Icons.Material.Filled.EventNote" />
+                            <MudText Typo="Typo.body1">No lactations recorded</MudText>
+                            <MudText Typo="Typo.body2">Record a kidding to auto-start one, or add manually.</MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        <div style="display:flex;flex-direction:column;gap:14px;">
+                            @foreach (var lac in lactations)
+                            {
+                                var accent = lac.IsActive ? "#2e7d32" : "#607d8b";
+                                <MudPaper Outlined Class="pa-3" Style="@($"border-left:4px solid {accent};")">
+                                    <div class="d-flex justify-space-between align-center flex-wrap">
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1" Style="font-weight:700;">
+                                                Lactation #@lac.LactationNumber
+                                                @if (lac.IsActive)
+                                                {
+                                                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled" Class="ml-2">Active</MudChip>
+                                                }
+                                                else
+                                                {
+                                                    <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined" Class="ml-2">Closed</MudChip>
+                                                }
+                                            </MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                Fresh @lac.FreshenDate.ToString("MMM d, yyyy")
+                                                @if (lac.DryOffDate.HasValue) { <span> · Dry off @lac.DryOffDate.Value.ToString("MMM d, yyyy")</span> }
+                                                · DIM @lac.DaysInMilk
+                                            </MudText>
+                                        </div>
+                                        <div class="d-flex" style="gap:6px;">
+                                            <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                                                       StartIcon="@Icons.Material.Filled.Add"
+                                                       OnClick="@(() => AddTestDay(lac))">Test day</MudButton>
+                                            @if (lac.IsActive)
+                                            {
+                                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                                                           StartIcon="@Icons.Material.Filled.EventBusy"
+                                                           OnClick="@(() => DryOff(lac))">Dry off</MudButton>
+                                            }
+                                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                           OnClick="@(() => DeleteLactation(lac.Id))" />
+                                        </div>
+                                    </div>
+
+                                    <MudGrid Class="mt-2" Spacing="1">
+                                        <MudItem xs="6" sm="3">
+                                            <div class="lac-stat">
+                                                <div class="lac-stat-label">Total</div>
+                                                <div class="lac-stat-value">@lac.TotalMilkLbs.ToString("F0") lbs</div>
+                                            </div>
+                                        </MudItem>
+                                        <MudItem xs="6" sm="3">
+                                            <div class="lac-stat">
+                                                <div class="lac-stat-label">Avg / day</div>
+                                                <div class="lac-stat-value">@lac.AvgDailyLbs.ToString("F1") lbs</div>
+                                            </div>
+                                        </MudItem>
+                                        <MudItem xs="6" sm="3">
+                                            <div class="lac-stat">
+                                                <div class="lac-stat-label">Peak</div>
+                                                <div class="lac-stat-value">
+                                                    @lac.PeakLbs.ToString("F1") lbs
+                                                    @if (lac.PeakDim > 0) { <span style="font-size:0.75rem;color:#888;"> (DIM @lac.PeakDim)</span> }
+                                                </div>
+                                            </div>
+                                        </MudItem>
+                                        <MudItem xs="6" sm="3">
+                                            <div class="lac-stat">
+                                                <div class="lac-stat-label">305-day proj.</div>
+                                                <div class="lac-stat-value">
+                                                    @(lac.Projected305.HasValue ? lac.Projected305.Value.ToString("F0") + " lbs" : "—")
+                                                </div>
+                                            </div>
+                                        </MudItem>
+                                    </MudGrid>
+
+                                    @if (lac.TestDays.Any())
+                                    {
+                                        <MudDivider Class="my-3" />
+                                        <MudText Typo="Typo.caption" Style="text-transform:uppercase;letter-spacing:1px;color:#888;font-weight:600;">Test days</MudText>
+                                        <div style="display:flex;flex-direction:column;gap:4px;margin-top:6px;">
+                                            @foreach (var td in lac.TestDays)
+                                            {
+                                                <div class="test-day-row">
+                                                    <span class="test-day-date">@td.TestDate.ToString("MMM d") · DIM @td.Dim</span>
+                                                    <span class="test-day-total">@td.TotalLbs.ToString("F1") lbs</span>
+                                                    @if (td.ButterfatPercent.HasValue)
+                                                    {
+                                                        <span class="test-day-chip">BF @td.ButterfatPercent.Value.ToString("F1")%</span>
+                                                    }
+                                                    @if (td.ProteinPercent.HasValue)
+                                                    {
+                                                        <span class="test-day-chip">PR @td.ProteinPercent.Value.ToString("F1")%</span>
+                                                    }
+                                                    @if (td.SomaticCellCount.HasValue)
+                                                    {
+                                                        var sccColor = td.SomaticCellCount > 400 ? "#c62828" : td.SomaticCellCount > 200 ? "#ef6c00" : "#2e7d32";
+                                                        <span class="test-day-chip" style="@($"background:{sccColor};color:#fff;")">SCC @td.SomaticCellCount</span>
+                                                    }
+                                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                                   OnClick="@(() => DeleteTestDay(td.Id))" />
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                </MudPaper>
+                            }
+                        </div>
+                    }
+                </MudPaper>
+
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.WaterDrop" />
+                            <div>
+                                <MudText Typo="Typo.h6">Milk History</MudText>
+                                <MudText Typo="Typo.body2" Class="section-hint">
+                                    @((milkLogs?.Count ?? 0)) entries · @lifetimeMilk.ToString("F1") lbs total
+                                </MudText>
+                            </div>
+                        </div>
+                    </div>
+                    @if (milkLogs?.Count > 0)
+                    {
+                        <div class="record-list">
+                            @foreach (var m in milkLogs.Take(30))
+                            {
+                                <div class="record-card">
+                                    <div class="record-card-icon record-card-icon-blue">
+                                        <MudIcon Icon="@Icons.Material.Filled.WaterDrop" />
+                                    </div>
+                                    <div class="record-card-body">
+                                        <div class="record-card-primary">@m.Amount.ToString("F1") lbs</div>
+                                        <div class="record-card-secondary">
+                                            @m.Date.ToString("MMM d, yyyy")
+                                            @if (!string.IsNullOrEmpty(m.Notes)) { <span> · @m.Notes</span> }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="inline-empty">
+                            <MudIcon Icon="@Icons.Material.Filled.WaterDrop" />
+                            <MudText Typo="Typo.body2">No milk logs for this goat.</MudText>
+                        </div>
+                    }
+                </MudPaper>
+            </MudTabPanel>
+        }
+
+        @* ===== SALES TAB ===== *@
+        <MudTabPanel Text="Sales" Icon="@Icons.Material.Filled.AttachMoney">
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" />
+                        <div>
+                            <MudText Typo="Typo.h6">Sale History</MudText>
+                            <MudText Typo="Typo.body2" Class="section-hint">
+                                Every sale tied to @goat.Name · total <strong>$@lifetimeRevenue.ToString("N2")</strong>
+                            </MudText>
+                        </div>
+                    </div>
+                </div>
+                @if (sales?.Count > 0)
+                {
+                    <div class="record-list">
+                        @foreach (var s in sales)
+                        {
+                            <div class="record-card">
+                                <div class="record-card-icon @GetSaleTypeIconBg(s.SaleType)">
+                                    <MudIcon Icon="@GetSaleTypeIcon(s.SaleType)" />
+                                </div>
+                                <div class="record-card-body">
+                                    <div class="record-card-primary">@(string.IsNullOrWhiteSpace(s.Description) ? s.SaleType.ToString() : s.Description)</div>
+                                    <div class="record-card-secondary">
+                                        @s.SaleDate.ToString("MMM d, yyyy")
+                                        @if (s.Customer != null) { <span> · @s.Customer.Name</span> }
+                                    </div>
+                                </div>
+                                <MudText Class="record-card-amount record-card-amount-income">$@s.Amount.ToString("F2")</MudText>
+                                <MudChip T="string" Size="Size.Small" Color="@GetPaymentColor(s.PaymentStatus)" Variant="Variant.Filled">
+                                    @s.PaymentStatus
+                                </MudChip>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="inline-empty">
+                        <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" />
+                        <MudText Typo="Typo.body2">No sales recorded for @goat.Name yet.</MudText>
+                    </div>
+                }
+            </MudPaper>
+        </MudTabPanel>
+
+        @* ===== SHOWS TAB ===== *@
+        <MudTabPanel Text="Shows" Icon="@Icons.Material.Filled.EmojiEvents">
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" />
+                        <div>
+                            <MudText Typo="Typo.h6">Show record</MudText>
+                            <MudText Typo="Typo.body2" Class="section-hint">
+                                @ShowRecords.Count show@(ShowRecords.Count == 1 ? "" : "s")
+                                @if (FirstPlacings > 0) { <span> · @FirstPlacings first place@(FirstPlacings == 1 ? "" : "s")</span> }
+                            </MudText>
+                        </div>
+                    </div>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="AddShow">Add show</MudButton>
+                </div>
+
+                @if (!ShowRecords.Any())
+                {
+                    <div class="inline-empty">
+                        <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" />
+                        <MudText Typo="Typo.body1">No show results yet</MudText>
+                        <MudText Typo="Typo.body2">Log placings, class size, and judge comments.</MudText>
+                    </div>
+                }
+                else
+                {
+                    <div class="record-list">
+                        @foreach (var s in ShowRecords)
+                        {
+                            <div class="record-card">
+                                <div class="record-card-icon @(s.Placing == 1 ? "record-card-icon-gold" : "record-card-icon-blue")">
+                                    <MudIcon Icon="@(s.Placing == 1 ? Icons.Material.Filled.EmojiEvents : Icons.Material.Filled.MilitaryTech)" />
+                                </div>
+                                <div class="record-card-body">
+                                    <div class="record-card-primary">
+                                        @s.ShowName
+                                        @if (s.Placing.HasValue)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="@PlacingColor(s.Placing.Value)" Variant="Variant.Filled" Class="ml-2">
+                                                @PlacingLabel(s.Placing.Value)@(s.ClassSize.HasValue ? $" / {s.ClassSize}" : "")
+                                            </MudChip>
+                                        }
+                                        @if (!string.IsNullOrEmpty(s.Awards))
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Class="ml-1">
+                                                @s.Awards
+                                            </MudChip>
+                                        }
+                                    </div>
+                                    <div class="record-card-secondary">
+                                        @s.ShowDate.ToString("MMM d, yyyy")
+                                        @if (!string.IsNullOrEmpty(s.Class)) { <span> · @s.Class</span> }
+                                        @if (!string.IsNullOrEmpty(s.Judge)) { <span> · Judge @s.Judge</span> }
+                                        @if (!string.IsNullOrEmpty(s.Location)) { <span> · @s.Location</span> }
+                                    </div>
+                                </div>
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="() => DeleteShow(s.Id)" />
+                            </div>
+                        }
+                    </div>
+                }
+            </MudPaper>
+
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@Icons.Material.Filled.Assessment" />
+                        <div>
+                            <MudText Typo="Typo.h6">Linear appraisal</MudText>
+                            <MudText Typo="Typo.body2" Class="section-hint">@Appraisals.Count score@(Appraisals.Count == 1 ? "" : "s") on file.</MudText>
+                        </div>
+                    </div>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="AddAppraisal">Add appraisal</MudButton>
+                </div>
+
+                @if (!Appraisals.Any())
+                {
+                    <div class="inline-empty">
+                        <MudIcon Icon="@Icons.Material.Filled.Assessment" />
+                        <MudText Typo="Typo.body1">No appraisals yet</MudText>
+                        <MudText Typo="Typo.body2">4 category scores + final composite + classification.</MudText>
+                    </div>
+                }
+                else
+                {
+                    <MudGrid>
+                        @foreach (var a in Appraisals)
+                        {
+                            <MudItem xs="12" md="6">
+                                <MudPaper Outlined Class="pa-3" Style="@($"border-left:4px solid {ClassColor(a.Classification)};")">
+                                    <div class="d-flex justify-space-between align-center">
+                                        <div>
+                                            <MudText Typo="Typo.subtitle1" Style="font-weight:700;">
+                                                @(a.FinalScore?.ToString() ?? "—")
+                                                @if (a.Classification.HasValue)
+                                                {
+                                                    <span style="color:#888;font-weight:500;font-size:0.9rem;"> · @ClassLabel(a.Classification.Value)</span>
+                                                }
+                                            </MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                @a.AppraisalDate.ToString("MMM d, yyyy")
+                                                @if (!string.IsNullOrEmpty(a.Appraiser)) { <span> · @a.Appraiser</span> }
+                                            </MudText>
+                                        </div>
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                                       OnClick="() => DeleteAppraisal(a.Id)" />
+                                    </div>
+                                    <MudGrid Class="mt-2" Spacing="1">
+                                        <MudItem xs="6"><MudText Typo="Typo.caption">GA: <strong>@(a.GeneralAppearance?.ToString() ?? "—")</strong></MudText></MudItem>
+                                        <MudItem xs="6"><MudText Typo="Typo.caption">DC: <strong>@(a.DairyCharacter?.ToString() ?? "—")</strong></MudText></MudItem>
+                                        <MudItem xs="6"><MudText Typo="Typo.caption">BC: <strong>@(a.BodyCapacity?.ToString() ?? "—")</strong></MudText></MudItem>
+                                        <MudItem xs="6"><MudText Typo="Typo.caption">MS: <strong>@(a.MammarySystem?.ToString() ?? "—")</strong></MudText></MudItem>
+                                    </MudGrid>
+                                </MudPaper>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
+            </MudPaper>
+        </MudTabPanel>
+
+        @* ===== DOCUMENTS TAB ===== *@
+        <MudTabPanel Text="Documents" Icon="@Icons.Material.Filled.Folder">
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@Icons.Material.Filled.Folder" />
+                        <div>
+                            <MudText Typo="Typo.h6">Documents</MudText>
+                            <MudText Typo="Typo.body2" Class="section-hint">
+                                Registration papers, test results, bills of sale, CVIs, etc.
+                            </MudText>
+                        </div>
+                    </div>
+                </div>
+
+                <MudGrid>
+                    <MudItem xs="12" sm="5">
+                        <MudTextField @bind-Value="docTitle" Label="Document title" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudSelect T="string" @bind-Value="docType" Label="Type" Variant="Variant.Outlined" Clearable>
+                            @foreach (var t in DocumentTypes)
+                            {
+                                <MudSelectItem Value="@t">@t</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="3" Class="d-flex align-end">
+                        <MudFileUpload T="IBrowserFile" FilesChanged="UploadDocument"
+                                       Accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.doc,.docx">
+                            <ActivatorContent>
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth
+                                           StartIcon="@Icons.Material.Filled.CloudUpload"
+                                           Disabled="@(uploadingDoc || string.IsNullOrWhiteSpace(docTitle))">
+                                    @(uploadingDoc ? "Uploading…" : "Upload")
+                                </MudButton>
+                            </ActivatorContent>
+                        </MudFileUpload>
+                    </MudItem>
+                </MudGrid>
+
+                @if (goat.Documents?.Count > 0)
+                {
+                    <MudDivider Class="my-3" />
+                    <div class="record-list">
+                        @foreach (var d in goat.Documents.OrderByDescending(x => x.UploadedAt))
+                        {
+                            <div class="record-card">
+                                <div class="record-card-icon record-card-icon-blue">
+                                    <MudIcon Icon="@DocumentIcon(d.FilePath)" />
+                                </div>
+                                <div class="record-card-body">
+                                    <div class="record-card-primary">
+                                        <a href="@($"/{d.FilePath}")" target="_blank" style="text-decoration:none;color:inherit;">
+                                            @d.Title
+                                        </a>
+                                    </div>
+                                    <div class="record-card-secondary">
+                                        @d.UploadedAt.ToString("MMM d, yyyy")
+                                        @if (!string.IsNullOrEmpty(d.DocumentType)) { <span> · @d.DocumentType</span> }
+                                    </div>
+                                </div>
+                                <MudIconButton Icon="@Icons.Material.Filled.Download" Size="Size.Small"
+                                               Href="@($"/{d.FilePath}")" Target="_blank" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               OnClick="() => DeleteDocument(d.Id)" />
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="inline-empty">
+                        <MudIcon Icon="@Icons.Material.Filled.FolderOpen" />
+                        <MudText Typo="Typo.body1">No documents attached</MudText>
+                        <MudText Typo="Typo.body2">Upload registration papers, disease test results, purchase agreements, health certificates.</MudText>
+                    </div>
+                }
+            </MudPaper>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+<style>
+.lac-stat {
+    background: rgba(46,125,50,0.05);
+    border-radius: 8px;
+    padding: 10px 12px;
+    border: 1px solid rgba(46,125,50,0.15);
+}
+.mud-theme-dark .lac-stat { background: rgba(102,187,106,0.08); border-color: rgba(102,187,106,0.2); }
+.lac-stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: #888; font-weight: 600; }
+.lac-stat-value { font-size: 1rem; font-weight: 700; margin-top: 2px; }
+
+.test-day-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.03);
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+}
+.mud-theme-dark .test-day-row { background: rgba(255,255,255,0.04); }
+.test-day-date { font-weight: 600; min-width: 110px; }
+.test-day-total { font-weight: 700; color: #1976d2; }
+.test-day-chip {
+    background: rgba(0,0,0,0.06);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.mud-theme-dark .test-day-chip { background: rgba(255,255,255,0.08); }
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+.mud-theme-dark .detail-row { border-bottom-color: rgba(255,255,255,0.06); }
+.detail-row:last-of-type { border-bottom: none; }
+.detail-label { color: var(--mud-palette-text-secondary); font-weight: 500; }
+.record-card-icon .mud-icon-root { color: #fff; }
+.photo-tile {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    aspect-ratio: 1 / 1;
+    background: #000;
+}
+.photo-tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.photo-tile-primary {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+}
+.photo-tile-delete {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(0,0,0,0.55) !important;
+    color: #fff !important;
+}
+.photo-tile-delete:hover {
+    background: rgba(198,40,40,0.85) !important;
+}
+</style>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Goat? goat;
+    private List<MedicalRecord>? medicalRecords;
+    private List<WeightRecord>? weights;
+    private List<FamachaScore>? famachaScores;
+    private List<MilkLog>? milkLogs;
+    private List<Sale>? sales;
+    private List<ShowRecord>? showRecordsList;
+    private List<LinearAppraisal>? appraisals;
+    private List<LactationSummary>? lactations;
+
+    private bool showWeightForm;
+    private WeightRecord newWeight = new();
+    private DateTime? newWeightDate = DateTime.Today;
+    private bool uploadingPhoto;
+
+    // Documents tab state
+    private string? docTitle;
+    private string? docType;
+    private bool uploadingDoc;
+    private static readonly string[] DocumentTypes = { "Registration", "Health certificate", "Test result", "Bill of sale", "Pedigree", "Show papers", "Other" };
+
+    // Computed for tabs
+    private List<ShowRecord> ShowRecords => showRecordsList ?? new();
+    private List<LinearAppraisal> Appraisals => appraisals ?? new();
+    private int FirstPlacings => ShowRecords.Count(s => s.Placing == 1);
+    private bool HasRegistrationInfo => goat != null &&
+        (goat.Registry != GoatRegistry.None
+         || !string.IsNullOrEmpty(goat.RegistrationNumber)
+         || !string.IsNullOrEmpty(goat.BreederName)
+         || !string.IsNullOrEmpty(goat.TattooLeft)
+         || !string.IsNullOrEmpty(goat.TattooRight)
+         || !string.IsNullOrEmpty(goat.ScrapieTag)
+         || !string.IsNullOrEmpty(goat.Microchip));
+
+    private double marketTargetLbs = 80;
+
+    private List<ChartSeries> weightSeries = new();
+    private string[] weightLabels = Array.Empty<string>();
+    private List<ChartSeries> milkTrendSeries = new();
+    private string[] milkTrendLabels = Array.Empty<string>();
+
+    private double? latestWeight => weights?.OrderByDescending(w => w.Date).FirstOrDefault()?.Weight;
+    private double? adg;
+    private int adgDays;
+    private double lifetimeMilk => milkLogs?.Sum(m => m.Amount) ?? 0;
+    private decimal lifetimeRevenue => sales?.Where(s => s.PaymentStatus == PaymentStatus.PaidInFull).Sum(s => s.Amount) ?? 0m;
+    private bool MarketReady => latestWeight.HasValue && latestWeight.Value >= marketTargetLbs;
+
+    private string HeroVariant => goat?.Gender switch
+    {
+        Gender.Female => "page-hero-pink",
+        Gender.Male => "page-hero-blue",
+        Gender.Wether => "page-hero-purple",
+        _ => "page-hero-green"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAll();
+    }
+
+    private async Task LoadAll()
+    {
+        goat = await GoatSvc.GetAsync(Id);
+
+        var medTask = HealthSvc.GetRecordsAsync(Id);
+        var weightTask = HealthSvc.GetWeightsAsync(Id);
+        var famachaTask = HealthSvc.GetFamachaAsync(Id);
+        var milkTask = MilkSvc.GetAllAsync(goatId: Id);
+        var salesTask = SalesSvc.GetAllAsync(goatId: Id);
+        var milkTrendTask = MilkSvc.GetTrendsAsync(goatId: Id, days: 30);
+        var showTask = ShowSvc.GetShowsAsync(Id);
+        var appraisalTask = ShowSvc.GetAppraisalsAsync(Id);
+        var lactationTask = MilkSvc.GetLactationsAsync(Id);
+
+        await Task.WhenAll(medTask, weightTask, famachaTask, milkTask, salesTask, milkTrendTask, showTask, appraisalTask, lactationTask);
+
+        medicalRecords = medTask.Result;
+        weights = weightTask.Result;
+        famachaScores = famachaTask.Result;
+        milkLogs = milkTask.Result;
+        sales = salesTask.Result;
+        showRecordsList = showTask.Result;
+        appraisals = appraisalTask.Result;
+        lactations = lactationTask.Result;
+
+        RebuildWeightChart();
+        RebuildMilkTrendChart(milkTrendTask.Result);
+        ComputeAdg();
+    }
+
+    private void RebuildWeightChart()
+    {
+        if (weights == null || weights.Count == 0)
+        {
+            weightSeries = new();
+            weightLabels = Array.Empty<string>();
+            return;
+        }
+        var ordered = weights.OrderBy(w => w.Date).ToList();
+        weightLabels = ordered.Select(w => w.Date.ToString("M/d")).ToArray();
+        weightSeries = new()
+        {
+            new ChartSeries { Name = "Weight (lbs)", Data = ordered.Select(w => w.Weight).ToArray() }
+        };
+    }
+
+    private void RebuildMilkTrendChart(List<MilkTrend>? trends)
+    {
+        if (trends == null || trends.Count == 0)
+        {
+            milkTrendSeries = new();
+            milkTrendLabels = Array.Empty<string>();
+            return;
+        }
+        milkTrendLabels = trends.Select(t => t.Date.ToString("M/d")).ToArray();
+        milkTrendSeries = new()
+        {
+            new ChartSeries { Name = "Milk (lbs)", Data = trends.Select(t => t.TotalLbs).ToArray() }
+        };
+    }
+
+    private void ComputeAdg()
+    {
+        if (weights == null || weights.Count < 2) { adg = null; return; }
+        var ordered = weights.OrderBy(w => w.Date).ToList();
+        var first = ordered.First();
+        var last = ordered.Last();
+        var days = (last.Date - first.Date).TotalDays;
+        if (days <= 0) { adg = null; return; }
+        adg = (last.Weight - first.Weight) / days;
+        adgDays = (int)days;
+    }
+
+    private async Task SaveWeight()
+    {
+        newWeight.GoatId = Id;
+        newWeight.Date = newWeightDate ?? DateTime.UtcNow;
+        await HealthSvc.CreateWeightAsync(newWeight);
+        Snackbar.Add($"Logged {newWeight.Weight:F1} lbs", Severity.Success);
+        newWeight = new();
+        newWeightDate = DateTime.Today;
+        showWeightForm = false;
+        weights = await HealthSvc.GetWeightsAsync(Id);
+        RebuildWeightChart();
+        ComputeAdg();
+    }
+
+    private async Task DeleteWeight(int id)
+    {
+        await HealthSvc.DeleteWeightAsync(id);
+        weights = await HealthSvc.GetWeightsAsync(Id);
+        RebuildWeightChart();
+        ComputeAdg();
+    }
+
+    private async Task UploadPhoto(IBrowserFile? file)
+    {
+        if (file == null || goat == null) return;
+        uploadingPhoto = true;
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            var isPrimary = goat.Photos?.Count == 0;
+            var saved = await GoatSvc.UploadPhotoAsync(Id, stream, file.Name, caption: null, isPrimary: isPrimary);
+            if (saved != null)
+            {
+                Snackbar.Add("Photo uploaded", Severity.Success);
+                goat = await GoatSvc.GetAsync(Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Upload failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            uploadingPhoto = false;
+        }
+    }
+
+    private async Task DeletePhoto(int photoId)
+    {
+        var confirmed = await Dialog.ShowMessageBox("Delete photo", "Remove this photo?",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true) return;
+        await GoatSvc.DeletePhotoAsync(Id, photoId);
+        goat = await GoatSvc.GetAsync(Id);
+        Snackbar.Add("Photo removed", Severity.Info);
+    }
+
+    private async Task DeleteGoat()
+    {
+        var result = await Dialog.ShowMessageBox("Delete Goat",
+            $"Are you sure you want to delete {goat?.Name}? This cannot be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (result == true)
+        {
+            await GoatSvc.DeleteAsync(Id);
+            Snackbar.Add($"{goat?.Name} removed", Severity.Info);
+            Nav.NavigateTo("/herd");
+        }
+    }
+
+    private string GetInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2) return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        return parts[0].Length >= 2 ? parts[0][..2].ToUpper() : parts[0].ToUpper();
+    }
+
+    private string GetAvatarClass(Gender g) => g switch
+    {
+        Gender.Female => "goat-avatar-female",
+        Gender.Male => "goat-avatar-male",
+        _ => "goat-avatar-wether"
+    };
+
+    private string AgeString(DateTime dob)
+    {
+        var age = DateTime.Now - dob;
+        var years = (int)(age.TotalDays / 365.25);
+        var months = (int)((age.TotalDays % 365.25) / 30.44);
+        if (years == 0 && months == 0) return "less than a month";
+        if (years == 0) return $"{months}mo";
+        return $"{years}y {months}mo";
+    }
+
+    private string GetFamachaIconBg(int score) => score switch
+    {
+        1 => "record-card-icon-green",
+        2 => "record-card-icon-teal",
+        3 => "record-card-icon-orange",
+        4 => "record-card-icon-red",
+        5 => "record-card-icon-red",
+        _ => "record-card-icon-neutral"
+    };
+
+    private Color GetPaymentColor(PaymentStatus s) => s switch
+    {
+        PaymentStatus.PaidInFull => Color.Success,
+        PaymentStatus.Deposited  => Color.Info,
+        PaymentStatus.Pending    => Color.Warning,
+        PaymentStatus.Refunded   => Color.Error,
+        _                        => Color.Default
+    };
+
+    private string GetSaleTypeIcon(SaleType t) => t switch
+    {
+        SaleType.LiveAnimal => GoatLabIcons.Hoof,
+        SaleType.Milk       => Icons.Material.Filled.LocalDrink,
+        SaleType.Meat       => Icons.Material.Filled.Restaurant,
+        SaleType.Breeding   => Icons.Material.Filled.Favorite,
+        _                   => Icons.Material.Filled.ShoppingBag
+    };
+
+    private string GetSaleTypeIconBg(SaleType t) => t switch
+    {
+        SaleType.LiveAnimal => "record-card-icon-green",
+        SaleType.Milk       => "record-card-icon-blue",
+        SaleType.Meat       => "record-card-icon-red",
+        SaleType.Breeding   => "record-card-icon-pink",
+        _                   => "record-card-icon-teal"
+    };
+
+    // --- Shows + Appraisals ---
+
+    private async Task AddShow()
+    {
+        var parameters = new DialogParameters { ["GoatId"] = Id };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dlg = await Dialog.ShowAsync<AddShowRecordDialog>("Add show record", parameters, options);
+        var result = await dlg.Result;
+        if (result != null && !result.Canceled) showRecordsList = await ShowSvc.GetShowsAsync(Id);
+    }
+
+    private async Task DeleteShow(int showId)
+    {
+        var confirm = await Dialog.ShowMessageBox("Delete show record?", "", yesText: "Delete", cancelText: "Cancel");
+        if (confirm != true) return;
+        await ShowSvc.DeleteShowAsync(showId);
+        showRecordsList = await ShowSvc.GetShowsAsync(Id);
+        Snackbar.Add("Show record deleted", Severity.Info);
+    }
+
+    private async Task AddAppraisal()
+    {
+        var parameters = new DialogParameters { ["GoatId"] = Id };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dlg = await Dialog.ShowAsync<AddAppraisalDialog>("Add linear appraisal", parameters, options);
+        var result = await dlg.Result;
+        if (result != null && !result.Canceled) appraisals = await ShowSvc.GetAppraisalsAsync(Id);
+    }
+
+    private async Task DeleteAppraisal(int appraisalId)
+    {
+        var confirm = await Dialog.ShowMessageBox("Delete appraisal?", "", yesText: "Delete", cancelText: "Cancel");
+        if (confirm != true) return;
+        await ShowSvc.DeleteAppraisalAsync(appraisalId);
+        appraisals = await ShowSvc.GetAppraisalsAsync(Id);
+    }
+
+    private static Color PlacingColor(int p) => p switch
+    {
+        1 => Color.Warning,      // gold-ish
+        2 => Color.Default,       // silver
+        3 => Color.Tertiary,      // bronze
+        _ => Color.Info
+    };
+
+    private static string PlacingLabel(int p) => p switch
+    {
+        1 => "1st",
+        2 => "2nd",
+        3 => "3rd",
+        _ => $"{p}th"
+    };
+
+    private static string ClassColor(LinearAppraisalClassification? c) => c switch
+    {
+        LinearAppraisalClassification.Excellent => "#1b5e20",
+        LinearAppraisalClassification.VeryGood => "#2e7d32",
+        LinearAppraisalClassification.GoodPlus => "#558b2f",
+        LinearAppraisalClassification.Good => "#f9a825",
+        LinearAppraisalClassification.Fair => "#ef6c00",
+        LinearAppraisalClassification.Poor => "#c62828",
+        _ => "#757575"
+    };
+
+    private static string ClassLabel(LinearAppraisalClassification c) => c switch
+    {
+        LinearAppraisalClassification.Excellent => "Excellent (EX)",
+        LinearAppraisalClassification.VeryGood => "Very Good (VG)",
+        LinearAppraisalClassification.GoodPlus => "Good Plus (G+)",
+        LinearAppraisalClassification.Good => "Good (G)",
+        LinearAppraisalClassification.Fair => "Fair (F)",
+        LinearAppraisalClassification.Poor => "Poor (P)",
+        _ => c.ToString()
+    };
+
+    // --- Documents ---
+
+    private async Task UploadDocument(IBrowserFile? file)
+    {
+        if (file == null || string.IsNullOrWhiteSpace(docTitle)) return;
+        uploadingDoc = true;
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 50 * 1024 * 1024);
+            await GoatSvc.UploadDocumentAsync(Id, stream, file.Name, docTitle!.Trim(), docType);
+            Snackbar.Add($"{docTitle} uploaded", Severity.Success);
+            docTitle = null;
+            docType = null;
+            goat = await GoatSvc.GetAsync(Id);
+        }
+        catch (Exception ex) { Snackbar.Add($"Upload failed: {ex.Message}", Severity.Error); }
+        finally { uploadingDoc = false; }
+    }
+
+    private async Task DeleteDocument(int docId)
+    {
+        var confirm = await Dialog.ShowMessageBox("Delete document?", "This cannot be undone.", yesText: "Delete", cancelText: "Cancel");
+        if (confirm != true) return;
+        await GoatSvc.DeleteDocumentAsync(Id, docId);
+        goat = await GoatSvc.GetAsync(Id);
+        Snackbar.Add("Document deleted", Severity.Info);
+    }
+
+    private static string DocumentIcon(string filePath)
+    {
+        var ext = System.IO.Path.GetExtension(filePath).ToLowerInvariant();
+        return ext switch
+        {
+            ".pdf" => Icons.Material.Filled.PictureAsPdf,
+            ".jpg" or ".jpeg" or ".png" or ".webp" or ".heic" => Icons.Material.Filled.Image,
+            ".doc" or ".docx" => Icons.Material.Filled.Description,
+            _ => Icons.Material.Filled.InsertDriveFile
+        };
+    }
+
+    // --- Lactations & test days ---
+
+    private async Task StartLactation()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters { ["GoatId"] = Id };
+        var dlg = await Dialog.ShowAsync<StartLactationDialog>("Start lactation", parameters, options);
+        var result = await dlg.Result;
+        if (result != null && !result.Canceled) lactations = await MilkSvc.GetLactationsAsync(Id);
+    }
+
+    private async Task DryOff(LactationSummary lac)
+    {
+        var confirm = await Dialog.ShowMessageBox("Dry off?",
+            $"Record dry-off date of today for Lactation #{lac.LactationNumber}?",
+            yesText: "Dry off", cancelText: "Cancel");
+        if (confirm != true) return;
+
+        await MilkSvc.UpdateLactationAsync(new Lactation
+        {
+            Id = lac.Id,
+            GoatId = lac.GoatId,
+            LactationNumber = lac.LactationNumber,
+            FreshenDate = lac.FreshenDate,
+            DryOffDate = DateTime.Today,
+            KiddingRecordId = lac.KiddingRecordId,
+            Notes = lac.Notes
+        });
+        Snackbar.Add($"Lactation #{lac.LactationNumber} dried off", Severity.Success);
+        lactations = await MilkSvc.GetLactationsAsync(Id);
+    }
+
+    private async Task DeleteLactation(int id)
+    {
+        var confirm = await Dialog.ShowMessageBox("Delete lactation?",
+            "This removes the lactation record and all its test days. Daily milk logs are not affected.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirm != true) return;
+        await MilkSvc.DeleteLactationAsync(id);
+        lactations = await MilkSvc.GetLactationsAsync(Id);
+    }
+
+    private async Task AddTestDay(LactationSummary lac)
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters { ["LactationId"] = lac.Id, ["GoatId"] = lac.GoatId };
+        var dlg = await Dialog.ShowAsync<AddTestDayDialog>("Record test day", parameters, options);
+        var result = await dlg.Result;
+        if (result != null && !result.Canceled) lactations = await MilkSvc.GetLactationsAsync(Id);
+    }
+
+    private async Task DeleteTestDay(int id)
+    {
+        await MilkSvc.DeleteTestDayAsync(id);
+        lactations = await MilkSvc.GetLactationsAsync(Id);
+    }
+}

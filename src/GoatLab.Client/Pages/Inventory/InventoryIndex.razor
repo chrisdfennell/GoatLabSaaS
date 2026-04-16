@@ -1,0 +1,457 @@
+@page "/inventory"
+@inject InventoryService InvSvc
+@inject HealthService HealthSvc
+@inject ISnackbar Snackbar
+
+<PageTitle>Inventory — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-orange">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.Inventory2" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Suppliers &amp; Inventory</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Feed Room</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Know what's in the barn and who you get it from.</MudText>
+        <div class="page-hero-stats">
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(feed?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Feed Items</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@LowStockCount</MudText>
+                <MudText Class="page-hero-stat-label">Low Stock</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(suppliers?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Suppliers</MudText>
+            </div>
+        </div>
+    </div>
+</div>
+
+<MudTabs Elevation="0" Rounded ApplyEffectsToContainer PanelClass="pt-4">
+    <MudTabPanel Text="Feed Inventory" Icon="@Icons.Material.Filled.Inventory">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Grain" />
+                    <div>
+                        <MudText Typo="Typo.h6">Feed &amp; Supplies</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Current stock levels with low-stock alerts.</MudText>
+                    </div>
+                </div>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="() => showFeedForm = !showFeedForm">
+                    @(showFeedForm ? "Close" : "Add Feed")
+                </MudButton>
+            </div>
+
+            @if (showFeedForm)
+            {
+                <MudPaper Class="pa-4 mb-4" Outlined Style="border-radius:12px;">
+                    <MudGrid>
+                        <MudItem xs="12" sm="4"><MudTextField @bind-Value="newFeed.FeedName" Label="Feed Name" Variant="Variant.Outlined" Required Placeholder="e.g. Alfalfa hay" /></MudItem>
+                        <MudItem xs="6" sm="2"><MudNumericField @bind-Value="newFeed.QuantityOnHand" Label="Quantity" Variant="Variant.Outlined" /></MudItem>
+                        <MudItem xs="6" sm="2"><MudTextField @bind-Value="newFeed.Unit" Label="Unit" Variant="Variant.Outlined" Placeholder="lbs, bales" /></MudItem>
+                        <MudItem xs="6" sm="2"><MudNumericField @bind-Value="newFeed.LowStockThreshold" Label="Low Stock Alert" Variant="Variant.Outlined" /></MudItem>
+                        <MudItem xs="6" sm="2"><MudNumericField @bind-Value="newFeed.CostPerUnit" Label="Cost/Unit" Variant="Variant.Outlined" Format="F2" Adornment="Adornment.Start" AdornmentText="$" /></MudItem>
+                        <MudItem xs="6" sm="3"><MudDatePicker @bind-Date="newFeedExpDate" Label="Expiration (optional)" Variant="Variant.Outlined" Editable /></MudItem>
+                        <MudItem xs="6" sm="3"><MudTextField @bind-Value="newFeed.LotNumber" Label="Lot #" Variant="Variant.Outlined" /></MudItem>
+                    </MudGrid>
+                    <div class="d-flex gap-2 mt-3 justify-end">
+                        <MudButton Variant="Variant.Text" OnClick="() => showFeedForm = false">Cancel</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveFeed">Save</MudButton>
+                    </div>
+                </MudPaper>
+            }
+
+            @if (feed == null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (feed.Count == 0)
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.Grain" />
+                    <MudText Typo="Typo.body1">No feed tracked yet</MudText>
+                    <MudText Typo="Typo.body2">Add feed items to monitor stock and cost.</MudText>
+                </div>
+            }
+            else
+            {
+                <div class="record-list">
+                    @foreach (var f in feed)
+                    {
+                        var isLow = f.LowStockThreshold.HasValue && f.QuantityOnHand <= f.LowStockThreshold;
+                        <div class="record-card">
+                            <div class="record-card-icon @(isLow ? "record-card-icon-orange" : "record-card-icon-green")">
+                                <MudIcon Icon="@Icons.Material.Filled.Grain" />
+                            </div>
+                            <div class="record-card-body">
+                                <div class="record-card-primary">@f.FeedName</div>
+                                <div class="record-card-secondary">
+                                    @f.QuantityOnHand @f.Unit on hand
+                                    @if (f.CostPerUnit.HasValue) { <span> · @f.CostPerUnit?.ToString("C")/@f.Unit</span> }
+                                    @if (f.Supplier != null) { <span> · from @f.Supplier.Name</span> }
+                                </div>
+                            </div>
+                            @if (isLow)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Warning">Low stock</MudChip>
+                            }
+                            @if (f.ExpirationDate.HasValue)
+                            {
+                                var daysToExp = (f.ExpirationDate.Value - DateTime.Today).Days;
+                                <MudChip T="string" Size="Size.Small"
+                                         Color="@(daysToExp < 0 ? Color.Error : daysToExp <= 30 ? Color.Warning : Color.Default)"
+                                         Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Schedule">
+                                    @(daysToExp < 0 ? "Expired" : $"Exp {f.ExpirationDate.Value:MMM d}")
+                                </MudChip>
+                            }
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="() => DeleteFeed(f.Id)" />
+                        </div>
+                    }
+                </div>
+            }
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Medicine Cabinet" Icon="@Icons.Material.Filled.MedicalServices">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.MedicalServices" />
+                    <div>
+                        <MudText Typo="Typo.h6">Medicine Cabinet</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">On-hand stock with expiration & lot tracking.</MudText>
+                    </div>
+                </div>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="() => showMedForm = !showMedForm">
+                    @(showMedForm ? "Close" : "Add Medicine")
+                </MudButton>
+            </div>
+
+            @if (showMedForm)
+            {
+                <MudPaper Class="pa-4 mb-4" Outlined Style="border-radius:12px;">
+                    <MudGrid>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="int" @bind-Value="newMed.MedicationId" Label="Medication" Variant="Variant.Outlined" Required>
+                                @if (medications != null)
+                                {
+                                    @foreach (var m in medications)
+                                    {
+                                        <MudSelectItem Value="@m.Id">@m.Name</MudSelectItem>
+                                    }
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="6" sm="2"><MudNumericField @bind-Value="newMed.Quantity" Label="Quantity" Variant="Variant.Outlined" /></MudItem>
+                        <MudItem xs="6" sm="2"><MudTextField @bind-Value="newMed.Unit" Label="Unit" Variant="Variant.Outlined" Placeholder="mL, doses" /></MudItem>
+                        <MudItem xs="6" sm="2"><MudDatePicker @bind-Date="newMedExpDate" Label="Expiration" Variant="Variant.Outlined" Editable /></MudItem>
+                        <MudItem xs="6" sm="2"><MudTextField @bind-Value="newMed.LotNumber" Label="Lot #" Variant="Variant.Outlined" /></MudItem>
+                    </MudGrid>
+                    <div class="d-flex gap-2 mt-3 justify-end">
+                        <MudButton Variant="Variant.Text" OnClick="() => showMedForm = false">Cancel</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveMed">Save</MudButton>
+                    </div>
+                </MudPaper>
+            }
+
+            @if (medicine == null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (medicine.Count == 0)
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.Medication" />
+                    <MudText Typo="Typo.body1">No medicines on hand</MudText>
+                    <MudText Typo="Typo.body2">Add cabinet items to track expirations and rotate stock.</MudText>
+                </div>
+            }
+            else
+            {
+                <div class="record-list">
+                    @foreach (var m in medicine)
+                    {
+                        var days = m.ExpirationDate.HasValue ? (m.ExpirationDate.Value - DateTime.Today).Days : (int?)null;
+                        var expired = days.HasValue && days < 0;
+                        var expiring = days.HasValue && days >= 0 && days <= 30;
+                        <div class="record-card">
+                            <div class="record-card-icon @(expired ? "record-card-icon-red" : expiring ? "record-card-icon-orange" : "record-card-icon-pink")">
+                                <MudIcon Icon="@Icons.Material.Filled.Vaccines" />
+                            </div>
+                            <div class="record-card-body">
+                                <div class="record-card-primary">@m.Medication.Name</div>
+                                <div class="record-card-secondary">
+                                    @m.Quantity @m.Unit on hand
+                                    @if (!string.IsNullOrEmpty(m.LotNumber)) { <span> · Lot @m.LotNumber</span> }
+                                </div>
+                            </div>
+                            @if (m.ExpirationDate.HasValue)
+                            {
+                                <MudChip T="string" Size="Size.Small"
+                                         Color="@(expired ? Color.Error : expiring ? Color.Warning : Color.Default)"
+                                         Variant="Variant.Filled" Icon="@Icons.Material.Filled.Schedule">
+                                    @(expired ? $"Expired {-days}d ago" : $"Exp @{m.ExpirationDate.Value:MMM d, yyyy}")
+                                </MudChip>
+                            }
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="() => DeleteMed(m.Id)" />
+                        </div>
+                    }
+                </div>
+            }
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Expiring Soon" Icon="@Icons.Material.Filled.Schedule">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Schedule" />
+                    <div>
+                        <MudText Typo="Typo.h6">Expiring or expired</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Meds and feed within the next @expiringDays days, and anything past its date.</MudText>
+                    </div>
+                </div>
+                <MudNumericField T="int" @bind-Value="expiringDays" Label="Days ahead" Variant="Variant.Outlined"
+                                 Min="1" Max="365" Style="max-width:140px;" OnBlur="LoadExpiring" />
+            </div>
+
+            @if (expiring == null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (!expiring.Any())
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" />
+                    <MudText Typo="Typo.body1">Nothing expiring</MudText>
+                    <MudText Typo="Typo.body2">All tracked meds and feed are good past @expiringDays days.</MudText>
+                </div>
+            }
+            else
+            {
+                <div class="record-list">
+                    @foreach (var item in expiring)
+                    {
+                        var days = item.ExpirationDate.HasValue ? (item.ExpirationDate.Value - DateTime.Today).Days : 0;
+                        <div class="record-card">
+                            <div class="record-card-icon @(item.Expired ? "record-card-icon-red" : "record-card-icon-orange")">
+                                <MudIcon Icon="@(item.Kind == "medicine" ? Icons.Material.Filled.Vaccines : Icons.Material.Filled.Grain)" />
+                            </div>
+                            <div class="record-card-body">
+                                <div class="record-card-primary">
+                                    @item.Name
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Class="ml-2">@item.Kind</MudChip>
+                                </div>
+                                <div class="record-card-secondary">
+                                    @item.Quantity @item.Unit
+                                    @if (!string.IsNullOrEmpty(item.LotNumber)) { <span> · Lot @item.LotNumber</span> }
+                                </div>
+                            </div>
+                            <MudChip T="string" Size="Size.Small"
+                                     Color="@(item.Expired ? Color.Error : Color.Warning)"
+                                     Variant="Variant.Filled">
+                                @(item.Expired ? $"Expired {-days}d ago" : $"In {days}d · @{item.ExpirationDate:MMM d}")
+                            </MudChip>
+                        </div>
+                    }
+                </div>
+            }
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Suppliers" Icon="@Icons.Material.Filled.Store">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Store" />
+                    <div>
+                        <MudText Typo="Typo.h6">Suppliers</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Your feed store, vet, equipment vendors, and more.</MudText>
+                    </div>
+                </div>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="() => showSupplierForm = !showSupplierForm">
+                    @(showSupplierForm ? "Close" : "Add Supplier")
+                </MudButton>
+            </div>
+
+            @if (showSupplierForm)
+            {
+                <MudPaper Class="pa-4 mb-4" Outlined Style="border-radius:12px;">
+                    <MudGrid>
+                        <MudItem xs="12" sm="6"><MudTextField @bind-Value="newSupplier.Name" Label="Name" Variant="Variant.Outlined" Required /></MudItem>
+                        <MudItem xs="12" sm="6"><MudTextField @bind-Value="newSupplier.Phone" Label="Phone" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Phone" /></MudItem>
+                        <MudItem xs="12" sm="6"><MudTextField @bind-Value="newSupplier.Email" Label="Email" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Email" /></MudItem>
+                        <MudItem xs="12" sm="6"><MudTextField @bind-Value="newSupplier.Website" Label="Website" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Language" /></MudItem>
+                        <MudItem xs="12">
+                            <MudText Class="field-label">Type</MudText>
+                            <div class="pill-group">
+                                @foreach (var t in Enum.GetValues<SupplierType>())
+                                {
+                                    <button type="button"
+                                            class="@($"pill {GetSupplierPillClass(t)} {(newSupplier.SupplierType == t ? "pill-active" : "")}")"
+                                            @onclick="() => newSupplier.SupplierType = t">
+                                        <MudIcon Icon="@GetSupplierIcon(t)" Size="Size.Small" />
+                                        <span>@FormatSupplierType(t)</span>
+                                    </button>
+                                }
+                            </div>
+                        </MudItem>
+                    </MudGrid>
+                    <div class="d-flex gap-2 mt-3 justify-end">
+                        <MudButton Variant="Variant.Text" OnClick="() => showSupplierForm = false">Cancel</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveSupplier">Save</MudButton>
+                    </div>
+                </MudPaper>
+            }
+
+            @if (suppliers == null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (suppliers.Count == 0)
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.Store" />
+                    <MudText Typo="Typo.body1">No suppliers yet</MudText>
+                    <MudText Typo="Typo.body2">Add vendors to link inventory and costs back to them.</MudText>
+                </div>
+            }
+            else
+            {
+                <MudGrid>
+                    @foreach (var s in suppliers)
+                    {
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudPaper Class="pa-4" Outlined Style="border-radius:12px;height:100%;">
+                                <div class="d-flex align-center mb-2" style="gap:12px;">
+                                    <div class="record-card-icon @GetSupplierIconBg(s.SupplierType)">
+                                        <MudIcon Icon="@GetSupplierIcon(s.SupplierType)" />
+                                    </div>
+                                    <div style="flex:1;min-width:0;">
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight:600;">@s.Name</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@FormatSupplierType(s.SupplierType)</MudText>
+                                    </div>
+                                </div>
+                                @if (!string.IsNullOrEmpty(s.Phone))
+                                {
+                                    <MudText Typo="Typo.body2" Class="mb-1"><MudIcon Icon="@Icons.Material.Filled.Phone" Size="Size.Small" Style="vertical-align:text-bottom;" /> @s.Phone</MudText>
+                                }
+                                @if (!string.IsNullOrEmpty(s.Email))
+                                {
+                                    <MudText Typo="Typo.body2" Class="mb-1"><MudIcon Icon="@Icons.Material.Filled.Email" Size="Size.Small" Style="vertical-align:text-bottom;" /> @s.Email</MudText>
+                                }
+                                @if (!string.IsNullOrEmpty(s.Website))
+                                {
+                                    <MudText Typo="Typo.body2"><MudIcon Icon="@Icons.Material.Filled.Language" Size="Size.Small" Style="vertical-align:text-bottom;" /> @s.Website</MudText>
+                                }
+                            </MudPaper>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private List<FeedInventory>? feed;
+    private List<Supplier>? suppliers;
+    private List<MedicineCabinetItem>? medicine;
+    private List<Medication>? medications;
+    private List<ExpiringItem>? expiring;
+    private bool showFeedForm, showSupplierForm, showMedForm;
+    private FeedInventory newFeed = new();
+    private Supplier newSupplier = new();
+    private MedicineCabinetItem newMed = new();
+    private DateTime? newFeedExpDate;
+    private DateTime? newMedExpDate;
+    private int expiringDays = 30;
+
+    private int LowStockCount => feed?.Count(f => f.LowStockThreshold.HasValue && f.QuantityOnHand <= f.LowStockThreshold) ?? 0;
+
+    protected override async Task OnInitializedAsync() =>
+        await Task.WhenAll(LoadFeed(), LoadSuppliers(), LoadMedicine(), LoadExpiring(), LoadMedications());
+
+    private async Task LoadFeed() => feed = await InvSvc.GetFeedAsync();
+    private async Task LoadSuppliers() => suppliers = await InvSvc.GetSuppliersAsync();
+    private async Task LoadMedicine() => medicine = await InvSvc.GetMedicineAsync();
+    private async Task LoadMedications() => medications = await HealthSvc.GetMedicationsAsync();
+    private async Task LoadExpiring() => expiring = await InvSvc.GetExpiringAsync(expiringDays);
+
+    private async Task SaveFeed()
+    {
+        newFeed.ExpirationDate = newFeedExpDate;
+        await InvSvc.CreateFeedAsync(newFeed);
+        Snackbar.Add($"{newFeed.FeedName} added", Severity.Success);
+        newFeed = new(); newFeedExpDate = null; showFeedForm = false;
+        await Task.WhenAll(LoadFeed(), LoadExpiring());
+    }
+
+    private async Task SaveMed()
+    {
+        if (newMed.MedicationId == 0) { Snackbar.Add("Pick a medication first", Severity.Warning); return; }
+        newMed.ExpirationDate = newMedExpDate;
+        await InvSvc.CreateMedicineAsync(newMed);
+        Snackbar.Add("Medicine cabinet updated", Severity.Success);
+        newMed = new(); newMedExpDate = null; showMedForm = false;
+        await Task.WhenAll(LoadMedicine(), LoadExpiring());
+    }
+
+    private async Task DeleteMed(int id)
+    {
+        await InvSvc.DeleteMedicineAsync(id);
+        await Task.WhenAll(LoadMedicine(), LoadExpiring());
+    }
+
+    private async Task SaveSupplier()
+    {
+        await InvSvc.CreateSupplierAsync(newSupplier);
+        Snackbar.Add($"{newSupplier.Name} added", Severity.Success);
+        newSupplier = new(); showSupplierForm = false;
+        await LoadSuppliers();
+    }
+
+    private async Task DeleteFeed(int id)
+    {
+        await InvSvc.DeleteFeedAsync(id);
+        await Task.WhenAll(LoadFeed(), LoadExpiring());
+    }
+
+    private string GetSupplierIcon(SupplierType t) => t switch
+    {
+        SupplierType.FeedSupplier    => Icons.Material.Filled.Grain,
+        SupplierType.Veterinarian    => Icons.Material.Filled.LocalHospital,
+        SupplierType.EquipmentVendor => Icons.Material.Filled.Build,
+        _                            => Icons.Material.Filled.Store
+    };
+
+    private string GetSupplierIconBg(SupplierType t) => t switch
+    {
+        SupplierType.FeedSupplier    => "record-card-icon-green",
+        SupplierType.Veterinarian    => "record-card-icon-pink",
+        SupplierType.EquipmentVendor => "record-card-icon-blue",
+        _                            => "record-card-icon-neutral"
+    };
+
+    private string GetSupplierPillClass(SupplierType t) => t switch
+    {
+        SupplierType.FeedSupplier    => "pill-success",
+        SupplierType.Veterinarian    => "pill-female",
+        SupplierType.EquipmentVendor => "pill-info",
+        _                            => "pill-neutral"
+    };
+
+    private string FormatSupplierType(SupplierType t) => t switch
+    {
+        SupplierType.FeedSupplier    => "Feed Supplier",
+        SupplierType.EquipmentVendor => "Equipment",
+        _                            => t.ToString()
+    };
+}

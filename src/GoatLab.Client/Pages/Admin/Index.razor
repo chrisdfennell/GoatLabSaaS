@@ -1,0 +1,179 @@
+@page "/admin"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "SuperAdmin")]
+@inject AdminService Admin
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<PageTitle>Admin — GoatLab</PageTitle>
+
+<div class="d-flex align-center mb-4">
+    <div style="flex:1;">
+        <MudText Typo="Typo.h4" Class="mb-1" Style="font-weight:700;">Admin console</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            Cross-tenant overview. Visible to super-admins only.
+        </MudText>
+    </div>
+    @if (maintenance is not null)
+    {
+        <MudPaper Class="pa-3 d-flex align-center" Outlined Elevation="0" Style="gap:12px;">
+            <MudIcon Icon="@Icons.Material.Filled.Build"
+                     Color="@(maintenance.Enabled ? Color.Error : Color.Default)" />
+            <div>
+                <MudText Typo="Typo.body2" Style="font-weight:600;">Maintenance mode</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    @(maintenance.Enabled ? "Writes blocked for non-admins" : "Off")
+                </MudText>
+            </div>
+            <MudSwitch T="bool" Color="Color.Error" Value="@maintenance.Enabled"
+                       ValueChanged="@((bool v) => SetMaintenanceAsync(v))" />
+        </MudPaper>
+    }
+</div>
+
+@if (metrics is null)
+{
+    <MudProgressLinear Indeterminate Color="Color.Primary" Class="mb-4" />
+}
+else
+{
+    <MudGrid Spacing="3" Class="mb-4">
+        <MudItem xs="6" md="2">
+            <MudPaper Class="pa-4" Outlined Elevation="0">
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Tenants</MudText>
+                <MudText Typo="Typo.h4" Style="font-weight:700;">@metrics.TenantCount</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudPaper Class="pa-4" Outlined Elevation="0">
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Users</MudText>
+                <MudText Typo="Typo.h4" Style="font-weight:700;">@metrics.UserCount</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudPaper Class="pa-4" Outlined Elevation="0">
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Goats</MudText>
+                <MudText Typo="Typo.h4" Style="font-weight:700;">@metrics.GoatCount</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudPaper Class="pa-4" Outlined Elevation="0">
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Active 30d</MudText>
+                <MudText Typo="Typo.h4" Style="font-weight:700;">@metrics.ActiveTenantsLast30Days</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudPaper Class="pa-4" Outlined Elevation="0">
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Signups 7d</MudText>
+                <MudText Typo="Typo.h4" Style="font-weight:700;">@metrics.SignupsLast7Days</MudText>
+            </MudPaper>
+        </MudItem>
+        <MudItem xs="6" md="2">
+            <MudPaper Class="pa-4" Outlined Elevation="0">
+                <MudText Typo="Typo.overline" Color="Color.Secondary">Signups 30d</MudText>
+                <MudText Typo="Typo.h4" Style="font-weight:700;">@metrics.SignupsLast30Days</MudText>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+
+    <MudGrid Spacing="3">
+        <MudItem xs="12" md="8">
+            <MudPaper Class="pa-4 section-card" Outlined Elevation="0">
+                <div class="d-flex align-center mb-3">
+                    <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Primary" Class="mr-2" />
+                    <MudText Typo="Typo.h6" Style="font-weight:600;">Growth — last @_days days</MudText>
+                    <MudSpacer />
+                    <MudButtonGroup Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small">
+                        <MudButton OnClick="@(() => SetDaysAsync(30))"
+                                   Color="@(_days == 30 ? Color.Primary : Color.Default)">30d</MudButton>
+                        <MudButton OnClick="@(() => SetDaysAsync(90))"
+                                   Color="@(_days == 90 ? Color.Primary : Color.Default)">90d</MudButton>
+                    </MudButtonGroup>
+                </div>
+                @if (timeseries is null)
+                {
+                    <MudProgressLinear Indeterminate Color="Color.Primary" />
+                }
+                else if (timeseries.Points.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">No activity in range.</MudText>
+                }
+                else
+                {
+                    <MudChart ChartType="ChartType.Line"
+                              ChartSeries="@_series" XAxisLabels="@_labels"
+                              ChartOptions="@_opts" Width="100%" Height="280px" />
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-4 section-card" Outlined Elevation="0">
+                <MudText Typo="Typo.h6" Class="mb-2" Style="font-weight:600;">Explore</MudText>
+                <MudList T="string" Dense>
+                    <MudListItem Icon="@Icons.Material.Filled.Business" Href="/admin/tenants">Tenants</MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.Person" Href="/admin/users">Users</MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.Campaign" Href="/admin/announcements">Announcements</MudListItem>
+                    <MudListItem Icon="@Icons.Material.Filled.History" Href="/admin/audit">Audit log</MudListItem>
+                </MudList>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private AdminMetrics? metrics;
+    private AdminTimeseries? timeseries;
+    private AdminMaintenanceStatus? maintenance;
+    private int _days = 30;
+    private List<ChartSeries> _series = new();
+    private string[] _labels = Array.Empty<string>();
+    private readonly ChartOptions _opts = new() { YAxisTicks = 1, LineStrokeWidth = 2 };
+
+    protected override async Task OnInitializedAsync()
+    {
+        metrics = await Admin.GetMetricsAsync();
+        maintenance = await Admin.GetMaintenanceAsync();
+        await LoadTimeseriesAsync();
+    }
+
+    private async Task SetMaintenanceAsync(bool enabled)
+    {
+        if (enabled)
+        {
+            var confirm = await Dialog.ShowMessageBox(
+                "Turn on maintenance mode?",
+                "Writes from non-admin users will return 503. GETs still work. Admins bypass.",
+                yesText: "Turn on", cancelText: "Cancel");
+            if (confirm != true) return;
+        }
+        try
+        {
+            await Admin.SetMaintenanceAsync(enabled);
+            maintenance = await Admin.GetMaintenanceAsync();
+            Snackbar.Add(enabled ? "Maintenance mode ON." : "Maintenance mode OFF.", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"Failed: {ex.Message}", Severity.Error); }
+    }
+
+    private async Task LoadTimeseriesAsync()
+    {
+        timeseries = await Admin.GetTimeseriesAsync(_days);
+        if (timeseries is null) return;
+
+        _labels = timeseries.Points.Select(p => p.Date.ToString("M/d")).ToArray();
+        _series = new List<ChartSeries>
+        {
+            new() { Name = "Tenants", Data = timeseries.Points.Select(p => (double)p.Tenants).ToArray() },
+            new() { Name = "Users",   Data = timeseries.Points.Select(p => (double)p.Users).ToArray() },
+            new() { Name = "Goats",   Data = timeseries.Points.Select(p => (double)p.Goats).ToArray() },
+        };
+    }
+
+    private async Task SetDaysAsync(int days)
+    {
+        if (_days == days) return;
+        _days = days;
+        timeseries = null;
+        await LoadTimeseriesAsync();
+    }
+}

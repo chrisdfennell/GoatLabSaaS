@@ -1,0 +1,46 @@
+@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Nav
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)">
+                <NotAuthorized>
+                    @{
+                        // Route-level [Authorize] or policy check failed. Unauthenticated
+                        // users get bounced to /login; authenticated users hitting a
+                        // policy-gated route (e.g. /admin without super_admin) see a
+                        // friendly 403.
+                        if (context.User.Identity?.IsAuthenticated != true)
+                        {
+                            Nav.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(Nav.ToBaseRelativePath(Nav.Uri))}", forceLoad: false);
+                        }
+                    }
+                    @if (context.User.Identity?.IsAuthenticated == true)
+                    {
+                        <MudContainer MaxWidth="MaxWidth.Small" Class="my-8">
+                            <MudText Typo="Typo.h4" Align="Align.Center" Class="mb-2">Not allowed</MudText>
+                            <MudText Typo="Typo.body1" Align="Align.Center" Color="Color.Secondary">
+                                You don't have access to this page.
+                            </MudText>
+                            <div class="d-flex justify-center mt-4">
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/dashboard">
+                                    Back to dashboard
+                                </MudButton>
+                            </div>
+                        </MudContainer>
+                    }
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Not found</PageTitle>
+            <LayoutView Layout="@typeof(Layout.MainLayout)">
+                <MudText Typo="Typo.h4" Class="my-8" Align="Align.Center">
+                    Page not found — sorry about that!
+                </MudText>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

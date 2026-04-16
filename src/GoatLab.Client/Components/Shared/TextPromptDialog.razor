@@ -1,0 +1,32 @@
+@* Small reusable MudDialog that collects a single string. Returns DialogResult.Ok<string>. *@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@Title</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_value" Label="@Label" Variant="Variant.Outlined" AutoFocus
+                      MaxLength="@MaxLength" Immediate />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Ok"
+                   Disabled="@string.IsNullOrWhiteSpace(_value)">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter] public string Title { get; set; } = "Edit";
+    [Parameter] public string Label { get; set; } = "Value";
+    [Parameter] public string InitialValue { get; set; } = string.Empty;
+    [Parameter] public int MaxLength { get; set; } = 100;
+
+    private string _value = string.Empty;
+
+    protected override void OnInitialized() => _value = InitialValue ?? string.Empty;
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Ok() => MudDialog.Close(DialogResult.Ok(_value.Trim()));
+}

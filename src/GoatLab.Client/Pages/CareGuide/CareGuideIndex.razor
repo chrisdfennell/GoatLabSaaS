@@ -1,0 +1,260 @@
+@page "/care-guide"
+@page "/care-guide/{ArticleId:int}"
+@inject CareGuideService CareSvc
+@inject NavigationManager Nav
+
+<PageTitle>Care Guide — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-purple">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.MenuBook" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Care Guide</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Knowledge for the Herd</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Emergency cards, seasonal planning, dosage math, and deep-dive articles.</MudText>
+    </div>
+</div>
+
+@* --- Quick access tiles --- *@
+<MudGrid Class="mb-4">
+    <MudItem xs="6" sm="4" md="2">
+        <a href="/care-guide/emergency" class="care-tile care-tile-red">
+            <MudIcon Icon="@Icons.Material.Filled.Emergency" Size="Size.Large" />
+            <div class="care-tile-title">Emergency</div>
+            <div class="care-tile-sub">Quick-reference cards</div>
+        </a>
+    </MudItem>
+    <MudItem xs="6" sm="4" md="2">
+        <a href="/care-guide/dosage" class="care-tile care-tile-teal">
+            <MudIcon Icon="@Icons.Material.Filled.Calculate" Size="Size.Large" />
+            <div class="care-tile-title">Dosage Calc</div>
+            <div class="care-tile-sub">Med + weight → mL</div>
+        </a>
+    </MudItem>
+    <MudItem xs="6" sm="4" md="2">
+        <a href="/care-guide/famacha" class="care-tile care-tile-pink">
+            <MudIcon Icon="@Icons.Material.Filled.Visibility" Size="Size.Large" />
+            <div class="care-tile-title">FAMACHA &amp; BCS</div>
+            <div class="care-tile-sub">Visual scoring guide</div>
+        </a>
+    </MudItem>
+    <MudItem xs="6" sm="4" md="2">
+        <a href="/care-guide/seasonal" class="care-tile care-tile-orange">
+            <MudIcon Icon="@Icons.Material.Filled.WbSunny" Size="Size.Large" />
+            <div class="care-tile-title">Seasonal Care</div>
+            <div class="care-tile-sub">What to do this month</div>
+        </a>
+    </MudItem>
+    <MudItem xs="6" sm="4" md="2">
+        <a href="/care-guide/workflows" class="care-tile care-tile-green">
+            <MudIcon Icon="@Icons.Material.Filled.Checklist" Size="Size.Large" />
+            <div class="care-tile-title">Workflows</div>
+            <div class="care-tile-sub">New kid, new goat, kidding kit</div>
+        </a>
+    </MudItem>
+    <MudItem xs="6" sm="4" md="2">
+        <a href="/scan" class="care-tile care-tile-blue">
+            <MudIcon Icon="@Icons.Material.Filled.QrCodeScanner" Size="Size.Large" />
+            <div class="care-tile-title">Scan Tag</div>
+            <div class="care-tile-sub">QR &amp; barcode reader</div>
+        </a>
+    </MudItem>
+</MudGrid>
+
+<MudGrid>
+    <MudItem xs="12" md="3">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Search" />
+                    <div><MudText Typo="Typo.h6">Browse articles</MudText></div>
+                </div>
+            </div>
+            <MudTextField @bind-Value="searchQuery" Label="Search articles..." Variant="Variant.Outlined"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate DebounceInterval="300" OnDebounceIntervalElapsed="Search" />
+
+            <MudNavMenu Class="mt-3">
+                <MudNavLink OnClick="() => FilterCategory(null)" Icon="@Icons.Material.Filled.ListAlt"
+                            Style="@(selectedCategory == null ? "font-weight:bold;" : "")">
+                    All Articles
+                </MudNavLink>
+                @foreach (var cat in Enum.GetValues<CareArticleCategory>())
+                {
+                    <MudNavLink OnClick="() => FilterCategory(cat)" Icon="@GetCategoryIcon(cat)"
+                                Style="@(selectedCategory == cat ? "font-weight:bold;" : "")">
+                        @FormatCategory(cat)
+                    </MudNavLink>
+                }
+            </MudNavMenu>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="9">
+        @if (selectedArticle != null)
+        {
+            <MudPaper Class="polished-section" Elevation="0">
+                <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.ArrowBack"
+                           OnClick="() => selectedArticle = null" Class="mb-2">Back to articles</MudButton>
+                <MudText Typo="Typo.h4" Class="mb-2">@selectedArticle.Title</MudText>
+                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Icon="@GetCategoryIcon(selectedArticle.Category)">
+                    @FormatCategory(selectedArticle.Category)
+                </MudChip>
+                <MudDivider Class="my-3" />
+                <MudText Style="white-space:pre-wrap;line-height:1.7;">@selectedArticle.Content</MudText>
+            </MudPaper>
+        }
+        else if (articles != null)
+        {
+            @if (articles.Count == 0)
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.MenuBook" />
+                    <MudText Typo="Typo.body1">No articles match</MudText>
+                    <MudText Typo="Typo.body2">Try a different search or category.</MudText>
+                </div>
+            }
+            else
+            {
+                <MudGrid>
+                    @foreach (var article in articles)
+                    {
+                        <MudItem xs="12" md="6">
+                            <MudPaper Class="pa-4 care-article-card" Outlined Elevation="0"
+                                      @onclick="() => SelectArticle(article)">
+                                <div class="d-flex align-start" style="gap:12px;">
+                                    <div class="record-card-icon" style="@($"background:{GetCategoryColor(article.Category)};width:40px;height:40px;")">
+                                        <MudIcon Icon="@GetCategoryIcon(article.Category)" Size="Size.Small" />
+                                    </div>
+                                    <div style="flex:1;min-width:0;">
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight:600;">@article.Title</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                            @FormatCategory(article.Category)
+                                        </MudText>
+                                        @if (!string.IsNullOrWhiteSpace(article.Summary))
+                                        {
+                                            <MudText Typo="Typo.body2" Class="mt-2">@article.Summary</MudText>
+                                        }
+                                    </div>
+                                </div>
+                            </MudPaper>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        }
+        else { <MudProgressLinear Indeterminate Color="Color.Primary" /> }
+    </MudItem>
+</MudGrid>
+
+<style>
+.care-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 6px;
+    padding: 22px 14px;
+    border-radius: 16px;
+    color: #fff;
+    text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    height: 100%;
+    min-height: 130px;
+}
+.care-tile:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    text-decoration: none;
+    color: #fff;
+}
+.care-tile .mud-icon-root { font-size: 2.2rem !important; opacity: 0.95; }
+.care-tile-title { font-weight: 700; font-size: 0.95rem; }
+.care-tile-sub { font-size: 0.75rem; opacity: 0.85; }
+
+.care-tile-red    { background: linear-gradient(135deg, #c62828, #e53935); }
+.care-tile-teal   { background: linear-gradient(135deg, #00695c, #00897b); }
+.care-tile-pink   { background: linear-gradient(135deg, #ad1457, #e91e63); }
+.care-tile-orange { background: linear-gradient(135deg, #e65100, #fb8c00); }
+.care-tile-green  { background: linear-gradient(135deg, #1b5e20, #2e7d32); }
+.care-tile-blue   { background: linear-gradient(135deg, #0d47a1, #1565c0); }
+
+.care-article-card {
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    height: 100%;
+}
+.care-article-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(46, 125, 50, 0.5) !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+}
+</style>
+
+@code {
+    [Parameter] public int? ArticleId { get; set; }
+
+    private List<CareArticle>? articles;
+    private CareArticle? selectedArticle;
+    private CareArticleCategory? selectedCategory;
+    private string? searchQuery;
+
+    protected override async Task OnInitializedAsync()
+    {
+        articles = await CareSvc.GetAllAsync();
+        if (ArticleId.HasValue)
+            selectedArticle = await CareSvc.GetAsync(ArticleId.Value);
+    }
+
+    private async Task FilterCategory(CareArticleCategory? cat)
+    {
+        selectedCategory = cat;
+        selectedArticle = null;
+        articles = await CareSvc.GetAllAsync(cat);
+    }
+
+    private async Task Search()
+    {
+        selectedArticle = null;
+        articles = string.IsNullOrWhiteSpace(searchQuery)
+            ? await CareSvc.GetAllAsync(selectedCategory)
+            : await CareSvc.SearchAsync(searchQuery);
+    }
+
+    private void SelectArticle(CareArticle article) => selectedArticle = article;
+
+    private string FormatCategory(CareArticleCategory cat) => cat switch
+    {
+        CareArticleCategory.GettingStarted => "Getting Started",
+        CareArticleCategory.HealthAndCare => "Health & Care",
+        CareArticleCategory.Breeding => "Breeding",
+        CareArticleCategory.DailyManagement => "Daily Management",
+        CareArticleCategory.Production => "Production",
+        CareArticleCategory.ReferenceAndTools => "Reference & Tools",
+        _ => cat.ToString()
+    };
+
+    private string GetCategoryIcon(CareArticleCategory cat) => cat switch
+    {
+        CareArticleCategory.GettingStarted => Icons.Material.Filled.Flag,
+        CareArticleCategory.HealthAndCare => Icons.Material.Filled.LocalHospital,
+        CareArticleCategory.Breeding => Icons.Material.Filled.Favorite,
+        CareArticleCategory.DailyManagement => Icons.Material.Filled.Today,
+        CareArticleCategory.Production => Icons.Material.Filled.WaterDrop,
+        CareArticleCategory.ReferenceAndTools => Icons.Material.Filled.Build,
+        _ => Icons.Material.Filled.MenuBook
+    };
+
+    private string GetCategoryColor(CareArticleCategory cat) => cat switch
+    {
+        CareArticleCategory.GettingStarted => "linear-gradient(135deg, #2e7d32, #43a047)",
+        CareArticleCategory.HealthAndCare => "linear-gradient(135deg, #c62828, #e53935)",
+        CareArticleCategory.Breeding => "linear-gradient(135deg, #ad1457, #e91e63)",
+        CareArticleCategory.DailyManagement => "linear-gradient(135deg, #1565c0, #1e88e5)",
+        CareArticleCategory.Production => "linear-gradient(135deg, #00695c, #00897b)",
+        CareArticleCategory.ReferenceAndTools => "linear-gradient(135deg, #4527a0, #7e57c2)",
+        _ => "linear-gradient(135deg, #546e7a, #78909c)"
+    };
+}

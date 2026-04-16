@@ -1,0 +1,253 @@
+@page "/herd"
+@inject GoatService GoatSvc
+@inject NavigationManager Nav
+@inject IDialogService Dialog
+
+<PageTitle>Herd — GoatLab</PageTitle>
+
+<div class="d-flex justify-space-between align-center mb-4">
+    <div>
+        <MudText Typo="Typo.h4" Style="font-weight:700;">My Goats</MudText>
+        @if (goats != null)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">@goats.Count goat(s) in your herd</MudText>
+        }
+    </div>
+    <div class="d-flex gap-2">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Scale"
+                   Href="/herd/weigh-in">Weigh-In</MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf"
+                   Href="/herd/report">Report</MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FileUpload"
+                   OnClick="OpenImportDialogAsync">Import</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                   Href="/herd/add" Size="Size.Large">Add Goat</MudButton>
+    </div>
+</div>
+
+<MudPaper Class="pa-4 mb-4" Outlined Elevation="0" Style="border-radius:12px;">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="5">
+            <MudTextField @bind-Value="searchText" Label="Search by name or ear tag" Variant="Variant.Outlined"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate DebounceInterval="300" OnDebounceIntervalElapsed="LoadGoats" Margin="Margin.Dense" />
+        </MudItem>
+        <MudItem xs="6" sm="3" md="3">
+            <MudSelect T="GoatStatus?" @bind-Value="filterStatus" Label="Status" Variant="Variant.Outlined"
+                       Clearable Dense AnchorOrigin="Origin.BottomCenter">
+                @foreach (var s in Enum.GetValues<GoatStatus>())
+                {
+                    <MudSelectItem Value="@((GoatStatus?)s)">@s</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="6" sm="3" md="2">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="LoadGoats" FullWidth Class="mt-1">Filter</MudButton>
+        </MudItem>
+        <MudItem xs="12" md="2" Class="d-flex align-center justify-end">
+            <MudToggleIconButton @bind-Toggled="gridView"
+                                 Icon="@Icons.Material.Filled.ViewList"
+                                 ToggledIcon="@Icons.Material.Filled.GridView"
+                                 title="Toggle view" Size="Size.Medium" Color="Color.Primary" />
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (goats == null)
+{
+    <MudProgressLinear Indeterminate Color="Color.Primary" />
+}
+else if (goats.Count == 0)
+{
+    <div class="empty-state">
+        <MudIcon Icon="@GoatLabIcons.Hoof" />
+        <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mt-2">No goats found</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            @if (string.IsNullOrEmpty(searchText) && filterStatus == null)
+            {
+                <text>Add your first goat to start building your herd!</text>
+            }
+            else
+            {
+                <text>Try adjusting your search or filter criteria.</text>
+            }
+        </MudText>
+        @if (string.IsNullOrEmpty(searchText) && filterStatus == null)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Href="/herd/add">
+                Add Your First Goat
+            </MudButton>
+        }
+    </div>
+}
+else if (gridView)
+{
+    @* --- Card Grid View --- *@
+    <MudGrid Spacing="3">
+        @foreach (var goat in goats)
+        {
+            <MudItem xs="12" sm="6" md="4" lg="3">
+                <MudCard Class="goat-card" Outlined Elevation="0" @onclick="() => GoToGoat(goat.Id)">
+                    <MudCardContent Class="pa-4">
+                        <div class="d-flex align-center mb-3" style="gap:12px;">
+                            <div class="goat-avatar @GetAvatarClass(goat.Gender)">
+                                @GetInitials(goat.Name)
+                            </div>
+                            <div style="min-width:0;flex:1;">
+                                <div class="d-flex justify-space-between align-center">
+                                    <MudText Typo="Typo.subtitle1" Style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">@goat.Name</MudText>
+                                    <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(goat.Status)" Variant="Variant.Filled"
+                                             Style="font-size:0.7rem;">@goat.Status</MudChip>
+                                </div>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Style="font-size:0.8rem;">
+                                    @goat.Breed · @goat.Gender
+                                </MudText>
+                            </div>
+                        </div>
+                        <MudDivider Class="mb-2" />
+                        <div class="d-flex justify-space-between">
+                            <div>
+                                @if (goat.EarTag != null)
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        <MudIcon Icon="@Icons.Material.Filled.Tag" Size="Size.Small" Style="font-size:0.85rem;vertical-align:text-bottom;" /> #@goat.EarTag
+                                    </MudText>
+                                }
+                            </div>
+                            <div>
+                                @if (goat.DateOfBirth.HasValue)
+                                {
+                                    var age = DateTime.Now - goat.DateOfBirth.Value;
+                                    var years = (int)(age.TotalDays / 365.25);
+                                    var months = (int)((age.TotalDays % 365.25) / 30.44);
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        <MudIcon Icon="@Icons.Material.Filled.Cake" Size="Size.Small" Style="font-size:0.85rem;vertical-align:text-bottom;" /> @(years > 0 ? $"{years}y " : "")@(months)m
+                                    </MudText>
+                                }
+                            </div>
+                        </div>
+                        @if (goat.Pen != null)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                                <MudIcon Icon="@Icons.Material.Filled.Home" Size="Size.Small" Style="font-size:0.85rem;vertical-align:text-bottom;" /> @goat.Pen.Barn?.Name / @goat.Pen.Name
+                            </MudText>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+else
+{
+    @* --- Table/List View --- *@
+    <MudTable Items="@goats" Hover Dense Breakpoint="Breakpoint.Sm" Elevation="0"
+              OnRowClick="OnRowClicked"
+              RowStyle="cursor:pointer;" T="Goat">
+        <HeaderContent>
+            <MudTh>Goat</MudTh>
+            <MudTh>Breed</MudTh>
+            <MudTh>Gender</MudTh>
+            <MudTh>Age</MudTh>
+            <MudTh>Tag</MudTh>
+            <MudTh>Status</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Goat">
+                <div class="d-flex align-center" style="gap:10px;">
+                    <div class="goat-avatar @GetAvatarClass(context.Gender)" style="width:36px;height:36px;font-size:0.85rem;">
+                        @GetInitials(context.Name)
+                    </div>
+                    <MudText Typo="Typo.body1" Style="font-weight:500;">@context.Name</MudText>
+                </div>
+            </MudTd>
+            <MudTd DataLabel="Breed">@context.Breed</MudTd>
+            <MudTd DataLabel="Gender">@context.Gender</MudTd>
+            <MudTd DataLabel="Age">
+                @if (context.DateOfBirth.HasValue)
+                {
+                    var age = DateTime.Now - context.DateOfBirth.Value;
+                    var years = (int)(age.TotalDays / 365.25);
+                    var months = (int)((age.TotalDays % 365.25) / 30.44);
+                    @($"{(years > 0 ? $"{years}y " : "")}{months}m")
+                }
+            </MudTd>
+            <MudTd DataLabel="Tag">@(context.EarTag ?? "—")</MudTd>
+            <MudTd DataLabel="Status">
+                <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(context.Status)" Variant="Variant.Filled"
+                         Style="font-size:0.7rem;">@context.Status</MudChip>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<Goat>? goats;
+    private string? searchText;
+    private GoatStatus? filterStatus;
+    private Gender? filterGender;
+    private bool gridView = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Parse query params for deep links from Dashboard
+        var uri = new Uri(Nav.Uri);
+        var qs = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        if (Enum.TryParse<GoatStatus>(qs["status"], out var s)) filterStatus = s;
+        if (Enum.TryParse<Gender>(qs["gender"], out var g)) filterGender = g;
+        await LoadGoats();
+    }
+
+    private async Task LoadGoats()
+    {
+        var all = await GoatSvc.GetAllAsync(filterStatus, searchText);
+        goats = filterGender.HasValue
+            ? all?.Where(g => g.Gender == filterGender.Value).ToList()
+            : all;
+    }
+
+    private async Task OpenImportDialogAsync()
+    {
+        var dlg = await Dialog.ShowAsync<ImportGoatsDialog>("Import goats from CSV",
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dlg.Result;
+        if (result is not null && !result.Canceled)
+        {
+            // Dialog returns the imported count; reload if anything landed.
+            await LoadGoats();
+        }
+    }
+
+    private void GoToGoat(int id) => Nav.NavigateTo($"/herd/{id}");
+
+    private void OnRowClicked(TableRowClickEventArgs<Goat> args)
+    {
+        if (args.Item is not null) GoToGoat(args.Item.Id);
+    }
+
+    private string GetInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2)
+            return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        return name.Length >= 2 ? name[..2].ToUpper() : name.ToUpper();
+    }
+
+    private string GetAvatarClass(Gender gender) => gender switch
+    {
+        Gender.Female => "goat-avatar-female",
+        Gender.Male => "goat-avatar-male",
+        _ => "goat-avatar-wether"
+    };
+
+    private Color GetStatusColor(GoatStatus status) => status switch
+    {
+        GoatStatus.Healthy => Color.Success,
+        GoatStatus.Sick => Color.Error,
+        GoatStatus.AtVet => Color.Warning,
+        GoatStatus.Deceased => Color.Dark,
+        GoatStatus.Sold => Color.Default,
+        _ => Color.Default
+    };
+}

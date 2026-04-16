@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet run:*)",
+      "Bash(ASPNETCORE_ENVIRONMENT=Development dotnet run --urls \"http://localhost:5051\")",
+      "Bash(wc -l \"f:/Programming/C#/GoatLab/src/GoatLab.Client/Pages\"/*/*.razor)",
+      "Bash(xargs ls:*)",
+      "Bash(dotnet build:*)",
+      "Bash(ASPNETCORE_ENVIRONMENT=Development dotnet run --urls \"http://localhost:5051\" --no-build)",
+      "Bash(taskkill //F //PID 28484)",
+      "Bash(tasklist)",
+      "Bash(curl -s -X PUT -H \"Content-Type: application/json\" -d '\"AIzaSyDmThF3S4Z9HaG6eZNb37SYX5Hv38Zms7k\"' http://localhost:5051/api/settings/googleMapsApiKey -w \"\\\\nHTTP %{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:5051/api/settings/googleMapsApiKey)",
+      "Bash(dotnet ef:*)",
+      "Bash(dotnet tool:*)",
+      "Bash(export PATH=\"$PATH:$HOME/.dotnet/tools\")",
+      "Bash(powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"F:\\\\Programming\\\\C#\\\\GoatLab\\\\scripts\\\\generate-icons.ps1\")",
+      "Bash(grep -l \"public class\" src/GoatLab.Shared/Models/*.cs)",
+      "Bash(xargs grep:*)",
+      "Bash(grep -c \"^\\\\.env$\\\\|^\\\\.env\\\\b\" f:/Programming/C#/GoatLabSaaS/.gitignore)",
+      "Bash(rm -rf src/GoatLab.Server/Migrations)",
+      "Bash(rm -f src/GoatLab.Server/goatlab.db src/GoatLab.Server/goatlab.db-shm src/GoatLab.Server/goatlab.db-wal)",
+      "Bash(dotnet restore:*)",
+      "Bash(tasklist //FI \"IMAGENAME eq dotnet.exe\")",
+      "Bash(find \"c:/Containers/GoatLabSaaS/src/GoatLab.Shared/Models\" -name \"*.cs\" -exec grep -l \"interface ITenantOwned\" {} \\\\;)",
+      "Bash(xargs basename *)",
+      "Bash(dotnet --list-sdks)",
+      "Bash(ls c:/Containers/GoatLabSaaS/src/GoatLab.Server/Migrations/*AddIsSuperAdmin*)",
+      "Bash(tee /tmp/goatlab.log)",
+      "Bash(docker exec *)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec goatlab-sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"REMOVED_PASSWORD\" -C -d GoatLab -Q \"SELECT Email, IsSuperAdmin, DisplayName FROM AspNetUsers; SELECT Id, Name, Slug FROM Tenants;\")",
+      "Bash(ls c:/Containers/GoatLabSaaS/src/GoatLab.Server/Migrations/*AdminAuditLog*)",
+      "Bash(head -40 c:/Containers/GoatLabSaaS/src/GoatLab.Server/Migrations/*AddAdminAuditLog.cs)"
+    ]
+  }
+}

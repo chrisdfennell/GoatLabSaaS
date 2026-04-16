@@ -1,0 +1,34 @@
+<MudNavMenu>
+    <AuthorizeView Policy="HasTenant">
+        <div class="nav-section-header">Overview</div>
+        <MudNavLink Href="/dashboard" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+
+        <div class="nav-section-header">Herd</div>
+        <MudNavLink Href="/herd" Icon="@GoatLabIcons.Hoof">My Goats</MudNavLink>
+        <MudNavLink Href="/health" Icon="@Icons.Material.Filled.LocalHospital">Health</MudNavLink>
+        <MudNavLink Href="/breeding" Icon="@Icons.Material.Filled.Favorite">Breeding</MudNavLink>
+
+        <div class="nav-section-header">Production</div>
+        <MudNavLink Href="/production" Icon="@Icons.Material.Filled.WaterDrop">Milk</MudNavLink>
+        <MudNavLink Href="/sales" Icon="@Icons.Material.Filled.Storefront">Sales</MudNavLink>
+        <MudNavLink Href="/finance" Icon="@Icons.Material.Filled.AccountBalance">Finances</MudNavLink>
+        <MudNavLink Href="/inventory" Icon="@Icons.Material.Filled.Inventory">Inventory</MudNavLink>
+
+        <div class="nav-section-header">Farm</div>
+        <MudNavLink Href="/map" Icon="@Icons.Material.Filled.Map">Farm Map</MudNavLink>
+        <MudNavLink Href="/calendar" Icon="@Icons.Material.Filled.CalendarMonth">Calendar</MudNavLink>
+
+        <div class="nav-section-header">Reference</div>
+        <MudNavLink Href="/care-guide" Icon="@Icons.Material.Filled.MenuBook">Care Guide</MudNavLink>
+        <MudNavLink Href="/tools" Icon="@Icons.Material.Filled.Build">Tools</MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Policy="SuperAdmin">
+        <div class="nav-section-header">Admin</div>
+        <MudNavLink Href="/admin" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Shield">Console</MudNavLink>
+        <MudNavLink Href="/admin/tenants" Icon="@Icons.Material.Filled.Business">Tenants</MudNavLink>
+        <MudNavLink Href="/admin/users" Icon="@Icons.Material.Filled.Person">Users</MudNavLink>
+        <MudNavLink Href="/admin/announcements" Icon="@Icons.Material.Filled.Campaign">Announcements</MudNavLink>
+        <MudNavLink Href="/admin/audit" Icon="@Icons.Material.Filled.History">Audit log</MudNavLink>
+    </AuthorizeView>
+</MudNavMenu>

@@ -1,0 +1,69 @@
+@page "/admin/tenants"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "SuperAdmin")]
+@inject AdminService Admin
+@inject NavigationManager Nav
+
+<PageTitle>Tenants — Admin — GoatLab</PageTitle>
+
+<div class="d-flex align-center mb-3">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/admin" />
+    <MudText Typo="Typo.h4" Class="ml-2" Style="font-weight:700;">Tenants</MudText>
+    <MudSpacer />
+    <MudTextField @bind-Value="search" Placeholder="Search name or slug"
+                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                  Style="max-width:320px;" />
+</div>
+
+@if (tenants is null)
+{
+    <MudProgressLinear Indeterminate Color="Color.Primary" />
+}
+else
+{
+    <MudTable Items="@Filtered" Dense Hover Bordered="false" Elevation="0" Outlined Class="section-card"
+              OnRowClick="OnRowClick" T="AdminTenantRow" Style="cursor:pointer;">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Slug</MudTh>
+            <MudTh>Location</MudTh>
+            <MudTh Style="text-align:right;">Members</MudTh>
+            <MudTh Style="text-align:right;">Goats</MudTh>
+            <MudTh>Created</MudTh>
+            <MudTh>Last activity</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Name" Style="font-weight:600;">@context.Name</MudTd>
+            <MudTd DataLabel="Slug">
+                <MudText Typo="Typo.caption" Style="font-family:ui-monospace,monospace;">@context.Slug</MudText>
+            </MudTd>
+            <MudTd DataLabel="Location">@(context.Location ?? "—")</MudTd>
+            <MudTd DataLabel="Members" Style="text-align:right;">@context.MemberCount</MudTd>
+            <MudTd DataLabel="Goats" Style="text-align:right;">@context.GoatCount</MudTd>
+            <MudTd DataLabel="Created">@context.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")</MudTd>
+            <MudTd DataLabel="Last activity">@(context.LastActivityAt?.ToLocalTime().ToString("MMM d, yyyy") ?? "—")</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<AdminTenantRow>? tenants;
+    private string search = string.Empty;
+
+    private IEnumerable<AdminTenantRow> Filtered =>
+        tenants is null ? Array.Empty<AdminTenantRow>()
+            : string.IsNullOrWhiteSpace(search) ? tenants
+            : tenants.Where(t =>
+                t.Name.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                t.Slug.Contains(search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        tenants = await Admin.GetTenantsAsync();
+    }
+
+    private void OnRowClick(TableRowClickEventArgs<AdminTenantRow> args)
+    {
+        if (args.Item is not null) Nav.NavigateTo($"/admin/tenants/{args.Item.Id}");
+    }
+}

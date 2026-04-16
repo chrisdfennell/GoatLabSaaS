@@ -1,0 +1,94 @@
+@inject ShowService ShowSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" sm="7">
+                <MudTextField @bind-Value="record.Appraiser" Label="Appraiser" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="5">
+                <MudDatePicker @bind-Date="apprDate" Label="Appraisal date" Variant="Variant.Outlined" Editable />
+            </MudItem>
+
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="int?" @bind-Value="record.GeneralAppearance" Label="General Appearance"
+                                 Variant="Variant.Outlined" Min="0" Max="100" />
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="int?" @bind-Value="record.DairyCharacter" Label="Dairy Character"
+                                 Variant="Variant.Outlined" Min="0" Max="100" />
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="int?" @bind-Value="record.BodyCapacity" Label="Body Capacity"
+                                 Variant="Variant.Outlined" Min="0" Max="100" />
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="int?" @bind-Value="record.MammarySystem" Label="Mammary System"
+                                 Variant="Variant.Outlined" Min="0" Max="100" />
+            </MudItem>
+
+            <MudItem xs="6" sm="4">
+                <MudNumericField T="int?" @bind-Value="record.FinalScore" Label="Final score"
+                                 Variant="Variant.Outlined" Min="0" Max="100"
+                                 HelperText="Composite 0–100" />
+            </MudItem>
+            <MudItem xs="12" sm="8">
+                <MudSelect T="LinearAppraisalClassification?" @bind-Value="record.Classification"
+                           Label="Classification" Variant="Variant.Outlined" Clearable>
+                    @foreach (var c in Enum.GetValues<LinearAppraisalClassification>())
+                    {
+                        <MudSelectItem Value="@((LinearAppraisalClassification?)c)">@ClassLabel(c)</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudTextField @bind-Value="record.Notes" Label="Appraiser comments" Variant="Variant.Outlined" Lines="3" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save" Disabled="@saving">
+            @(saving ? "Saving…" : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int GoatId { get; set; }
+
+    private LinearAppraisal record = new();
+    private DateTime? apprDate = DateTime.Today;
+    private bool saving;
+
+    private async Task Save()
+    {
+        saving = true;
+        try
+        {
+            record.GoatId = GoatId;
+            record.AppraisalDate = apprDate ?? DateTime.Today;
+            await ShowSvc.CreateAppraisalAsync(record);
+            Snackbar.Add("Appraisal saved", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add($"Save failed: {ex.Message}", Severity.Error); }
+        finally { saving = false; }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private static string ClassLabel(LinearAppraisalClassification c) => c switch
+    {
+        LinearAppraisalClassification.Excellent => "Excellent (EX, 90+)",
+        LinearAppraisalClassification.VeryGood => "Very Good (VG, 85-89)",
+        LinearAppraisalClassification.GoodPlus => "Good Plus (G+, 80-84)",
+        LinearAppraisalClassification.Good => "Good (G, 75-79)",
+        LinearAppraisalClassification.Fair => "Fair (F, 70-74)",
+        LinearAppraisalClassification.Poor => "Poor (P, <70)",
+        _ => c.ToString()
+    };
+}

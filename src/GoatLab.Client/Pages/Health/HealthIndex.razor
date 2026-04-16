@@ -1,0 +1,395 @@
+@page "/health"
+@inject HealthService HealthSvc
+@inject GoatService GoatSvc
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<PageTitle>Health — GoatLab</PageTitle>
+
+@* ----- Page hero ----- *@
+<div class="page-hero page-hero-pink">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.MedicalServices" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Health &amp; Medical</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Care &amp; Treatment</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Keep your herd healthy — track treatments, medications, and what's in the cabinet.</MudText>
+        <div class="page-hero-stats">
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(records?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Records</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(medications?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Medications</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@OverdueCount</MudText>
+                <MudText Class="page-hero-stat-label">Overdue</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@ExpiringSoonCount</MudText>
+                <MudText Class="page-hero-stat-label">Expiring Soon</MudText>
+            </div>
+        </div>
+    </div>
+</div>
+
+<MudTabs Elevation="0" Rounded ApplyEffectsToContainer PanelClass="pt-4">
+
+    @* --- Medical Records Tab --- *@
+    <MudTabPanel Text="Records" Icon="@Icons.Material.Filled.Assignment">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Assignment" />
+                    <div>
+                        <MudText Typo="Typo.h6">Medical Records</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Vaccinations, treatments, checkups and more.</MudText>
+                    </div>
+                </div>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="() => showRecordForm = !showRecordForm">
+                    @(showRecordForm ? "Close" : "New Record")
+                </MudButton>
+            </div>
+
+            @if (showRecordForm)
+            {
+                <MudPaper Class="pa-4 mb-4" Outlined Style="border-radius:12px;">
+                    <MudGrid>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudSelect T="int" @bind-Value="newRecord.GoatId" Label="Goat" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                                @if (goats != null) { @foreach (var g in goats) { <MudSelectItem Value="g.Id">@g.Name</MudSelectItem> } }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudTextField @bind-Value="newRecord.Title" Label="Title" Variant="Variant.Outlined" Placeholder="e.g. CDT vaccination" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudDatePicker @bind-Date="recordDate" Label="Date" Variant="Variant.Outlined" Editable />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="3">
+                            <MudSelect T="RecurrenceInterval" @bind-Value="newRecord.Recurrence" Label="Recurs" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                                @foreach (var r in Enum.GetValues<RecurrenceInterval>()) { <MudSelectItem Value="r">@r</MudSelectItem> }
+                            </MudSelect>
+                        </MudItem>
+
+                        <MudItem xs="12">
+                            <MudText Class="field-label">Type</MudText>
+                            <div class="pill-group">
+                                @foreach (var t in Enum.GetValues<MedicalRecordType>())
+                                {
+                                    <button type="button"
+                                            class="@($"pill {GetRecordPillClass(t)} {(newRecord.RecordType == t ? "pill-active" : "")}")"
+                                            @onclick="() => newRecord.RecordType = t">
+                                        <MudIcon Icon="@GetRecordIcon(t)" Size="Size.Small" />
+                                        <span>@t</span>
+                                    </button>
+                                }
+                            </div>
+                        </MudItem>
+
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="newRecord.Notes" Label="Notes" Variant="Variant.Outlined" Lines="2" />
+                        </MudItem>
+                    </MudGrid>
+                    <div class="d-flex gap-2 mt-3 justify-end">
+                        <MudButton Variant="Variant.Text" OnClick="() => showRecordForm = false">Cancel</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveRecord">Save Record</MudButton>
+                    </div>
+                </MudPaper>
+            }
+
+            @if (records == null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (records.Count == 0)
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.HealthAndSafety" />
+                    <MudText Typo="Typo.body1">No medical records yet</MudText>
+                    <MudText Typo="Typo.body2">Log vaccinations and treatments to keep a complete history.</MudText>
+                </div>
+            }
+            else
+            {
+                <div class="record-list">
+                    @foreach (var r in records)
+                    {
+                        var overdue = r.NextDueDate.HasValue && r.NextDueDate.Value <= DateTime.UtcNow;
+                        <div class="record-card">
+                            <div class="record-card-icon @GetRecordIconBg(r.RecordType)">
+                                <MudIcon Icon="@GetRecordIcon(r.RecordType)" />
+                            </div>
+                            <div class="record-card-body">
+                                <div class="record-card-primary">@r.Title</div>
+                                <div class="record-card-secondary">
+                                    @r.Goat?.Name · @r.Date.ToString("MMM d, yyyy")
+                                    @if (r.NextDueDate.HasValue)
+                                    {
+                                        <span> · </span>
+                                        @if (overdue)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled"
+                                                     Icon="@Icons.Material.Filled.Warning" Class="ml-1">
+                                                Overdue @r.NextDueDate.Value.ToString("MMM d")
+                                            </MudChip>
+                                        }
+                                        else
+                                        {
+                                            <span>next due @r.NextDueDate.Value.ToString("MMM d, yyyy")</span>
+                                        }
+                                    }
+                                </div>
+                            </div>
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@r.RecordType</MudChip>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Default" OnClick="() => DeleteRecord(r.Id)" />
+                        </div>
+                    }
+                </div>
+            }
+        </MudPaper>
+    </MudTabPanel>
+
+    @* --- Medications Tab --- *@
+    <MudTabPanel Text="Medications" Icon="@Icons.Material.Filled.Medication">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Medication" />
+                    <div>
+                        <MudText Typo="Typo.h6">Medications</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Your reference list — dosage, route, and withdrawal times.</MudText>
+                    </div>
+                </div>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="() => showMedForm = !showMedForm">
+                    @(showMedForm ? "Close" : "Add Medication")
+                </MudButton>
+            </div>
+
+            @if (showMedForm)
+            {
+                <MudPaper Class="pa-4 mb-4" Outlined Style="border-radius:12px;">
+                    <MudGrid>
+                        <MudItem xs="12" sm="6" md="4"><MudTextField @bind-Value="newMed.Name" Label="Name" Variant="Variant.Outlined" Required /></MudItem>
+                        <MudItem xs="12" sm="6" md="4"><MudTextField @bind-Value="newMed.DosageRate" Label="Dosage Rate" Variant="Variant.Outlined" Placeholder="e.g. 1 mL per 10 lbs" /></MudItem>
+                        <MudItem xs="12" sm="6" md="4"><MudTextField @bind-Value="newMed.Route" Label="Route" Variant="Variant.Outlined" Placeholder="SubQ, IM, Oral..." /></MudItem>
+                        <MudItem xs="6" sm="3"><MudNumericField @bind-Value="newMed.MeatWithdrawalDays" Label="Meat Withdrawal (days)" Variant="Variant.Outlined" /></MudItem>
+                        <MudItem xs="6" sm="3"><MudNumericField @bind-Value="newMed.MilkWithdrawalDays" Label="Milk Withdrawal (days)" Variant="Variant.Outlined" /></MudItem>
+                        <MudItem xs="12" sm="6"><MudTextField @bind-Value="newMed.Description" Label="Description" Variant="Variant.Outlined" /></MudItem>
+                    </MudGrid>
+                    <div class="d-flex gap-2 mt-3 justify-end">
+                        <MudButton Variant="Variant.Text" OnClick="() => showMedForm = false">Cancel</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveMedication">Save</MudButton>
+                    </div>
+                </MudPaper>
+            }
+
+            @if (medications == null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (medications.Count == 0)
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.Vaccines" />
+                    <MudText Typo="Typo.body1">Your medication list is empty</MudText>
+                    <MudText Typo="Typo.body2">Add commonly used meds to speed up recording treatments.</MudText>
+                </div>
+            }
+            else
+            {
+                <MudGrid>
+                    @foreach (var m in medications)
+                    {
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudPaper Class="pa-4" Outlined Style="border-radius:12px;height:100%;">
+                                <div class="d-flex align-center mb-2" style="gap:10px;">
+                                    <div class="record-card-icon record-card-icon-teal" style="width:40px;height:40px;">
+                                        <MudIcon Icon="@Icons.Material.Filled.Vaccines" Size="Size.Small" />
+                                    </div>
+                                    <div style="flex:1;min-width:0;">
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight:600;">@m.Name</MudText>
+                                        @if (!string.IsNullOrEmpty(m.Route))
+                                        {
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">@m.Route</MudText>
+                                        }
+                                    </div>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="() => DeleteMedication(m.Id)" />
+                                </div>
+                                @if (!string.IsNullOrEmpty(m.DosageRate))
+                                {
+                                    <MudText Typo="Typo.body2" Class="mb-1">
+                                        <MudIcon Icon="@Icons.Material.Filled.Science" Size="Size.Small" Style="vertical-align:text-bottom;" /> @m.DosageRate
+                                    </MudText>
+                                }
+                                <div class="d-flex gap-2 mt-2">
+                                    @if (m.MeatWithdrawalDays.HasValue)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Restaurant">
+                                            Meat @m.MeatWithdrawalDays d
+                                        </MudChip>
+                                    }
+                                    @if (m.MilkWithdrawalDays.HasValue)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.LocalDrink">
+                                            Milk @m.MilkWithdrawalDays d
+                                        </MudChip>
+                                    }
+                                </div>
+                            </MudPaper>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        </MudPaper>
+    </MudTabPanel>
+
+    @* --- Medicine Cabinet Tab --- *@
+    <MudTabPanel Text="Cabinet" Icon="@Icons.Material.Filled.MedicalInformation">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Inventory2" />
+                    <div>
+                        <MudText Typo="Typo.h6">Medicine Cabinet</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">What's on the shelf — watch for expirations.</MudText>
+                    </div>
+                </div>
+            </div>
+
+            @if (cabinet == null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (cabinet.Count == 0)
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.Inventory2" />
+                    <MudText Typo="Typo.body1">Cabinet is empty</MudText>
+                    <MudText Typo="Typo.body2">Track meds on hand so you know what to restock.</MudText>
+                </div>
+            }
+            else
+            {
+                <div class="record-list">
+                    @foreach (var c in cabinet)
+                    {
+                        var expiring = c.ExpirationDate.HasValue && c.ExpirationDate.Value <= DateTime.UtcNow.AddDays(30);
+                        var expired = c.ExpirationDate.HasValue && c.ExpirationDate.Value <= DateTime.UtcNow;
+                        <div class="record-card">
+                            <div class="record-card-icon @(expired ? "record-card-icon-red" : expiring ? "record-card-icon-orange" : "record-card-icon-teal")">
+                                <MudIcon Icon="@Icons.Material.Filled.Medication" />
+                            </div>
+                            <div class="record-card-body">
+                                <div class="record-card-primary">@c.Medication?.Name</div>
+                                <div class="record-card-secondary">
+                                    @c.Quantity @c.Unit
+                                    @if (!string.IsNullOrEmpty(c.LotNumber))
+                                    {
+                                        <span> · Lot #@c.LotNumber</span>
+                                    }
+                                    @if (c.ExpirationDate.HasValue)
+                                    {
+                                        <span> · Expires @c.ExpirationDate.Value.ToString("MMM yyyy")</span>
+                                    }
+                                </div>
+                            </div>
+                            @if (expired)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Error">Expired</MudChip>
+                            }
+                            else if (expiring)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Schedule">Expiring soon</MudChip>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private List<MedicalRecord>? records;
+    private List<Medication>? medications;
+    private List<MedicineCabinetItem>? cabinet;
+    private List<Goat>? goats;
+
+    private bool showRecordForm, showMedForm;
+    private MedicalRecord newRecord = new();
+    private DateTime? recordDate = DateTime.Today;
+    private Medication newMed = new();
+
+    private int OverdueCount => records?.Count(r => r.NextDueDate.HasValue && r.NextDueDate.Value <= DateTime.UtcNow) ?? 0;
+    private int ExpiringSoonCount => cabinet?.Count(c => c.ExpirationDate.HasValue && c.ExpirationDate.Value <= DateTime.UtcNow.AddDays(30)) ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadRecords(), LoadMedications(), LoadCabinet(), LoadGoats());
+    }
+
+    private async Task LoadRecords() => records = await HealthSvc.GetRecordsAsync();
+    private async Task LoadMedications() => medications = await HealthSvc.GetMedicationsAsync();
+    private async Task LoadCabinet() => cabinet = await HealthSvc.GetCabinetAsync();
+    private async Task LoadGoats() => goats = await GoatSvc.GetAllAsync();
+
+    private async Task SaveRecord()
+    {
+        newRecord.Date = recordDate ?? DateTime.UtcNow;
+        await HealthSvc.CreateRecordAsync(newRecord);
+        Snackbar.Add("Record saved", Severity.Success);
+        newRecord = new(); showRecordForm = false;
+        await LoadRecords();
+    }
+
+    private async Task DeleteRecord(int id) { await HealthSvc.DeleteRecordAsync(id); await LoadRecords(); }
+
+    private async Task SaveMedication()
+    {
+        await HealthSvc.CreateMedicationAsync(newMed);
+        Snackbar.Add($"{newMed.Name} added", Severity.Success);
+        newMed = new(); showMedForm = false;
+        await LoadMedications();
+    }
+
+    private async Task DeleteMedication(int id) { await HealthSvc.DeleteMedicationAsync(id); await LoadMedications(); }
+
+    private string GetRecordIcon(MedicalRecordType t) => t switch
+    {
+        MedicalRecordType.Vaccination => Icons.Material.Filled.Vaccines,
+        MedicalRecordType.Deworming   => Icons.Material.Filled.BugReport,
+        MedicalRecordType.Illness     => Icons.Material.Filled.Sick,
+        MedicalRecordType.Treatment   => Icons.Material.Filled.Healing,
+        MedicalRecordType.Surgery     => Icons.Material.Filled.LocalHospital,
+        MedicalRecordType.Checkup     => Icons.Material.Filled.MonitorHeart,
+        _                             => Icons.Material.Filled.MedicalServices
+    };
+
+    private string GetRecordIconBg(MedicalRecordType t) => t switch
+    {
+        MedicalRecordType.Vaccination => "record-card-icon-teal",
+        MedicalRecordType.Deworming   => "record-card-icon-green",
+        MedicalRecordType.Illness     => "record-card-icon-red",
+        MedicalRecordType.Treatment   => "record-card-icon-blue",
+        MedicalRecordType.Surgery     => "record-card-icon-pink",
+        MedicalRecordType.Checkup     => "record-card-icon-purple",
+        _                             => "record-card-icon-neutral"
+    };
+
+    private string GetRecordPillClass(MedicalRecordType t) => t switch
+    {
+        MedicalRecordType.Vaccination => "pill-info",
+        MedicalRecordType.Deworming   => "pill-success",
+        MedicalRecordType.Illness     => "pill-error",
+        MedicalRecordType.Treatment   => "pill-info",
+        MedicalRecordType.Surgery     => "pill-female",
+        MedicalRecordType.Checkup     => "pill-wether",
+        _                             => "pill-neutral"
+    };
+}

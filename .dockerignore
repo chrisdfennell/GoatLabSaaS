@@ -1,0 +1,33 @@
+**/bin
+**/obj
+**/.vs
+**/.vscode
+**/.idea
+**/node_modules
+
+# Source control
+.git
+.gitignore
+.gitattributes
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Local data
+**/*.db
+**/*.db-shm
+**/*.db-wal
+src/GoatLab.Server/media/*
+!src/GoatLab.Server/media/.gitkeep
+docker/
+media/
+
+# Docs / misc
+*.md
+LICENSE
+run.bat
+scripts/
+Dockerfile
+docker-compose*.yml

@@ -1,0 +1,248 @@
+@page "/care-guide/workflows"
+@inject CalendarService CalSvc
+@inject GoatService GoatSvc
+@inject ISnackbar Snackbar
+
+<PageTitle>Workflows — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-green">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.Checklist" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Workflows</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Checklist Generators</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Pick a situation, we schedule the must-do tasks into your Calendar.</MudText>
+    </div>
+    <div style="position:relative;z-index:1;">
+        <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#1b5e20;"
+                   StartIcon="@Icons.Material.Filled.ArrowBack" Href="/care-guide">Back</MudButton>
+    </div>
+</div>
+
+<MudGrid>
+    @foreach (var wf in workflows)
+    {
+        <MudItem xs="12" md="6">
+            <MudPaper Class="pa-4 workflow-card" Outlined Elevation="0" Style="@($"border-top:4px solid {wf.Color};")">
+                <div class="d-flex align-center mb-2" style="gap:12px;">
+                    <div class="record-card-icon" style="@($"background:{wf.Color};width:48px;height:48px;")">
+                        <MudIcon Icon="@wf.Icon" />
+                    </div>
+                    <div style="flex:1;">
+                        <MudText Typo="Typo.subtitle1" Style="font-weight:700;">@wf.Title</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@wf.Description</MudText>
+                    </div>
+                </div>
+
+                <MudText Typo="Typo.caption" Style="text-transform:uppercase;letter-spacing:1px;color:#888;" Class="mt-2 d-block">Schedule</MudText>
+                <ul class="workflow-list">
+                    @foreach (var t in wf.Tasks)
+                    {
+                        <li><strong>@t.Offset:</strong> @t.Title</li>
+                    }
+                </ul>
+
+                <div class="d-flex gap-2 mt-3">
+                    <MudDatePicker @bind-Date="wf.StartDate" Variant="Variant.Outlined"
+                                   PickerVariant="PickerVariant.Inline" Editable Style="max-width:180px;" />
+                    @if (wf.NeedsGoat)
+                    {
+                        <MudSelect T="int?" @bind-Value="wf.GoatId" Label="Goat" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomCenter">
+                            @if (goats != null)
+                            {
+                                @foreach (var g in goats)
+                                {
+                                    <MudSelectItem Value="@((int?)g.Id)">@g.Name</MudSelectItem>
+                                }
+                            }
+                        </MudSelect>
+                    }
+                    <MudSpacer />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AutoAwesome"
+                               OnClick="() => GenerateChecklist(wf)">
+                        Schedule
+                    </MudButton>
+                </div>
+            </MudPaper>
+        </MudItem>
+    }
+</MudGrid>
+
+<style>
+.workflow-card { border-radius: 12px !important; }
+.workflow-list { padding-left: 18px; margin: 4px 0; line-height: 1.6; }
+.workflow-list li { font-size: 0.9rem; }
+</style>
+
+@code {
+    private List<Goat>? goats;
+
+    protected override async Task OnInitializedAsync()
+    {
+        goats = await GoatSvc.GetAllAsync();
+    }
+
+    private async Task GenerateChecklist(WorkflowDef wf)
+    {
+        if (!wf.StartDate.HasValue) { Snackbar.Add("Pick a start date", Severity.Warning); return; }
+        if (wf.NeedsGoat && wf.GoatId == null) { Snackbar.Add("Pick a goat", Severity.Warning); return; }
+
+        var start = wf.StartDate.Value;
+        var goatName = wf.NeedsGoat ? goats?.FirstOrDefault(g => g.Id == wf.GoatId)?.Name : null;
+        var added = 0;
+        foreach (var t in wf.Tasks)
+        {
+            var when = start.AddDays(t.Days);
+            await CalSvc.CreateEventAsync(new CalendarEvent
+            {
+                Title = goatName != null ? $"{goatName} — {t.Title}" : $"{wf.Title}: {t.Title}",
+                Description = t.Detail,
+                Start = when,
+                AllDay = true,
+                GoatId = wf.GoatId
+            });
+            added++;
+        }
+        Snackbar.Add($"Scheduled {added} events starting {start:MMM d, yyyy}", Severity.Success);
+    }
+
+    private class WorkflowDef
+    {
+        public string Title { get; init; } = "";
+        public string Description { get; init; } = "";
+        public string Icon { get; init; } = "";
+        public string Color { get; init; } = "";
+        public bool NeedsGoat { get; init; }
+        public List<WorkflowTask> Tasks { get; init; } = new();
+        public DateTime? StartDate { get; set; } = DateTime.Today;
+        public int? GoatId { get; set; }
+    }
+
+    private record WorkflowTask(int Days, string Offset, string Title, string Detail);
+
+    private readonly List<WorkflowDef> workflows = new()
+    {
+        new WorkflowDef
+        {
+            Title = "Kid Just Born",
+            Description = "First 8 weeks of kid management.",
+            Icon = Icons.Material.Filled.ChildCare,
+            Color = "#e91e63",
+            NeedsGoat = true,
+            Tasks = new()
+            {
+                new WorkflowTask(0, "Today", "Dip navel in 7% iodine", "Dip within the first hour. Repeat at 12 hrs."),
+                new WorkflowTask(0, "Today", "Colostrum within 1 hour", "Make sure kid nurses or bottle-feed 10% body weight in colostrum."),
+                new WorkflowTask(1, "Day 1", "Weight + tag", "Record birth weight. Apply ear tag or tattoo."),
+                new WorkflowTask(1, "Day 1", "BoSe / selenium injection", "If your area is Se-deficient. Check with vet."),
+                new WorkflowTask(4, "Day 4", "Disbud", "Between days 4–10. Sooner for fast-growing bucks."),
+                new WorkflowTask(14, "Week 2", "Introduce hay", "Offer soft fine-leaf hay to encourage rumen development."),
+                new WorkflowTask(21, "Week 3", "Coccidia prevention", "Start in wet conditions or if group housed."),
+                new WorkflowTask(42, "Week 6", "CDT first dose", "6–8 weeks of age. Record in GoatLab."),
+                new WorkflowTask(63, "Week 9", "CDT booster", "3 weeks after first dose."),
+                new WorkflowTask(56, "Week 8", "Weaning prep", "Start reducing nursing time. Introduce grower ration."),
+                new WorkflowTask(84, "Week 12", "Banding (if wether)", "Between 8–16 weeks depending on breed. Vaccinate CDT before banding.")
+            }
+        },
+        new WorkflowDef
+        {
+            Title = "New Goat Arrived",
+            Description = "Biosecurity + onboarding for a new herd member.",
+            Icon = Icons.Material.Filled.ExitToApp,
+            Color = "#1565c0",
+            NeedsGoat = true,
+            Tasks = new()
+            {
+                new WorkflowTask(0, "Arrival", "Quarantine 30 days", "Separate housing, feed, water — no contact with herd."),
+                new WorkflowTask(0, "Arrival", "Intake exam", "Check temp, FAMACHA, BCS, hoof condition. Take photos."),
+                new WorkflowTask(1, "Day 1", "Fecal egg count", "Before deworming. Rule out parasite load / resistance."),
+                new WorkflowTask(2, "Day 2", "Deworm", "With appropriate class based on FEC. Isolate manure."),
+                new WorkflowTask(7, "Week 1", "CDT booster", "Unless proof of recent vaccination."),
+                new WorkflowTask(10, "Day 10", "Hoof trim", "Fresh trim so you know baseline."),
+                new WorkflowTask(14, "Week 2", "Bloodwork", "CAE, CL, Johne's tests if not already done."),
+                new WorkflowTask(21, "Week 3", "Re-check FAMACHA / FEC", "Confirm deworm worked."),
+                new WorkflowTask(30, "Day 30", "End quarantine", "If clean labs and healthy: slow introduction to herd."),
+                new WorkflowTask(30, "Day 30", "Welcome photo!", "Take a portrait for GoatLab. Add the goat to the map.")
+            }
+        },
+        new WorkflowDef
+        {
+            Title = "Pre-Kidding Kit",
+            Description = "30-day countdown before a doe kids.",
+            Icon = Icons.Material.Filled.Inventory2,
+            Color = "#ad1457",
+            NeedsGoat = true,
+            Tasks = new()
+            {
+                new WorkflowTask(0, "Day -30", "CDT booster for doe", "Passes immunity to kids via colostrum."),
+                new WorkflowTask(0, "Day -30", "BoSe if Se-deficient", "Ensures kid nervous system health."),
+                new WorkflowTask(7, "Day -23", "Stock kidding kit", "7% iodine, OB lube, bulb syringe, dental floss, towels, heat lamp, bottle backup, propylene glycol."),
+                new WorkflowTask(14, "Day -16", "Pen deep clean", "Disinfect, fresh straw, check heat lamp wiring."),
+                new WorkflowTask(14, "Day -16", "Reduce rich feed", "Avoid pregnancy toxemia — quality over quantity. No sudden changes."),
+                new WorkflowTask(21, "Day -9", "Observation increases", "Watch for ligaments loosening (pin bones), udder filling."),
+                new WorkflowTask(25, "Day -5", "Trim rear + udder", "Hair clipping around udder and vulva for hygiene."),
+                new WorkflowTask(28, "Day -2", "Night-watch schedule", "Set up monitoring. First-timers need closer watch."),
+                new WorkflowTask(30, "Day 0 (est.)", "Expected kidding date", "Mark on calendar. Keep kidding kit within reach 24/7.")
+            }
+        },
+        new WorkflowDef
+        {
+            Title = "Sick Goat Triage",
+            Description = "First 48 hours when a goat goes off-feed.",
+            Icon = Icons.Material.Filled.Sick,
+            Color = "#c62828",
+            NeedsGoat = true,
+            Tasks = new()
+            {
+                new WorkflowTask(0, "Hour 0", "Rectal temp", "Normal 101.5–103.5°F. Document."),
+                new WorkflowTask(0, "Hour 0", "FAMACHA + BCS", "Eye and feel check. Document."),
+                new WorkflowTask(0, "Hour 0", "Isolate", "Separate pen with hay, warm water, shelter."),
+                new WorkflowTask(0, "Hour 0", "Call vet if severe", "Down, seizing, bloated, bleeding — don't wait."),
+                new WorkflowTask(0, "Hour 1", "Fecal sample", "Collect for egg count if parasites suspected."),
+                new WorkflowTask(0, "Hour 2", "Thiamine + B-complex", "5–10 mL SQ. Supports a stressed system."),
+                new WorkflowTask(0, "Hour 4", "Re-check temp + behavior", "Note any changes."),
+                new WorkflowTask(1, "Day 1", "Recheck & decide", "Improving? Stable? Declining? Escalate if not better."),
+                new WorkflowTask(2, "Day 2", "Photo + weigh", "Document progress. Weight loss > 10% is alarming."),
+                new WorkflowTask(3, "Day 3", "Vet visit if no improvement", "Don't delay — 72 hours is the outer window.")
+            }
+        },
+        new WorkflowDef
+        {
+            Title = "Worm Rotation Plan",
+            Description = "21-day pasture rotation to break parasite cycle.",
+            Icon = Icons.Material.Filled.Loop,
+            Color = "#2e7d32",
+            NeedsGoat = false,
+            Tasks = new()
+            {
+                new WorkflowTask(0, "Week 0", "Move herd to pasture A", "Start clean rotation. Log in GoatLab map."),
+                new WorkflowTask(0, "Week 0", "FAMACHA baseline", "Score whole herd before move."),
+                new WorkflowTask(21, "Week 3", "Move to pasture B", "Leave A to rest — larvae die off in 60+ days."),
+                new WorkflowTask(21, "Week 3", "FAMACHA re-check", "Monitor for rising scores — signals parasite pressure."),
+                new WorkflowTask(42, "Week 6", "Move to pasture C", "Keep cycling. Don't return to A yet."),
+                new WorkflowTask(63, "Week 9", "Fecal egg count", "Confirm your rotation is working. Adjust if resistant."),
+                new WorkflowTask(84, "Week 12", "Pasture A safe to reuse", "~84 days since last grazing = clean.")
+            }
+        },
+        new WorkflowDef
+        {
+            Title = "Breeding Season Kickoff",
+            Description = "4-week prep for buck-to-doe introduction.",
+            Icon = Icons.Material.Filled.Favorite,
+            Color = "#e91e63",
+            NeedsGoat = false,
+            Tasks = new()
+            {
+                new WorkflowTask(0, "Week 0", "Buck evaluation", "Hooves, weight, fertility test. Trim beard."),
+                new WorkflowTask(0, "Week 0", "Doe evaluation", "BCS check — aim for 3. Deworm if FAMACHA ≥ 3."),
+                new WorkflowTask(14, "Week 2", "Flushing begins", "Increase doe nutrition for 2 weeks — grain or better pasture."),
+                new WorkflowTask(14, "Week 2", "Pre-breed vaccinations", "CDT for does 30 days before intro (passes to kids)."),
+                new WorkflowTask(28, "Week 4", "Buck intro", "Turn bucks into breeding groups. Crayon or paint on brisket."),
+                new WorkflowTask(28, "Week 4", "Log first heat", "Start recording in GoatLab Breeding."),
+                new WorkflowTask(49, "Week 7", "21-day return check", "Watch for repeats — does that come back in heat haven't conceived."),
+                new WorkflowTask(70, "Week 10", "Pregnancy test", "Ultrasound or blood test for confirmed pregnancies.")
+            }
+        }
+    };
+}

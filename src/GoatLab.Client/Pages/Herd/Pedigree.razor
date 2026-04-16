@@ -1,0 +1,322 @@
+@page "/herd/{Id:int}/pedigree"
+@inject GoatService GoatSvc
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Pedigree — GoatLab</PageTitle>
+
+@if (goat == null)
+{
+    <div class="polished-section"><MudProgressCircular Indeterminate /></div>
+}
+else
+{
+    <div class="page-hero page-hero-purple">
+        <div class="page-hero-icon">
+            <MudIcon Icon="@Icons.Material.Filled.AccountTree" />
+        </div>
+        <div class="page-hero-text">
+            <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Pedigree</MudText>
+            <MudText Typo="Typo.h4" Class="page-hero-title">@goat.Name</MudText>
+            <MudText Typo="Typo.body2" Class="page-hero-sub">
+                Four generations. External ancestors are marked <strong>EXT</strong> and don't appear in your herd list.
+            </MudText>
+        </div>
+        <div style="position:relative;z-index:1;display:flex;gap:8px;">
+            <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#6a1b9a;"
+                       StartIcon="@Icons.Material.Filled.ArrowBack" Href="@($"/herd/{Id}")">Back</MudButton>
+        </div>
+    </div>
+
+    <MudPaper Class="polished-section" Elevation="0">
+        <div class="pedigree-scroll">
+            <div class="pedigree-tree">
+                @* Generation 0: the goat *@
+                <div class="pedigree-col pedigree-col-0">
+                    @RenderCell(goat, isRoot: true)
+                </div>
+
+                @* Generation 1: parents *@
+                <div class="pedigree-col pedigree-col-1">
+                    @RenderSlot(goat.Sire, "Sire", id => SetParent(id, true), Gender.Male)
+                    @RenderSlot(goat.Dam, "Dam", id => SetParent(id, false), Gender.Female)
+                </div>
+
+                @* Generation 2: grandparents *@
+                <div class="pedigree-col pedigree-col-2">
+                    @RenderSlot(goat.Sire?.Sire, "Paternal Grandsire", id => SetGrandparent(goat.Sire, id, true), Gender.Male, parentExists: goat.Sire != null)
+                    @RenderSlot(goat.Sire?.Dam, "Paternal Granddam", id => SetGrandparent(goat.Sire, id, false), Gender.Female, parentExists: goat.Sire != null)
+                    @RenderSlot(goat.Dam?.Sire, "Maternal Grandsire", id => SetGrandparent(goat.Dam, id, true), Gender.Male, parentExists: goat.Dam != null)
+                    @RenderSlot(goat.Dam?.Dam, "Maternal Granddam", id => SetGrandparent(goat.Dam, id, false), Gender.Female, parentExists: goat.Dam != null)
+                </div>
+
+                @* Generation 3: great-grandparents *@
+                <div class="pedigree-col pedigree-col-3">
+                    @RenderSlot(goat.Sire?.Sire?.Sire, "GGS", id => SetGrandparent(goat.Sire?.Sire, id, true), Gender.Male, parentExists: goat.Sire?.Sire != null, compact: true)
+                    @RenderSlot(goat.Sire?.Sire?.Dam, "GGD", id => SetGrandparent(goat.Sire?.Sire, id, false), Gender.Female, parentExists: goat.Sire?.Sire != null, compact: true)
+                    @RenderSlot(goat.Sire?.Dam?.Sire, "GGS", id => SetGrandparent(goat.Sire?.Dam, id, true), Gender.Male, parentExists: goat.Sire?.Dam != null, compact: true)
+                    @RenderSlot(goat.Sire?.Dam?.Dam, "GGD", id => SetGrandparent(goat.Sire?.Dam, id, false), Gender.Female, parentExists: goat.Sire?.Dam != null, compact: true)
+                    @RenderSlot(goat.Dam?.Sire?.Sire, "GGS", id => SetGrandparent(goat.Dam?.Sire, id, true), Gender.Male, parentExists: goat.Dam?.Sire != null, compact: true)
+                    @RenderSlot(goat.Dam?.Sire?.Dam, "GGD", id => SetGrandparent(goat.Dam?.Sire, id, false), Gender.Female, parentExists: goat.Dam?.Sire != null, compact: true)
+                    @RenderSlot(goat.Dam?.Dam?.Sire, "GGS", id => SetGrandparent(goat.Dam?.Dam, id, true), Gender.Male, parentExists: goat.Dam?.Dam != null, compact: true)
+                    @RenderSlot(goat.Dam?.Dam?.Dam, "GGD", id => SetGrandparent(goat.Dam?.Dam, id, false), Gender.Female, parentExists: goat.Dam?.Dam != null, compact: true)
+                </div>
+            </div>
+        </div>
+    </MudPaper>
+
+    @* Offspring *@
+    @if (Offspring.Any())
+    {
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.ChildCare" />
+                    <div>
+                        <MudText Typo="Typo.h6">Offspring</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">@Offspring.Count kid@(Offspring.Count == 1 ? "" : "s") recorded.</MudText>
+                    </div>
+                </div>
+            </div>
+            <MudGrid>
+                @foreach (var kid in Offspring)
+                {
+                    <MudItem xs="12" sm="6" md="4" lg="3">
+                        <MudPaper Outlined Class="pa-3" Style="@($"border-left:4px solid {GenderColor(kid.Gender)};cursor:pointer;")"
+                                  @onclick="@(() => Nav.NavigateTo($"/herd/{kid.Id}"))">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <MudAvatar Size="Size.Small" Style="@($"background:{GenderColor(kid.Gender)};color:#fff;")">
+                                    <MudIcon Icon="@GenderIcon(kid.Gender)" Size="Size.Small" />
+                                </MudAvatar>
+                                <div>
+                                    <MudText Typo="Typo.subtitle2" Style="font-weight:700;">@kid.Name</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @(kid.DateOfBirth?.ToString("MMM d, yyyy") ?? "No DOB")
+                                        @if (!string.IsNullOrEmpty(kid.EarTag)) { <span> · #@kid.EarTag</span> }
+                                    </MudText>
+                                </div>
+                            </div>
+                        </MudPaper>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudPaper>
+    }
+}
+
+<style>
+.pedigree-scroll {
+    overflow-x: auto;
+    padding-bottom: 12px;
+}
+.pedigree-tree {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(180px, 1fr));
+    gap: 20px;
+    min-width: 960px;
+    align-items: stretch;
+}
+.pedigree-col {
+    display: grid;
+    gap: 12px;
+    position: relative;
+}
+.pedigree-col-0 { grid-template-rows: 1fr; align-content: center; }
+.pedigree-col-1 { grid-template-rows: 1fr 1fr; align-content: center; }
+.pedigree-col-2 { grid-template-rows: repeat(4, 1fr); }
+.pedigree-col-3 { grid-template-rows: repeat(8, 1fr); }
+
+.ped-cell {
+    background: var(--mud-palette-surface);
+    border: 1px solid rgba(0,0,0,0.1);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-height: 64px;
+    cursor: pointer;
+    transition: transform .15s, box-shadow .15s;
+    position: relative;
+}
+.mud-theme-dark .ped-cell { border-color: rgba(255,255,255,0.12); }
+.ped-cell:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(0,0,0,0.12); }
+.ped-cell.ped-male { border-left: 4px solid #1976d2; }
+.ped-cell.ped-female { border-left: 4px solid #e91e63; }
+.ped-cell.ped-empty {
+    border: 2px dashed rgba(0,0,0,0.2);
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    font-size: 0.85rem;
+    gap: 6px;
+    cursor: pointer;
+}
+.ped-cell.ped-empty.ped-disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.mud-theme-dark .ped-cell.ped-empty { border-color: rgba(255,255,255,0.18); }
+.ped-cell.ped-root {
+    border: 2px solid #6a1b9a;
+    box-shadow: 0 4px 12px rgba(106,27,154,0.15);
+}
+.ped-name { font-weight: 700; font-size: 0.95rem; line-height: 1.2; }
+.ped-meta { font-size: 0.75rem; color: #777; margin-top: 2px; }
+.ped-compact .ped-name { font-size: 0.8rem; }
+.ped-compact .ped-meta { font-size: 0.7rem; }
+.ped-compact { min-height: 52px; padding: 6px 8px; }
+.ped-ext-badge {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    background: #ff6f00;
+    color: #fff;
+    font-size: 0.6rem;
+    font-weight: 800;
+    padding: 2px 5px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+}
+.ped-slot-label {
+    font-size: 0.65rem;
+    letter-spacing: 1px;
+    color: #999;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+</style>
+
+@code {
+    [Parameter] public int Id { get; set; }
+    private Goat? goat;
+
+    private List<Goat> Offspring =>
+        goat == null ? new List<Goat>()
+            : (goat.OffspringAsSire ?? new List<Goat>())
+                .Concat(goat.OffspringAsDam ?? new List<Goat>())
+                .OrderByDescending(k => k.DateOfBirth)
+                .ToList();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        goat = await GoatSvc.GetPedigreeAsync(Id);
+    }
+
+    private RenderFragment RenderCell(Goat g, bool isRoot = false, bool compact = false) => __builder =>
+    {
+        var cls = $"ped-cell {(g.Gender == Gender.Male ? "ped-male" : "ped-female")} {(isRoot ? "ped-root" : "")} {(compact ? "ped-compact" : "")}";
+        <div class="@cls" @onclick="@(() => Nav.NavigateTo($"/herd/{g.Id}/pedigree"))">
+            @if (g.IsExternal)
+            {
+                <span class="ped-ext-badge">EXT</span>
+            }
+            <div class="ped-name">@g.Name</div>
+            <div class="ped-meta">
+                @(g.DateOfBirth?.ToString("yyyy") ?? "—")
+                @if (!string.IsNullOrEmpty(g.EarTag)) { <span> · #@g.EarTag</span> }
+                @if (!string.IsNullOrEmpty(g.RegistrationNumber)) { <span> · @g.RegistrationNumber</span> }
+            </div>
+        </div>
+    };
+
+    private RenderFragment RenderSlot(Goat? g, string label, Func<int, Task> assign, Gender expectedGender,
+                                       bool parentExists = true, bool compact = false) => __builder =>
+    {
+        if (g != null)
+        {
+            @RenderCell(g, compact: compact)
+        }
+        else if (!parentExists)
+        {
+            <div class="ped-cell ped-empty ped-disabled">
+                <div class="ped-slot-label">@label</div>
+            </div>
+        }
+        else
+        {
+            <div class="ped-cell ped-empty" @onclick="@(() => OpenAddDialog(label, expectedGender, assign))">
+                <div>
+                    <div class="ped-slot-label">@label</div>
+                    <div style="display:flex;align-items:center;gap:4px;justify-content:center;">
+                        <MudIcon Icon="@Icons.Material.Filled.Add" Size="Size.Small" />
+                        <span>Add</span>
+                    </div>
+                </div>
+            </div>
+        }
+    };
+
+    private async Task OpenAddDialog(string label, Gender gender, Func<int, Task> onAssign)
+    {
+        var parameters = new DialogParameters
+        {
+            ["Label"] = label,
+            ["ExpectedGender"] = gender
+        };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var dlg = await Dialog.ShowAsync<AddAncestorDialog>($"Set {label}", parameters, options);
+        var result = await dlg.Result;
+        if (result != null && !result.Canceled && result.Data is int chosenId)
+        {
+            await onAssign(chosenId);
+            await Load();
+        }
+    }
+
+    private async Task SetParent(int ancestorId, bool asSire)
+    {
+        if (goat == null) return;
+        var full = await GoatSvc.GetAsync(goat.Id);
+        if (full == null) return;
+        if (asSire) full.SireId = ancestorId; else full.DamId = ancestorId;
+        try
+        {
+            await GoatSvc.UpdateAsync(full);
+            Snackbar.Add(asSire ? "Sire linked" : "Dam linked", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not save: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task SetGrandparent(Goat? parent, int ancestorId, bool asSire)
+    {
+        if (parent == null) return;
+        var full = await GoatSvc.GetAsync(parent.Id);
+        if (full == null) return;
+        if (asSire) full.SireId = ancestorId; else full.DamId = ancestorId;
+        try
+        {
+            await GoatSvc.UpdateAsync(full);
+            Snackbar.Add("Ancestor linked", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not save: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private static string GenderColor(Gender g) => g switch
+    {
+        Gender.Male => "#1976d2",
+        Gender.Female => "#e91e63",
+        _ => "#795548"
+    };
+
+    private static string GenderIcon(Gender g) => g switch
+    {
+        Gender.Male => Icons.Material.Filled.Male,
+        Gender.Female => Icons.Material.Filled.Female,
+        _ => GoatLabIcons.Hoof
+    };
+}

@@ -1,0 +1,114 @@
+@inject CalendarService CalSvc
+@inject GoatService GoatSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="model.Title" Label="Title" Variant="Variant.Outlined" Required
+                              Placeholder="e.g. Morning milking" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="RecurrenceInterval" @bind-Value="model.Recurrence" Label="Repeats" Variant="Variant.Outlined">
+                    @foreach (var r in Enum.GetValues<RecurrenceInterval>())
+                    {
+                        <MudSelectItem Value="@r">@r</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="TaskPeriod" @bind-Value="model.Period" Label="Time of day" Variant="Variant.Outlined">
+                    @foreach (var p in Enum.GetValues<TaskPeriod>())
+                    {
+                        <MudSelectItem Value="@p">@p</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudDatePicker @bind-Date="startDate" Label="First occurrence" Variant="Variant.Outlined" Editable />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="int?" @bind-Value="model.GoatId" Label="Goat (optional)" Variant="Variant.Outlined" Clearable>
+                    @if (allGoats != null)
+                    {
+                        @foreach (var g in allGoats)
+                        {
+                            <MudSelectItem Value="@((int?)g.Id)">@g.Name</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="model.Description" Label="Notes" Variant="Variant.Outlined" Lines="2" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save"
+                   Disabled="@(saving || string.IsNullOrWhiteSpace(model.Title))">
+            @(saving ? "Saving…" : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public CalendarEvent? Existing { get; set; }
+
+    private CalendarEvent model = new()
+    {
+        IsChore = true,
+        AllDay = true,
+        Period = TaskPeriod.AnyTime,
+        Recurrence = RecurrenceInterval.Weekly
+    };
+    private DateTime? startDate = DateTime.Today;
+    private List<Goat>? allGoats;
+    private bool saving;
+
+    protected override async Task OnInitializedAsync()
+    {
+        allGoats = await GoatSvc.GetAllAsync();
+        if (Existing != null)
+        {
+            model = new CalendarEvent
+            {
+                Id = Existing.Id,
+                Title = Existing.Title,
+                Description = Existing.Description,
+                Start = Existing.Start,
+                End = Existing.End,
+                AllDay = Existing.AllDay,
+                Color = Existing.Color,
+                GoatId = Existing.GoatId,
+                Recurrence = Existing.Recurrence,
+                Period = Existing.Period,
+                IsChore = true
+            };
+            startDate = Existing.Start.Date;
+        }
+    }
+
+    private async Task Save()
+    {
+        saving = true;
+        try
+        {
+            model.Start = startDate ?? DateTime.Today;
+            model.IsChore = true;
+            model.AllDay = true;
+            if (Existing == null)
+                await CalSvc.CreateEventAsync(model);
+            else
+                await CalSvc.UpdateEventAsync(model);
+            Snackbar.Add("Chore saved", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add($"Save failed: {ex.Message}", Severity.Error); }
+        finally { saving = false; }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

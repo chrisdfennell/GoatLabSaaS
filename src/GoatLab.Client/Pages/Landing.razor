@@ -1,0 +1,784 @@
+@page "/"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@layout GoatLab.Client.Layout.LandingLayout
+@inject NavigationManager Nav
+
+<PageTitle>GoatLab — Herd management for modern goat farmers</PageTitle>
+
+<HeadContent>
+    <meta name="description" content="GoatLab is the all-in-one herd management platform for goat farmers. Track health, breeding, milk production, finances, and the whole farm — on any device, even offline." />
+</HeadContent>
+
+@* ---------- TOP NAV ---------- *@
+<header class="site-nav">
+    <div class="nav-inner">
+        <a href="/" class="brand" aria-label="GoatLab home">
+            <MudIcon Icon="@GoatLabIcons.Hoof" Style="font-size:28px;color:#2e7d32;" />
+            <span>GoatLab</span>
+        </a>
+        <nav class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#workflow">How it works</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#self-host">Self-host</a>
+            <a href="#faq">FAQ</a>
+            <a href="/login">Sign in</a>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/register" Class="nav-cta"
+                       EndIcon="@Icons.Material.Filled.ArrowForward">Start free</MudButton>
+        </nav>
+    </div>
+</header>
+
+@* ---------- HERO ---------- *@
+<section class="hero">
+    <div class="hero-inner">
+        <div class="hero-copy">
+            <div class="eyebrow">
+                <MudIcon Icon="@Icons.Material.Filled.Bolt" Style="font-size:16px;" />
+                <span>Built for real goat farms — not generic livestock software</span>
+            </div>
+            <h1>Run your whole goat operation from one dashboard.</h1>
+            <p class="lede">
+                GoatLab tracks every goat, kidding, vet visit, milking, feed bag, and dollar — so you can
+                stop juggling spreadsheets and start making better decisions. Works on phones, tablets,
+                and laptops. Works offline in the barn.
+            </p>
+            <div class="hero-ctas">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
+                           Href="/register" EndIcon="@Icons.Material.Filled.ArrowForward">
+                    Start free — no credit card
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large"
+                           Href="#features" StartIcon="@Icons.Material.Filled.PlayCircleOutline">
+                    See what's inside
+                </MudButton>
+            </div>
+            <div class="hero-trust">
+                <div class="trust-item">
+                    <MudIcon Icon="@Icons.Material.Filled.OfflineBolt" Style="color:#2e7d32;" />
+                    <span>Works offline</span>
+                </div>
+                <div class="trust-item">
+                    <MudIcon Icon="@Icons.Material.Filled.PhoneIphone" Style="color:#2e7d32;" />
+                    <span>Install on any device</span>
+                </div>
+                <div class="trust-item">
+                    <MudIcon Icon="@Icons.Material.Filled.Lock" Style="color:#2e7d32;" />
+                    <span>Your data, your farm</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="hero-preview" aria-hidden="true">
+            <div class="preview-frame">
+                <div class="preview-topbar">
+                    <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+                    <span class="preview-url">goatlab.app / dashboard</span>
+                </div>
+                <div class="preview-body">
+                    <div class="pv-welcome">
+                        <div>
+                            <div class="pv-greet">Good morning!</div>
+                            <div class="pv-sub">You have <b>47 goats</b> in your herd.</div>
+                        </div>
+                        <div class="pv-weather">
+                            <MudIcon Icon="@Icons.Material.Filled.WbSunny" Style="color:#fff;font-size:40px;" />
+                            <div>
+                                <div class="pv-temp">72°F</div>
+                                <div class="pv-cond">Clear · feels 70°</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pv-stats">
+                        <div class="pv-stat pv-green"><b>47</b><span>Total</span></div>
+                        <div class="pv-stat pv-teal"><b>32</b><span>Does</span></div>
+                        <div class="pv-stat pv-blue"><b>11</b><span>Bucks</span></div>
+                        <div class="pv-stat pv-pink"><b>6</b><span>Pregnant</span></div>
+                        <div class="pv-stat pv-orange"><b>1</b><span>Sick</span></div>
+                    </div>
+                    <div class="pv-row">
+                        <div class="pv-card">
+                            <div class="pv-card-title">
+                                <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Style="color:#2e7d32;font-size:18px;" />
+                                Milk · 30 days
+                            </div>
+                            <svg viewBox="0 0 200 60" class="pv-chart" preserveAspectRatio="none">
+                                <polyline points="0,48 20,42 40,44 60,36 80,30 100,34 120,24 140,22 160,18 180,14 200,10"
+                                          fill="none" stroke="#2e7d32" stroke-width="2.5" />
+                                <polyline points="0,48 20,42 40,44 60,36 80,30 100,34 120,24 140,22 160,18 180,14 200,10 200,60 0,60"
+                                          fill="rgba(46,125,50,0.12)" stroke="none" />
+                            </svg>
+                        </div>
+                        <div class="pv-card">
+                            <div class="pv-card-title">
+                                <MudIcon Icon="@Icons.Material.Filled.History" Style="color:#2e7d32;font-size:18px;" />
+                                Recent activity
+                            </div>
+                            <div class="pv-activity">
+                                <div><span class="pv-dot pv-dot-blue"></span>Logged 3.2 lbs from Pearl · 2m ago</div>
+                                <div><span class="pv-dot pv-dot-warn"></span>CDT booster for Clover · 1h ago</div>
+                                <div><span class="pv-dot pv-dot-green"></span>Daisy added to herd · 3d ago</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@* ---------- FEATURES ---------- *@
+<section class="features" id="features">
+    <div class="container">
+        <div class="section-head">
+            <div class="eyebrow dark">
+                <MudIcon Icon="@Icons.Material.Filled.Dashboard" Style="font-size:16px;" />
+                <span>Everything in one place</span>
+            </div>
+            <h2>Run the farm. Skip the spreadsheets.</h2>
+            <p>GoatLab replaces the notebook on the barn wall, the breeding chart in the kitchen, and
+               the sales receipts in the glovebox — with one app that works online or off.</p>
+        </div>
+
+        <div class="feature-grid">
+            @foreach (var f in _features)
+            {
+                <div class="feature-card">
+                    <div class="feature-icon" style="background:@f.Bg;color:@f.Fg;">
+                        <MudIcon Icon="@f.Icon" Style="font-size:28px;" />
+                    </div>
+                    <h3>@f.Title</h3>
+                    <p>@f.Body</p>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+@* ---------- WORKFLOW ---------- *@
+<section class="workflow" id="workflow">
+    <div class="container">
+        <div class="section-head">
+            <div class="eyebrow">
+                <MudIcon Icon="@Icons.Material.Filled.Route" Style="font-size:16px;" />
+                <span>How it works</span>
+            </div>
+            <h2>Set up in minutes. Useful on day one.</h2>
+        </div>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step-num">1</div>
+                <h3>Create your farm</h3>
+                <p>Sign up and name your operation. Invite helpers later with their own roles.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">2</div>
+                <h3>Add your herd</h3>
+                <p>Enter goats one by one, or import a CSV. Tags, birthdays, lineage — all optional.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">3</div>
+                <h3>Log what happens</h3>
+                <p>Milkings, vet visits, breedings, sales. From your phone in the barn, even offline.</p>
+            </div>
+            <div class="step">
+                <div class="step-num">4</div>
+                <h3>See the whole picture</h3>
+                <p>Real dashboards with trends, alerts, and financials — so you can act, not guess.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+@* ---------- PRICING ---------- *@
+<section class="pricing" id="pricing">
+    <div class="container">
+        <div class="section-head">
+            <div class="eyebrow dark">
+                <MudIcon Icon="@Icons.Material.Filled.LocalOffer" Style="font-size:16px;" />
+                <span>Simple, honest pricing</span>
+            </div>
+            <h2>Start free. Grow when you're ready.</h2>
+        </div>
+
+        <div class="plan-grid">
+            <div class="plan">
+                <div class="plan-name">Homestead</div>
+                <div class="plan-price">Free<span>forever</span></div>
+                <div class="plan-line">For small herds just getting organized.</div>
+                <ul>
+                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Up to 10 goats</li>
+                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Health, breeding, milk logs</li>
+                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Mobile + offline</li>
+                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> 1 user</li>
+                </ul>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth Href="/register">
+                    Start free
+                </MudButton>
+            </div>
+
+            <div class="plan featured">
+                <div class="plan-badge">Most popular</div>
+                <div class="plan-name">Farm</div>
+                <div class="plan-price">$19<span>/ month</span></div>
+                <div class="plan-line">For working farms tracking production.</div>
+                <ul>
+                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Unlimited goats</li>
+                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Sales, finances, inventory</li>
+                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Farm map &amp; calendar</li>
+                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Up to 3 users</li>
+                </ul>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth Href="/register">
+                    Start 14-day trial
+                </MudButton>
+            </div>
+
+            <div class="plan">
+                <div class="plan-name">Dairy</div>
+                <div class="plan-price">$49<span>/ month</span></div>
+                <div class="plan-line">For commercial dairies and breeders.</div>
+                <ul>
+                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Everything in Farm</li>
+                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Advanced reports &amp; exports</li>
+                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Show records &amp; lineage</li>
+                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Unlimited users</li>
+                </ul>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth Href="/register">
+                    Contact sales
+                </MudButton>
+            </div>
+        </div>
+    </div>
+</section>
+
+@* ---------- SELF-HOST / DOCKER ---------- *@
+<section class="self-host" id="self-host">
+    <div class="container self-host-inner">
+        <div class="self-host-copy">
+            <div class="eyebrow">
+                <MudIcon Icon="@Icons.Material.Filled.Storage" Style="font-size:16px;" />
+                <span>Own your data</span>
+            </div>
+            <h2>Run GoatLab on your own hardware.</h2>
+            <p>
+                Prefer to keep your farm data off the cloud? GoatLab ships as a single Docker container.
+                Deploy it on a Raspberry Pi in the barn, a NAS in the office, or a VPS — whatever you
+                already have. One <code>docker compose up</code> and the whole app is running locally,
+                with its own SQL Server database and media volume.
+            </p>
+            <ul class="self-host-list">
+                <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Same app you see here — no feature lock-out</li>
+                <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Data stays on your network, in your volumes</li>
+                <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Runs on Linux, QNAP, Synology, and Windows</li>
+                <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Free and open — source on GitHub</li>
+            </ul>
+            <div class="self-host-ctas">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large"
+                           Href="@RepoUrl" Target="_blank"
+                           StartIcon="@Icons.Custom.Brands.GitHub">
+                    View on GitHub
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large"
+                           Href="@($"{RepoUrl}#self-hosting-with-docker")" Target="_blank"
+                           EndIcon="@Icons.Material.Filled.ArrowForward">
+                    Read the docs
+                </MudButton>
+            </div>
+        </div>
+
+        <div class="self-host-terminal" aria-hidden="true">
+            <div class="term-topbar">
+                <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+                <span class="term-title">~/goatlab</span>
+            </div>
+            <pre class="term-body"><span class="t-muted"># clone and launch</span>
+<span class="t-prompt">$</span> git clone https://github.com/goatlab/goatlab.git
+<span class="t-prompt">$</span> cd goatlab
+<span class="t-prompt">$</span> cp .env.example .env
+<span class="t-prompt">$</span> docker compose up -d
+<span class="t-muted">
+[+] Running 3/3
+ ✔ Network  goatlab_default       Created
+ ✔ Container goatlab-sqlserver    Healthy
+ ✔ Container goatlab              Started</span>
+
+<span class="t-prompt">$</span> open http://localhost:8090
+<span class="t-ok">  GoatLab is up. Start logging goats.</span>
+</pre>
+        </div>
+    </div>
+</section>
+
+@* ---------- FAQ ---------- *@
+<section class="faq" id="faq">
+    <div class="container">
+        <div class="section-head">
+            <div class="eyebrow dark">
+                <MudIcon Icon="@Icons.Material.Filled.HelpOutline" Style="font-size:16px;" />
+                <span>Frequently asked</span>
+            </div>
+            <h2>Answers before you sign up.</h2>
+        </div>
+
+        <div class="faq-grid">
+            <details class="faq-item">
+                <summary>Is there really a free plan, forever?</summary>
+                <p>Yes. The Homestead plan is free for up to 10 goats and never expires. No credit card required to start.</p>
+            </details>
+            <details class="faq-item">
+                <summary>Does GoatLab work offline in the barn?</summary>
+                <p>Yes. Install GoatLab as a PWA on your phone or tablet and it keeps working with no signal. Your logs sync automatically the next time you're online.</p>
+            </details>
+            <details class="faq-item">
+                <summary>Can I self-host GoatLab on my own server?</summary>
+                <p>
+                    Absolutely — GoatLab is open source and ships as a Docker image. Grab the repo from
+                    <MudLink Href="@RepoUrl" Target="_blank" Underline="Underline.Always">@RepoUrl</MudLink>
+                    and follow the self-hosting guide. Everything in the hosted version is in the container.
+                </p>
+            </details>
+            <details class="faq-item">
+                <summary>Where is my data stored?</summary>
+                <p>On the hosted service, your data lives in an encrypted database in our cloud. If you self-host, it lives wherever your Docker volumes live — your NAS, your Pi, your server. You can export to CSV any time.</p>
+            </details>
+            <details class="faq-item">
+                <summary>What devices does it run on?</summary>
+                <p>Any modern browser — iPhone, Android, iPad, Windows, Mac, Linux. The dashboard is responsive and touch-friendly, with an installable PWA for offline use.</p>
+            </details>
+            <details class="faq-item">
+                <summary>Can I import my existing spreadsheet?</summary>
+                <p>Yes. Import your herd from CSV on day one. Milk records, kidding history, and sales can also be bulk-imported.</p>
+            </details>
+            <details class="faq-item">
+                <summary>What if I want to cancel or switch to self-hosting later?</summary>
+                <p>No lock-in. Export your full farm to CSV, spin up the Docker container, and import. You own your data.</p>
+            </details>
+            <details class="faq-item">
+                <summary>Who's behind GoatLab?</summary>
+                <p>Goat people who got tired of managing herds in a notebook. We build in the open on GitHub — issues, roadmap, and contributions welcome at <MudLink Href="@RepoUrl" Target="_blank" Underline="Underline.Always">@RepoUrl</MudLink>.</p>
+            </details>
+        </div>
+    </div>
+</section>
+
+@* ---------- CTA ---------- *@
+<section class="cta-band">
+    <div class="container cta-inner">
+        <h2>Your herd deserves better than a notebook.</h2>
+        <p>Create a free account in under a minute. No credit card. No software to install.</p>
+        <div class="cta-buttons">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" Href="/register"
+                       EndIcon="@Icons.Material.Filled.ArrowForward">Get started</MudButton>
+            <MudButton Variant="Variant.Text" Color="Color.Inherit" Size="Size.Large" Href="/login">
+                I already have an account
+            </MudButton>
+        </div>
+    </div>
+</section>
+
+@* ---------- FOOTER ---------- *@
+<footer class="site-footer">
+    <div class="container footer-inner">
+        <div class="footer-brand">
+            <MudIcon Icon="@GoatLabIcons.Hoof" Style="font-size:24px;color:#2e7d32;" />
+            <span>GoatLab</span>
+        </div>
+        <div class="footer-links">
+            <a href="#features">Features</a>
+            <a href="#pricing">Pricing</a>
+            <a href="#self-host">Self-host</a>
+            <a href="#faq">FAQ</a>
+            <a href="@RepoUrl" target="_blank" rel="noopener">GitHub</a>
+            <a href="/login">Sign in</a>
+            <a href="/register">Start free</a>
+        </div>
+        <div class="footer-copy">© @DateTime.Now.Year GoatLab. Made for goat people.</div>
+    </div>
+</footer>
+
+<style>
+    .landing-root { background:#fff; color:#1a2e1f; }
+    .landing-root h1, .landing-root h2, .landing-root h3 { color:#102a1a; }
+    .container { max-width:1180px; margin:0 auto; padding:0 28px; }
+
+    /* Nav */
+    .site-nav {
+        position:sticky; top:0; z-index:20;
+        background:rgba(255,255,255,0.92);
+        backdrop-filter:blur(10px);
+        border-bottom:1px solid rgba(0,0,0,0.06);
+    }
+    .nav-inner {
+        max-width:1180px; margin:0 auto; padding:14px 28px;
+        display:flex; align-items:center; justify-content:space-between;
+    }
+    .brand {
+        display:flex; align-items:center; gap:8px;
+        font-weight:800; font-size:20px; letter-spacing:-0.5px;
+        color:#102a1a; text-decoration:none;
+    }
+    .nav-links { display:flex; align-items:center; gap:22px; }
+    .nav-links a {
+        color:#3a4a3e; text-decoration:none; font-weight:500; font-size:15px;
+    }
+    .nav-links a:hover { color:#2e7d32; }
+    .nav-cta { border-radius:10px !important; }
+    @@media (max-width: 720px) {
+        .nav-links a:not(.nav-cta) { display:none; }
+    }
+
+    /* Hero */
+    .hero {
+        background:
+            radial-gradient(1200px 500px at 90% -10%, rgba(102,187,106,0.25), transparent 60%),
+            radial-gradient(900px 400px at -10% 10%, rgba(46,125,50,0.18), transparent 60%),
+            linear-gradient(180deg, #f6fbf4 0%, #ffffff 100%);
+        padding:80px 0 100px;
+    }
+    .hero-inner {
+        max-width:1180px; margin:0 auto; padding:0 28px;
+        display:grid; grid-template-columns: 1.05fr 1fr; gap:56px; align-items:center;
+    }
+    @@media (max-width: 960px) {
+        .hero-inner { grid-template-columns: 1fr; gap:40px; }
+        .hero { padding:56px 0 72px; }
+    }
+    .eyebrow {
+        display:inline-flex; align-items:center; gap:6px;
+        background:rgba(46,125,50,0.12); color:#1b5e20;
+        padding:6px 12px; border-radius:999px;
+        font-size:13px; font-weight:600; margin-bottom:18px;
+    }
+    .eyebrow.dark { background:rgba(46,125,50,0.1); }
+    .hero-copy h1 {
+        font-size:56px; line-height:1.05; font-weight:800;
+        letter-spacing:-1.5px; margin:0 0 20px;
+    }
+    @@media (max-width: 720px) {
+        .hero-copy h1 { font-size:40px; }
+    }
+    .hero-copy .lede {
+        font-size:19px; line-height:1.55; color:#3a4a3e; margin:0 0 28px;
+        max-width:540px;
+    }
+    .hero-ctas { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:28px; }
+    .hero-trust {
+        display:flex; gap:22px; flex-wrap:wrap; padding-top:16px;
+        border-top:1px solid rgba(0,0,0,0.08);
+    }
+    .trust-item {
+        display:flex; align-items:center; gap:8px;
+        color:#3a4a3e; font-size:14px; font-weight:500;
+    }
+
+    /* Preview frame */
+    .hero-preview { position:relative; }
+    .preview-frame {
+        background:#fff; border-radius:16px;
+        box-shadow: 0 30px 60px -20px rgba(16,42,26,0.25), 0 8px 20px rgba(16,42,26,0.08);
+        overflow:hidden; border:1px solid rgba(0,0,0,0.06);
+    }
+    .preview-topbar {
+        display:flex; align-items:center; gap:6px;
+        background:#f1f3f2; padding:10px 14px; border-bottom:1px solid rgba(0,0,0,0.06);
+    }
+    .preview-topbar .dot { width:10px; height:10px; border-radius:50%; }
+    .preview-topbar .dot.r { background:#ff5f56; }
+    .preview-topbar .dot.y { background:#ffbd2e; }
+    .preview-topbar .dot.g { background:#27c93f; }
+    .preview-url {
+        margin-left:14px; font-size:12px; color:#6b7a70;
+        font-family: ui-monospace, Menlo, monospace;
+    }
+    .preview-body { padding:16px; display:grid; gap:14px; }
+    .pv-welcome {
+        background:linear-gradient(135deg, #2e7d32, #558b2f);
+        color:#fff; padding:16px; border-radius:12px;
+        display:flex; align-items:center; justify-content:space-between; gap:16px;
+    }
+    .pv-greet { font-size:18px; font-weight:700; }
+    .pv-sub { font-size:13px; opacity:0.9; margin-top:2px; }
+    .pv-weather {
+        display:flex; align-items:center; gap:10px;
+        background:rgba(255,255,255,0.15); padding:8px 14px; border-radius:10px;
+    }
+    .pv-temp { font-size:22px; font-weight:700; line-height:1; }
+    .pv-cond { font-size:11px; opacity:0.9; }
+    .pv-stats {
+        display:grid; grid-template-columns: repeat(5, 1fr); gap:10px;
+    }
+    .pv-stat {
+        padding:12px 10px; border-radius:10px; color:#fff;
+        display:flex; flex-direction:column; align-items:flex-start;
+    }
+    .pv-stat b { font-size:22px; font-weight:800; line-height:1; }
+    .pv-stat span { font-size:11px; opacity:0.9; margin-top:4px; }
+    .pv-green  { background: linear-gradient(135deg,#43a047,#2e7d32); }
+    .pv-teal   { background: linear-gradient(135deg,#26a69a,#00897b); }
+    .pv-blue   { background: linear-gradient(135deg,#42a5f5,#1976d2); }
+    .pv-pink   { background: linear-gradient(135deg,#ec407a,#c2185b); }
+    .pv-orange { background: linear-gradient(135deg,#ffa726,#ef6c00); }
+    .pv-row { display:grid; grid-template-columns: 1.2fr 1fr; gap:12px; }
+    .pv-card {
+        border:1px solid rgba(0,0,0,0.08); border-radius:12px; padding:12px;
+        background:#fafbf9;
+    }
+    .pv-card-title {
+        display:flex; align-items:center; gap:6px;
+        font-size:13px; font-weight:600; color:#1a2e1f; margin-bottom:8px;
+    }
+    .pv-chart { width:100%; height:70px; display:block; }
+    .pv-activity { display:flex; flex-direction:column; gap:6px; font-size:12px; color:#3a4a3e; }
+    .pv-activity > div { display:flex; align-items:center; gap:8px; }
+    .pv-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+    .pv-dot-blue  { background:#42a5f5; }
+    .pv-dot-warn  { background:#ffa726; }
+    .pv-dot-green { background:#43a047; }
+
+    /* Features */
+    .features { padding:100px 0; background:#fff; }
+    .section-head { max-width:720px; margin:0 auto 56px; text-align:center; }
+    .section-head h2 {
+        font-size:42px; line-height:1.1; font-weight:800; letter-spacing:-1px;
+        margin:12px 0 16px;
+    }
+    .section-head p { font-size:17px; color:#3a4a3e; line-height:1.55; margin:0; }
+    @@media (max-width: 720px) { .section-head h2 { font-size:32px; } }
+    .feature-grid {
+        display:grid; grid-template-columns: repeat(3, 1fr); gap:24px;
+    }
+    @@media (max-width: 960px) { .feature-grid { grid-template-columns: repeat(2, 1fr); } }
+    @@media (max-width: 640px) { .feature-grid { grid-template-columns: 1fr; } }
+    .feature-card {
+        padding:28px; border-radius:16px; background:#fff;
+        border:1px solid rgba(0,0,0,0.06);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .feature-card:hover {
+        transform:translateY(-2px);
+        box-shadow: 0 12px 30px -12px rgba(16,42,26,0.18);
+    }
+    .feature-icon {
+        width:56px; height:56px; border-radius:14px;
+        display:flex; align-items:center; justify-content:center;
+        margin-bottom:18px;
+    }
+    .feature-card h3 {
+        font-size:19px; font-weight:700; margin:0 0 8px; letter-spacing:-0.3px;
+    }
+    .feature-card p { font-size:15px; color:#3a4a3e; line-height:1.55; margin:0; }
+
+    /* Workflow */
+    .workflow {
+        padding:100px 0; background:#f6fbf4;
+        border-top:1px solid rgba(0,0,0,0.04); border-bottom:1px solid rgba(0,0,0,0.04);
+    }
+    .steps {
+        display:grid; grid-template-columns: repeat(4, 1fr); gap:24px; counter-reset: step;
+    }
+    @@media (max-width: 900px) { .steps { grid-template-columns: repeat(2, 1fr); } }
+    @@media (max-width: 520px) { .steps { grid-template-columns: 1fr; } }
+    .step {
+        background:#fff; padding:28px; border-radius:16px;
+        border:1px solid rgba(0,0,0,0.05);
+    }
+    .step-num {
+        width:36px; height:36px; border-radius:10px;
+        background:#2e7d32; color:#fff;
+        display:flex; align-items:center; justify-content:center;
+        font-weight:800; font-size:16px; margin-bottom:16px;
+    }
+    .step h3 { font-size:17px; font-weight:700; margin:0 0 8px; }
+    .step p { font-size:14px; color:#3a4a3e; line-height:1.55; margin:0; }
+
+    /* Pricing */
+    .pricing { padding:100px 0; background:#fff; }
+    .plan-grid {
+        display:grid; grid-template-columns: repeat(3, 1fr); gap:24px;
+        max-width:1100px; margin:0 auto;
+    }
+    @@media (max-width: 900px) { .plan-grid { grid-template-columns: 1fr; } }
+    .plan {
+        background:#fff; padding:32px; border-radius:20px;
+        border:1px solid rgba(0,0,0,0.08); position:relative;
+        display:flex; flex-direction:column;
+    }
+    .plan.featured {
+        border-color:#2e7d32; box-shadow: 0 20px 40px -15px rgba(46,125,50,0.3);
+        transform: translateY(-6px);
+    }
+    @@media (max-width: 900px) { .plan.featured { transform:none; } }
+    .plan-badge {
+        position:absolute; top:-12px; left:50%; transform:translateX(-50%);
+        background:#2e7d32; color:#fff; font-size:12px; font-weight:700;
+        padding:5px 12px; border-radius:999px; letter-spacing:0.5px;
+    }
+    .plan-name { font-size:14px; font-weight:700; text-transform:uppercase; color:#2e7d32; letter-spacing:1px; }
+    .plan-price {
+        font-size:44px; font-weight:800; letter-spacing:-1.5px;
+        margin:8px 0 4px; color:#102a1a;
+    }
+    .plan-price span { font-size:15px; font-weight:500; color:#6b7a70; margin-left:6px; letter-spacing:0; }
+    .plan-line { color:#3a4a3e; font-size:14px; margin-bottom:20px; }
+    .plan ul { list-style:none; padding:0; margin:0 0 24px; flex:1; }
+    .plan ul li {
+        display:flex; align-items:center; gap:10px;
+        padding:8px 0; font-size:14.5px; color:#1a2e1f;
+    }
+    .plan ul li .mud-icon-root { color:#2e7d32; font-size:18px !important; }
+
+    /* Self-host / Docker */
+    .self-host {
+        padding:100px 0; background:#0f1f13; color:#e8f0ea;
+        border-top:1px solid rgba(255,255,255,0.06);
+    }
+    .self-host h2 { color:#fff; font-size:40px; line-height:1.1; font-weight:800; letter-spacing:-1px; margin:12px 0 16px; }
+    .self-host p { color:rgba(255,255,255,0.82); font-size:16px; line-height:1.6; margin:0 0 20px; max-width:560px; }
+    .self-host .eyebrow { background:rgba(102,187,106,0.18); color:#a5d6a7; }
+    .self-host code {
+        background:rgba(255,255,255,0.08); padding:2px 6px; border-radius:6px;
+        font-family: ui-monospace, Menlo, monospace; font-size:0.92em;
+    }
+    .self-host-inner {
+        display:grid; grid-template-columns: 1fr 1.05fr; gap:56px; align-items:center;
+    }
+    @@media (max-width: 960px) { .self-host-inner { grid-template-columns: 1fr; gap:40px; } }
+    @@media (max-width: 720px) { .self-host h2 { font-size:30px; } }
+    .self-host-list { list-style:none; padding:0; margin:0 0 28px; }
+    .self-host-list li {
+        display:flex; align-items:center; gap:10px;
+        padding:6px 0; font-size:15px; color:#dbe7de;
+    }
+    .self-host-list li .mud-icon-root { color:#66bb6a; font-size:18px !important; }
+    .self-host-ctas { display:flex; gap:12px; flex-wrap:wrap; }
+
+    .self-host-terminal {
+        background:#0a1510; border-radius:14px; overflow:hidden;
+        border:1px solid rgba(255,255,255,0.08);
+        box-shadow: 0 30px 60px -20px rgba(0,0,0,0.6);
+    }
+    .term-topbar {
+        display:flex; align-items:center; gap:6px;
+        background:#12241a; padding:10px 14px;
+        border-bottom:1px solid rgba(255,255,255,0.06);
+    }
+    .term-topbar .dot { width:10px; height:10px; border-radius:50%; }
+    .term-topbar .dot.r { background:#ff5f56; }
+    .term-topbar .dot.y { background:#ffbd2e; }
+    .term-topbar .dot.g { background:#27c93f; }
+    .term-title {
+        margin-left:14px; font-size:12px; color:rgba(255,255,255,0.55);
+        font-family: ui-monospace, Menlo, monospace;
+    }
+    .term-body {
+        margin:0; padding:18px 20px; background:#0a1510;
+        color:#d4e5d8; font-family: ui-monospace, Menlo, monospace;
+        font-size:13px; line-height:1.65; white-space:pre-wrap; word-break:break-word;
+    }
+    .term-body .t-prompt { color:#66bb6a; font-weight:700; }
+    .term-body .t-muted { color:rgba(255,255,255,0.5); }
+    .term-body .t-ok { color:#a5d6a7; }
+
+    /* FAQ */
+    .faq { padding:100px 0; background:#fff; }
+    .faq-grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:16px; max-width:1000px; margin:0 auto; }
+    @@media (max-width: 760px) { .faq-grid { grid-template-columns: 1fr; } }
+    .faq-item {
+        background:#fff; border:1px solid rgba(0,0,0,0.08);
+        border-radius:14px; padding:18px 22px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .faq-item:hover { border-color:rgba(46,125,50,0.4); box-shadow: 0 8px 24px -12px rgba(16,42,26,0.15); }
+    .faq-item summary {
+        cursor:pointer; list-style:none;
+        font-size:16px; font-weight:600; color:#102a1a;
+        display:flex; align-items:center; justify-content:space-between; gap:12px;
+    }
+    .faq-item summary::-webkit-details-marker { display:none; }
+    .faq-item summary::after {
+        content:"+"; color:#2e7d32; font-size:22px; font-weight:700; line-height:1;
+        transition: transform 0.2s ease;
+    }
+    .faq-item[open] summary::after { content:"−"; }
+    .faq-item p {
+        margin:12px 0 0; font-size:15px; color:#3a4a3e; line-height:1.6;
+    }
+
+    /* CTA band */
+    .cta-band {
+        background:
+            radial-gradient(800px 300px at 80% 20%, rgba(255,255,255,0.1), transparent),
+            linear-gradient(135deg, #1b5e20, #2e7d32);
+        color:#fff; padding:80px 0;
+    }
+    .cta-inner { text-align:center; }
+    .cta-band h2 {
+        color:#fff; font-size:40px; font-weight:800; letter-spacing:-1px;
+        margin:0 0 14px;
+    }
+    .cta-band p { font-size:17px; color:rgba(255,255,255,0.85); margin:0 0 28px; }
+    .cta-buttons { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+    @@media (max-width: 720px) { .cta-band h2 { font-size:30px; } }
+
+    /* Footer */
+    .site-footer { background:#0f1f13; color:rgba(255,255,255,0.75); padding:40px 0; }
+    .footer-inner {
+        display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;
+    }
+    .footer-brand {
+        display:flex; align-items:center; gap:8px;
+        color:#fff; font-weight:700; font-size:18px;
+    }
+    .footer-links { display:flex; gap:22px; flex-wrap:wrap; }
+    .footer-links a { color:rgba(255,255,255,0.75); text-decoration:none; font-size:14px; }
+    .footer-links a:hover { color:#fff; }
+    .footer-copy { font-size:13px; color:rgba(255,255,255,0.55); }
+</style>
+
+@code {
+    // TODO: update this to the real repo URL once public.
+    private const string RepoUrl = "https://github.com/goatlab/goatlab";
+
+    private record Feature(string Title, string Body, string Icon, string Bg, string Fg);
+
+    private readonly Feature[] _features = new[]
+    {
+        new Feature(
+            "Complete herd records",
+            "Every goat has a profile: tag, breed, birthday, lineage, photos, notes. Filter and search instantly.",
+            GoatLabIcons.Hoof, "rgba(46,125,50,0.12)", "#2e7d32"),
+        new Feature(
+            "Health & vaccinations",
+            "Log treatments, track medications, get reminders before doses are due or expire. Never miss a CDT booster again.",
+            Icons.Material.Filled.LocalHospital, "rgba(229,57,53,0.12)", "#c62828"),
+        new Feature(
+            "Breeding & kidding",
+            "Record pairings, track pregnancies, and get due-date alerts. See lineage at a glance.",
+            Icons.Material.Filled.Favorite, "rgba(236,64,122,0.12)", "#c2185b"),
+        new Feature(
+            "Milk production tracking",
+            "One-tap milk logging from your phone in the parlor. See 30-day trends, per-doe performance, and seasonal patterns.",
+            Icons.Material.Filled.WaterDrop, "rgba(25,118,210,0.12)", "#1976d2"),
+        new Feature(
+            "Sales & finances",
+            "Track every sale, expense, and feed bag. Know what each goat actually costs — and what each one earns.",
+            Icons.Material.Filled.AttachMoney, "rgba(46,125,50,0.12)", "#2e7d32"),
+        new Feature(
+            "Inventory & feed",
+            "Stay on top of feed, minerals, and medications. Low-stock alerts before you run out, not after.",
+            Icons.Material.Filled.Inventory, "rgba(239,108,0,0.12)", "#ef6c00"),
+        new Feature(
+            "Farm map",
+            "Draw pastures and barns on an interactive map. Assign goats to pens. See rotation at a glance.",
+            Icons.Material.Filled.Map, "rgba(21,101,192,0.12)", "#1565c0"),
+        new Feature(
+            "Calendar & reminders",
+            "Everything due today, this week, next month — kiddings, vaccinations, vet visits, breeding windows.",
+            Icons.Material.Filled.CalendarMonth, "rgba(123,31,162,0.12)", "#6a1b9a"),
+        new Feature(
+            "Works offline",
+            "Saves your work in the barn where there's no signal. Syncs automatically when you're back online.",
+            Icons.Material.Filled.CloudOff, "rgba(55,71,79,0.12)", "#37474f"),
+    };
+}

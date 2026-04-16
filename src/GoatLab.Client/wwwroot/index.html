@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GoatLab</title>
+    <base href="/" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
+    <link href="css/app.css" rel="stylesheet" />
+    <link href="GoatLab.Client.styles.css" rel="stylesheet" />
+    <link href="manifest.webmanifest" rel="manifest" />
+    <link rel="icon" type="image/png" sizes="32x32" href="images/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="images/icon-192.png" />
+    <link rel="apple-touch-icon" href="images/apple-touch-icon.png" />
+    <meta name="theme-color" content="#2e7d32" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="GoatLab" />
+
+    <!-- Leaflet -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+</head>
+<body>
+    <div id="app">
+        <div class="splash-screen">
+            <div class="splash-logo">
+                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="24" cy="24" r="22" fill="rgba(255,255,255,0.15)"/>
+                    <text x="24" y="32" text-anchor="middle" font-size="26" fill="white">🐐</text>
+                </svg>
+                GoatLab
+            </div>
+            <div class="splash-tagline">Smart herd management for modern farmers</div>
+            <div class="splash-spinner"></div>
+        </div>
+    </div>
+
+    <div id="blazor-error-ui">
+        An unhandled error has occurred.
+        <a href="" class="reload">Reload</a>
+        <a class="dismiss">🗙</a>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+
+    <script src="_content/MudBlazor/MudBlazor.min.js"></script>
+    <script src="_framework/blazor.webassembly.js"></script>
+    <script src="js/leaflet-interop.js"></script>
+    <script src="js/google-maps-interop.js"></script>
+    <script src="js/qr-scanner.js"></script>
+    <script src="js/voice-entry.js"></script>
+    <script src="js/notifications.js"></script>
+    <script src="js/weather.js"></script>
+    <script src="js/pwa.js"></script>
+    <script src="js/offline-queue.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="js/app.js"></script>
+    <service-worker src="service-worker.js" />
+</body>
+</html>

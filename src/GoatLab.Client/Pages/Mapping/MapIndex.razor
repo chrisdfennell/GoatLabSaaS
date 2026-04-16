@@ -1,0 +1,784 @@
+@page "/map"
+@inject PastureService PastureSvc
+@inject BarnService BarnSvc
+@inject ConfigService Config
+@inject GoogleMapsService GMap
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+@inject NavigationManager Nav
+@implements IAsyncDisposable
+
+<PageTitle>Farm Map — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-teal">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.Map" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Farm Map</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Lay of the Land</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Satellite view for barns, pastures, and rotations.</MudText>
+        <div class="page-hero-stats">
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@TotalAcres.ToString("F1")</MudText>
+                <MudText Class="page-hero-stat-label">Acres</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(pastures?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Pastures</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(barns?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Barns</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@ActiveRotationCount</MudText>
+                <MudText Class="page-hero-stat-label">Active Rotations</MudText>
+            </div>
+        </div>
+    </div>
+    <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:8px;">
+        <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#00695c;"
+                   StartIcon="@Icons.Material.Filled.Download" Href="api/map/export-kml" Target="_blank">Export KML</MudButton>
+    </div>
+</div>
+
+@if (string.IsNullOrWhiteSpace(apiKey))
+{
+    <MudPaper Class="polished-section" Elevation="0">
+        <div class="polished-section-header">
+            <div class="polished-section-header-title">
+                <MudIcon Icon="@Icons.Material.Filled.Map" />
+                <div>
+                    <MudText Typo="Typo.h6">Map is not configured</MudText>
+                    <MudText Typo="Typo.body2" Class="section-hint">
+                        The Google Maps API key hasn't been set up on the server yet.
+                        Contact your administrator.
+                    </MudText>
+                </div>
+            </div>
+        </div>
+    </MudPaper>
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" md="9">
+            <MudPaper Class="polished-section pa-0" Elevation="0" Style="overflow:hidden;">
+                <div class="section-toolbar" style="padding:12px 16px;margin:0;border-bottom:1px solid rgba(0,0,0,0.06);">
+                    <MudButtonGroup Variant="Variant.Outlined" Size="Size.Small">
+                        <MudButton OnClick="@(() => SetMapType("hybrid"))">Hybrid</MudButton>
+                        <MudButton OnClick="@(() => SetMapType("satellite"))">Satellite</MudButton>
+                        <MudButton OnClick="@(() => SetMapType("terrain"))">Terrain</MudButton>
+                        <MudButton OnClick="@(() => SetMapType("roadmap"))">Road</MudButton>
+                    </MudButtonGroup>
+                    <div class="spacer"></div>
+
+                    @* Layer toggles *@
+                    <button type="button" class="@($"pill pill-sm {(showPastures ? "pill-success pill-active" : "")}")" @onclick="@(() => ToggleLayer("pastures"))">
+                        <MudIcon Icon="@Icons.Material.Filled.Grass" Size="Size.Small" /> Pastures
+                    </button>
+                    <button type="button" class="@($"pill pill-sm {(showBarns ? "pill-warning pill-active" : "")}")" @onclick="@(() => ToggleLayer("barns"))">
+                        <MudIcon Icon="@Icons.Material.Filled.Home" Size="Size.Small" /> Barns
+                    </button>
+                    <button type="button" class="@($"pill pill-sm {(showMarkers ? "pill-info pill-active" : "")}")" @onclick="@(() => ToggleLayer("markers"))">
+                        <MudIcon Icon="@Icons.Material.Filled.Place" Size="Size.Small" /> Markers
+                    </button>
+                    <button type="button" class="@($"pill pill-sm {(showWater ? "pill-info pill-active" : "")}")" @onclick="@(() => ToggleLayer("water"))">
+                        <MudIcon Icon="@Icons.Material.Filled.WaterDrop" Size="Size.Small" /> Water radius
+                    </button>
+
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Straighten"
+                               Color="@(isMeasuring ? Color.Error : Color.Default)" OnClick="ToggleMeasure">
+                        @(isMeasuring ? "Stop" : "Measure")
+                    </MudButton>
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.CenterFocusStrong" OnClick="FitAll">Fit All</MudButton>
+                </div>
+
+                <div id="farm-map" style="width:100%;height:580px;"></div>
+
+                @if (lastDrawnAcreage.HasValue)
+                {
+                    <MudAlert Severity="Severity.Info" Class="ma-2" Dense>
+                        Drawn: <strong>@lastDrawnAcreage.Value.ToString("F2") ac</strong> ·
+                        <strong>@lastDrawnPerimeter.ToString("F0") ft</strong> perimeter ·
+                        ~<strong>@((int)(lastDrawnAcreage.Value * stockingRate))</strong> goats @@ @stockingRate/ac
+                    </MudAlert>
+                }
+            </MudPaper>
+
+            @* Rotation timeline *@
+            @if (pastures?.Count > 0)
+            {
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Loop" />
+                            <div>
+                                <MudText Typo="Typo.h6">Pasture Rotation</MudText>
+                                <MudText Typo="Typo.body2" Class="section-hint">Which pasture is the herd on, and how long since each one rested.</MudText>
+                            </div>
+                        </div>
+                    </div>
+                    <MudGrid Spacing="2">
+                        @foreach (var p in pastures)
+                        {
+                            var info = GetRotationInfo(p.Id);
+                            var isActive = info.isActive;
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudPaper Outlined Class="pa-3" Style="@($"border-radius:12px;height:100%;border-left:4px solid {GetConditionColorHex(p.Condition)};")">
+                                    <div class="d-flex align-center justify-space-between mb-1">
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight:600;">@p.Name</MudText>
+                                        <MudChip T="string" Size="Size.Small" Color="@(isActive ? Color.Success : Color.Default)" Variant="Variant.Filled">
+                                            @((int)p.Condition)/5
+                                        </MudChip>
+                                    </div>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @(p.Acreage?.ToString("F1") ?? "?") ac · cap @(p.StockingCapacity?.ToString() ?? "?")
+                                    </MudText>
+                                    <div class="mt-2">
+                                        @if (isActive)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled"
+                                                     Icon="@GoatLabIcons.Hoof">
+                                                Grazing · @info.rotation!.GoatCount goats · @((DateTime.UtcNow - info.rotation.StartDate).Days)d in
+                                            </MudChip>
+                                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                                                       StartIcon="@Icons.Material.Filled.Stop" OnClick="() => EndRotation(info.rotation!.Id)" Class="mt-1">
+                                                End Rotation
+                                            </MudButton>
+                                        }
+                                        else if (info.daysSinceGrazed.HasValue)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="@(info.daysSinceGrazed.Value < 21 ? Color.Warning : Color.Info)" Variant="Variant.Outlined"
+                                                     Icon="@Icons.Material.Filled.Schedule">
+                                                Rested @info.daysSinceGrazed days
+                                            </MudChip>
+                                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                                       StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="() => OpenStartRotation(p)" Class="mt-1">
+                                                Start Rotation
+                                            </MudButton>
+                                        }
+                                        else
+                                        {
+                                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                                       StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="() => OpenStartRotation(p)">
+                                                Start Rotation
+                                            </MudButton>
+                                        }
+                                    </div>
+                                </MudPaper>
+                            </MudItem>
+                        }
+                    </MudGrid>
+                </MudPaper>
+            }
+        </MudItem>
+
+        <MudItem xs="12" md="3">
+            @* Pastures *@
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@Icons.Material.Filled.Grass" />
+                        <div><MudText Typo="Typo.h6">Pastures</MudText></div>
+                    </div>
+                    <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" Size="Size.Small"
+                                   OnClick="() => showPastureForm = !showPastureForm" />
+                </div>
+
+                @if (showPastureForm)
+                {
+                    <MudPaper Class="pa-3 mb-3" Outlined Style="border-radius:10px;">
+                        <MudTextField @bind-Value="newPastureName" Label="Name" Variant="Variant.Outlined" />
+                        <div class="mt-2">
+                            <MudText Class="field-label">Condition</MudText>
+                            <div class="pill-group">
+                                @foreach (var c in Enum.GetValues<PastureCondition>())
+                                {
+                                    <button type="button"
+                                            class="@($"pill pill-sm {GetConditionPillClass(c)} {(newPastureCondition == c ? "pill-active" : "")}")"
+                                            @onclick="() => newPastureCondition = c">
+                                        @((int)c)/5
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                        <MudText Typo="Typo.caption" Class="mt-2 d-block">
+                            @if (lastDrawnGeoJson != null) { <span style="color:#2e7d32;">✓ Shape drawn.</span> }
+                            else { <span>Draw a polygon on the map first.</span> }
+                        </MudText>
+                        <div class="d-flex gap-2 mt-2">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="SavePasture"
+                                       Disabled="@(lastDrawnGeoJson == null || string.IsNullOrWhiteSpace(newPastureName))">Save</MudButton>
+                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="() => showPastureForm = false">Cancel</MudButton>
+                        </div>
+                    </MudPaper>
+                }
+
+                @if (pastures?.Count > 0)
+                {
+                    @foreach (var p in pastures)
+                    {
+                        <div class="record-card" style="padding:10px;">
+                            <div class="record-card-icon" style="width:36px;height:36px;@($"background:{GetConditionColorHex(p.Condition)};")">
+                                @((int)p.Condition)
+                            </div>
+                            <div class="record-card-body">
+                                <div class="record-card-primary" style="font-size:0.9rem;">@p.Name</div>
+                                <div class="record-card-secondary" style="font-size:0.75rem;">
+                                    @(p.Acreage?.ToString("F1") ?? "?") ac
+                                </div>
+                            </div>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="() => DeletePasture(p)" />
+                        </div>
+                    }
+                }
+                else if (pastures != null)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Draw a polygon to start.</MudText>
+                }
+            </MudPaper>
+
+            @* Barns *@
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@Icons.Material.Filled.Home" />
+                        <div><MudText Typo="Typo.h6">Barns</MudText></div>
+                    </div>
+                    <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" Size="Size.Small"
+                                   OnClick="() => showBarnForm = !showBarnForm" />
+                </div>
+
+                @if (showBarnForm)
+                {
+                    <MudPaper Class="pa-3 mb-3" Outlined Style="border-radius:10px;">
+                        <MudText Typo="Typo.caption" Class="mb-2 d-block">Place a marker on the map, then name the barn.</MudText>
+                        <MudTextField @bind-Value="newBarnName" Label="Barn Name" Variant="Variant.Outlined" />
+                        <MudTextField @bind-Value="newBarnDescription" Label="Description" Variant="Variant.Outlined" Class="mt-2" />
+                        <MudText Typo="Typo.caption" Class="mt-2 d-block">
+                            @if (pendingMarkerLat.HasValue) { <span style="color:#2e7d32;">✓ Location picked.</span> }
+                            else { <span>Use the marker tool, click the map, then save.</span> }
+                        </MudText>
+                        <div class="d-flex gap-2 mt-2">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="SaveBarn"
+                                       Disabled="@(pendingMarkerLat == null || string.IsNullOrWhiteSpace(newBarnName))">Save Barn</MudButton>
+                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="() => showBarnForm = false">Cancel</MudButton>
+                        </div>
+                    </MudPaper>
+                }
+
+                @if (barns?.Count > 0)
+                {
+                    @foreach (var b in barns)
+                    {
+                        var goatCount = b.Pens?.Sum(p => p.Goats?.Count ?? 0) ?? 0;
+                        <div class="record-card" style="padding:10px;">
+                            <div class="record-card-icon" style="width:36px;height:36px;background:linear-gradient(135deg,#6d4c41,#8d6e63);">
+                                <MudIcon Icon="@Icons.Material.Filled.Home" Size="Size.Small" />
+                            </div>
+                            <div class="record-card-body">
+                                <div class="record-card-primary" style="font-size:0.9rem;">@b.Name</div>
+                                <div class="record-card-secondary" style="font-size:0.75rem;">
+                                    @(b.Pens?.Count ?? 0) pen@((b.Pens?.Count ?? 0) == 1 ? "" : "s") · @goatCount goats
+                                    @if (b.Latitude == null) { <span style="color:#d32f2f;"> · not placed</span> }
+                                </div>
+                            </div>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="() => DeleteBarn(b)" />
+                        </div>
+                    }
+                }
+                else if (barns != null)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">No barns yet.</MudText>
+                }
+            </MudPaper>
+
+            @* Markers *@
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@Icons.Material.Filled.Place" />
+                        <div><MudText Typo="Typo.h6">Markers</MudText></div>
+                    </div>
+                    <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" Size="Size.Small"
+                                   OnClick="() => showMarkerForm = !showMarkerForm" />
+                </div>
+
+                @if (showMarkerForm)
+                {
+                    <MudPaper Class="pa-3 mb-3" Outlined Style="border-radius:10px;">
+                        <MudTextField @bind-Value="newMarkerName" Label="Name" Variant="Variant.Outlined" />
+                        <div class="mt-2">
+                            <MudText Class="field-label">Type</MudText>
+                            <div class="pill-group">
+                                @foreach (var t in Enum.GetValues<MapMarkerType>())
+                                {
+                                    <button type="button"
+                                            class="@($"pill pill-sm pill-neutral {(newMarkerType == t ? "pill-active" : "")}")"
+                                            @onclick="() => newMarkerType = t">
+                                        <MudIcon Icon="@GetMarkerIcon(t)" Size="Size.Small" />
+                                        <span>@t</span>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                        <MudText Typo="Typo.caption" Class="mt-2 d-block">
+                            @if (pendingMarkerLat.HasValue) { <span style="color:#2e7d32;">✓ Location picked.</span> }
+                            else { <span>Use the marker tool, click the map, then save.</span> }
+                        </MudText>
+                        <div class="d-flex gap-2 mt-2">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" OnClick="SaveMarker"
+                                       Disabled="@(pendingMarkerLat == null || string.IsNullOrWhiteSpace(newMarkerName))">Save</MudButton>
+                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="() => showMarkerForm = false">Cancel</MudButton>
+                        </div>
+                    </MudPaper>
+                }
+
+                @if (mapMarkers?.Count > 0)
+                {
+                    @foreach (var m in mapMarkers)
+                    {
+                        <div class="d-flex align-center justify-space-between mb-1" style="gap:6px;">
+                            <MudChip T="string" Size="Size.Small" Icon="@GetMarkerIcon(m.MarkerType)">@m.Name</MudChip>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="() => DeleteMarker(m.Id)" />
+                        </div>
+                    }
+                }
+                else if (mapMarkers != null)
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">No markers yet.</MudText>
+                }
+            </MudPaper>
+
+            @* Stocking rate *@
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@GoatLabIcons.Hoof" />
+                        <div><MudText Typo="Typo.h6">Stocking</MudText></div>
+                    </div>
+                </div>
+                <MudNumericField @bind-Value="stockingRate" Label="Goats per acre" Variant="Variant.Outlined"
+                                 Min="0.5" Max="20" Step="0.5" />
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@* Start rotation dialog *@
+@if (showRotationDialog && rotationPasture != null)
+{
+    <MudOverlay Visible="true" DarkBackground AutoClose="false">
+        <MudPaper Class="pa-5" Style="min-width:360px;max-width:92vw;border-radius:14px;">
+            <MudText Typo="Typo.h6" Class="mb-1">Start rotation on @rotationPasture.Name</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">Mark the herd as actively grazing here.</MudText>
+            <MudNumericField @bind-Value="rotationGoatCount" Label="Goat count" Variant="Variant.Outlined" Min="1" />
+            <MudTextField @bind-Value="rotationNotes" Label="Notes (optional)" Variant="Variant.Outlined" Class="mt-2" />
+            <div class="d-flex gap-2 justify-end mt-3">
+                <MudButton Variant="Variant.Text" OnClick="() => showRotationDialog = false">Cancel</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="StartRotation">Start</MudButton>
+            </div>
+        </MudPaper>
+    </MudOverlay>
+}
+
+@code {
+    private List<Pasture>? pastures;
+    private List<MapMarker>? mapMarkers;
+    private List<Barn>? barns;
+    private List<PastureRotation>? rotations;
+    private DotNetObjectReference<MapIndex>? dotNetRef;
+
+    private string? apiKey;
+    private bool mapInitialized;
+
+    private bool isMeasuring;
+    private double stockingRate = 6;
+
+    // Layer toggles
+    private bool showPastures = true;
+    private bool showBarns = true;
+    private bool showMarkers = true;
+    private bool showWater = true;
+
+    // Draw state
+    private double? lastDrawnAcreage;
+    private double lastDrawnPerimeter;
+    private string? lastDrawnGeoJson;
+
+    // Form state
+    private bool showPastureForm;
+    private string newPastureName = "";
+    private PastureCondition newPastureCondition = PastureCondition.Good;
+
+    private bool showBarnForm;
+    private string newBarnName = "";
+    private string newBarnDescription = "";
+
+    private bool showMarkerForm;
+    private string newMarkerName = "";
+    private MapMarkerType newMarkerType = MapMarkerType.Shelter;
+    private double? pendingMarkerLat;
+    private double? pendingMarkerLng;
+
+    // Rotation dialog
+    private bool showRotationDialog;
+    private Pasture? rotationPasture;
+    private int rotationGoatCount = 1;
+    private string rotationNotes = "";
+
+    private double TotalAcres => pastures?.Sum(p => p.Acreage ?? 0) ?? 0;
+    private int ActiveRotationCount => rotations?.Count(r => r.EndDate == null) ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        apiKey = await Config.GetGoogleMapsKeyAsync();
+        await LoadAllAsync();
+    }
+
+    private async Task LoadAllAsync()
+    {
+        pastures = await PastureSvc.GetAllAsync();
+        mapMarkers = await PastureSvc.GetMarkersAsync();
+        barns = await BarnSvc.GetAllAsync();
+        rotations = await PastureSvc.GetRotationTimelineAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!mapInitialized && !string.IsNullOrWhiteSpace(apiKey))
+        {
+            mapInitialized = true;
+            dotNetRef = DotNetObjectReference.Create(this);
+            try
+            {
+                await GMap.InitAsync("farm-map", apiKey!, 39.8283, -98.5795, 5, dotNetRef);
+                await RenderAllOverlaysAsync();
+            }
+            catch (Exception ex)
+            {
+                mapInitialized = false;
+                Snackbar.Add($"Failed to load Google Maps: {ex.Message}", Severity.Error);
+            }
+        }
+    }
+
+    private async Task RenderAllOverlaysAsync()
+    {
+        if (pastures != null)
+        {
+            foreach (var p in pastures.Where(p => !string.IsNullOrEmpty(p.GeoJson)))
+            {
+                var info = GetRotationInfo(p.Id);
+                await GMap.AddPasturePolygonAsync(p.Id, p.GeoJson!, p.Name, (int)p.Condition, p.Acreage,
+                                                  info.isActive, info.daysSinceGrazed);
+            }
+        }
+        if (mapMarkers != null)
+        {
+            foreach (var m in mapMarkers)
+            {
+                await GMap.AddMarkerAsync(m.Id, m.Latitude, m.Longitude, m.Name, m.MarkerType.ToString(), m.Description);
+                if (m.MarkerType == MapMarkerType.Water)
+                    await GMap.AddWaterRadiusAsync(m.Id, m.Latitude, m.Longitude, m.Name);
+            }
+        }
+        if (barns != null)
+        {
+            foreach (var b in barns.Where(b => b.Latitude.HasValue && b.Longitude.HasValue))
+            {
+                var pens = b.Pens?.Select(p => new {
+                    id = p.Id,
+                    name = p.Name,
+                    capacity = p.Capacity,
+                    goatCount = p.Goats?.Count ?? 0,
+                    goats = p.Goats?.Select(g => new { id = g.Id, name = g.Name }).ToArray() ?? Array.Empty<object>()
+                }).ToArray();
+                await GMap.AddBarnAsync(b.Id, b.Latitude!.Value, b.Longitude!.Value, b.Name, pens!);
+            }
+        }
+        var hasData = (pastures?.Any(p => !string.IsNullOrEmpty(p.GeoJson)) ?? false)
+                   || (mapMarkers?.Count > 0)
+                   || (barns?.Any(b => b.Latitude.HasValue) ?? false);
+        if (hasData) await GMap.FitBoundsAsync();
+    }
+
+    // --- JS callbacks ---
+
+    [JSInvokable]
+    public void OnShapeDrawn(string geoJson, double acres, double perimeterFt)
+    {
+        lastDrawnGeoJson = geoJson;
+        lastDrawnAcreage = acres;
+        lastDrawnPerimeter = perimeterFt;
+        showPastureForm = true;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnMarkerPlaced(double lat, double lng)
+    {
+        pendingMarkerLat = lat;
+        pendingMarkerLng = lng;
+        // Don't auto-open any form — let the user choose (barn or marker)
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public async Task OnMarkerDragged(int markerId, double lat, double lng)
+    {
+        try
+        {
+            await PastureSvc.SetMarkerPositionAsync(markerId, lat, lng);
+            Snackbar.Add("Moved", Severity.Success);
+            mapMarkers = await PastureSvc.GetMarkersAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to save position: {ex.Message}", Severity.Error);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnBarnDragged(int barnId, double lat, double lng)
+    {
+        try
+        {
+            await BarnSvc.SetPositionAsync(barnId, lat, lng);
+            Snackbar.Add("Barn moved", Severity.Success);
+            barns = await BarnSvc.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failed to save position: {ex.Message}", Severity.Error);
+        }
+    }
+
+    // --- Actions ---
+
+    private async Task SetMapType(string type) => await GMap.SetMapTypeAsync(type);
+
+    private async Task ToggleMeasure() => isMeasuring = await GMap.ToggleMeasureAsync();
+
+    private async Task FitAll() => await GMap.FitBoundsAsync();
+
+    private async Task ToggleLayer(string layer)
+    {
+        switch (layer)
+        {
+            case "pastures": showPastures = !showPastures; await GMap.SetLayerVisibilityAsync("pastures", showPastures); break;
+            case "barns":    showBarns = !showBarns;       await GMap.SetLayerVisibilityAsync("barns",    showBarns);    break;
+            case "markers":  showMarkers = !showMarkers;   await GMap.SetLayerVisibilityAsync("markers",  showMarkers);  break;
+            case "water":    showWater = !showWater;       await GMap.SetLayerVisibilityAsync("water",    showWater);    break;
+        }
+    }
+
+    private async Task SavePasture()
+    {
+        var pasture = new Pasture
+        {
+            Name = newPastureName,
+            GeoJson = lastDrawnGeoJson,
+            Acreage = lastDrawnAcreage,
+            PerimeterFeet = lastDrawnPerimeter,
+            Condition = newPastureCondition,
+            StockingCapacity = lastDrawnAcreage.HasValue ? (int)(lastDrawnAcreage.Value * stockingRate) : null
+        };
+        var saved = await PastureSvc.CreateAsync(pasture);
+        if (saved != null)
+            await GMap.AddPasturePolygonAsync(saved.Id, saved.GeoJson!, saved.Name, (int)saved.Condition, saved.Acreage, false, null);
+
+        Snackbar.Add($"{newPastureName} saved", Severity.Success);
+        showPastureForm = false;
+        newPastureName = "";
+        lastDrawnGeoJson = null;
+        lastDrawnAcreage = null;
+        await LoadAllAsync();
+    }
+
+    private async Task SaveBarn()
+    {
+        if (pendingMarkerLat == null) return;
+        var barn = new Barn
+        {
+            Name = newBarnName,
+            Description = string.IsNullOrWhiteSpace(newBarnDescription) ? null : newBarnDescription,
+            Latitude = pendingMarkerLat,
+            Longitude = pendingMarkerLng
+        };
+        var saved = await BarnSvc.CreateAsync(barn);
+        if (saved != null)
+        {
+            await GMap.AddBarnAsync(saved.Id, saved.Latitude!.Value, saved.Longitude!.Value, saved.Name, Array.Empty<object>());
+        }
+        Snackbar.Add($"{newBarnName} placed on map", Severity.Success);
+        showBarnForm = false;
+        newBarnName = "";
+        newBarnDescription = "";
+        pendingMarkerLat = null;
+        barns = await BarnSvc.GetAllAsync();
+    }
+
+    private async Task SaveMarker()
+    {
+        if (pendingMarkerLat == null) return;
+        var marker = new MapMarker
+        {
+            Name = newMarkerName,
+            MarkerType = newMarkerType,
+            Latitude = pendingMarkerLat.Value,
+            Longitude = pendingMarkerLng!.Value
+        };
+        var saved = await PastureSvc.CreateMarkerAsync(marker);
+        if (saved != null)
+        {
+            await GMap.AddMarkerAsync(saved.Id, saved.Latitude, saved.Longitude, saved.Name, saved.MarkerType.ToString());
+            if (saved.MarkerType == MapMarkerType.Water)
+                await GMap.AddWaterRadiusAsync(saved.Id, saved.Latitude, saved.Longitude, saved.Name);
+        }
+        Snackbar.Add($"{newMarkerName} saved", Severity.Success);
+        showMarkerForm = false;
+        newMarkerName = "";
+        pendingMarkerLat = null;
+        mapMarkers = await PastureSvc.GetMarkersAsync();
+    }
+
+    private async Task DeleteMarker(int id)
+    {
+        await PastureSvc.DeleteMarkerAsync(id);
+        await GMap.RemoveMarkerAsync(id);
+        mapMarkers = await PastureSvc.GetMarkersAsync();
+    }
+
+    private async Task DeletePasture(Pasture p)
+    {
+        var confirmed = await Dialog.ShowMessageBox(
+            "Delete pasture",
+            $"Remove \"{p.Name}\" from the map? This can't be undone.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true) return;
+
+        await PastureSvc.DeleteAsync(p.Id);
+        await GMap.RemovePasturePolygonAsync(p.Id);
+        pastures = await PastureSvc.GetAllAsync();
+        Snackbar.Add($"{p.Name} deleted", Severity.Info);
+    }
+
+    private async Task DeleteBarn(Barn b)
+    {
+        var confirmed = await Dialog.ShowMessageBox(
+            "Delete barn",
+            $"Remove \"{b.Name}\" and all its pens? Goats will be unassigned.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirmed != true) return;
+
+        await BarnSvc.DeleteAsync(b.Id);
+        await GMap.RemoveBarnAsync(b.Id);
+        barns = await BarnSvc.GetAllAsync();
+        Snackbar.Add($"{b.Name} deleted", Severity.Info);
+    }
+
+    private void OpenStartRotation(Pasture p)
+    {
+        rotationPasture = p;
+        rotationGoatCount = p.StockingCapacity ?? 1;
+        rotationNotes = "";
+        showRotationDialog = true;
+    }
+
+    private async Task StartRotation()
+    {
+        if (rotationPasture == null) return;
+        var rot = new PastureRotation
+        {
+            PastureId = rotationPasture.Id,
+            StartDate = DateTime.UtcNow,
+            GoatCount = rotationGoatCount,
+            Notes = rotationNotes
+        };
+        await PastureSvc.CreateRotationAsync(rotationPasture.Id, rot);
+        showRotationDialog = false;
+        await LoadAllAsync();
+        // Refresh polygon styling to show active highlight
+        if (!string.IsNullOrEmpty(rotationPasture.GeoJson))
+        {
+            await GMap.RemovePasturePolygonAsync(rotationPasture.Id);
+            var info = GetRotationInfo(rotationPasture.Id);
+            await GMap.AddPasturePolygonAsync(rotationPasture.Id, rotationPasture.GeoJson, rotationPasture.Name,
+                                              (int)rotationPasture.Condition, rotationPasture.Acreage,
+                                              info.isActive, info.daysSinceGrazed);
+        }
+        Snackbar.Add($"Grazing started on {rotationPasture.Name}", Severity.Success);
+    }
+
+    private async Task EndRotation(int rotationId)
+    {
+        await PastureSvc.EndRotationAsync(rotationId);
+        await LoadAllAsync();
+        // Re-render pasture polygons to drop the active highlight
+        if (pastures != null)
+        {
+            foreach (var p in pastures.Where(p => !string.IsNullOrEmpty(p.GeoJson)))
+            {
+                await GMap.RemovePasturePolygonAsync(p.Id);
+                var info = GetRotationInfo(p.Id);
+                await GMap.AddPasturePolygonAsync(p.Id, p.GeoJson!, p.Name, (int)p.Condition, p.Acreage,
+                                                  info.isActive, info.daysSinceGrazed);
+            }
+        }
+        Snackbar.Add("Rotation ended", Severity.Info);
+    }
+
+    private (bool isActive, PastureRotation? rotation, int? daysSinceGrazed) GetRotationInfo(int pastureId)
+    {
+        if (rotations == null) return (false, null, null);
+        var active = rotations.FirstOrDefault(r => r.PastureId == pastureId && r.EndDate == null);
+        if (active != null) return (true, active, null);
+        var lastEnded = rotations.Where(r => r.PastureId == pastureId && r.EndDate.HasValue)
+                                 .OrderByDescending(r => r.EndDate)
+                                 .FirstOrDefault();
+        if (lastEnded?.EndDate == null) return (false, null, null);
+        var days = (int)(DateTime.UtcNow - lastEnded.EndDate.Value).TotalDays;
+        return (false, null, days);
+    }
+
+    private string GetConditionPillClass(PastureCondition c) => c switch
+    {
+        PastureCondition.Poor      => "pill-error",
+        PastureCondition.Fair      => "pill-warning",
+        PastureCondition.Good      => "pill-info",
+        PastureCondition.VeryGood  => "pill-success",
+        PastureCondition.Excellent => "pill-success",
+        _                          => "pill-neutral"
+    };
+
+    private string GetConditionColorHex(PastureCondition c) => c switch
+    {
+        PastureCondition.Poor      => "#d32f2f",
+        PastureCondition.Fair      => "#f57c00",
+        PastureCondition.Good      => "#fbc02d",
+        PastureCondition.VeryGood  => "#689f38",
+        PastureCondition.Excellent => "#2e7d32",
+        _                          => "#546e7a"
+    };
+
+    private string GetMarkerIcon(MapMarkerType type) => type switch
+    {
+        MapMarkerType.Barn    => Icons.Material.Filled.Home,
+        MapMarkerType.Shelter => Icons.Material.Filled.Roofing,
+        MapMarkerType.Water   => Icons.Material.Filled.WaterDrop,
+        MapMarkerType.Feeder  => Icons.Material.Filled.Restaurant,
+        MapMarkerType.Gate    => Icons.Material.Filled.MeetingRoom,
+        _                     => Icons.Material.Filled.Place
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        await GMap.DisposeAsync();
+        dotNetRef?.Dispose();
+    }
+}

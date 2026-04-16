@@ -1,0 +1,121 @@
+@page "/admin/announcements"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "SuperAdmin")]
+@inject AdminService Admin
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+
+<PageTitle>Announcements — Admin — GoatLab</PageTitle>
+
+<div class="d-flex align-center mb-3">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/admin" />
+    <MudText Typo="Typo.h4" Class="ml-2" Style="font-weight:700;">Announcements</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add" OnClick="OpenNewAsync">New</MudButton>
+</div>
+
+@if (items is null)
+{
+    <MudProgressLinear Indeterminate Color="Color.Primary" />
+}
+else if (items.Count == 0)
+{
+    <MudPaper Class="pa-6 section-card" Outlined Elevation="0">
+        <MudText Typo="Typo.body1" Color="Color.Secondary" Align="Align.Center">
+            No announcements yet. Create one to broadcast a banner to tenants.
+        </MudText>
+    </MudPaper>
+}
+else
+{
+    <MudTable Items="@items" Dense Hover Outlined Elevation="0" Class="section-card" T="AdminAnnouncementRow">
+        <HeaderContent>
+            <MudTh>Title</MudTh>
+            <MudTh>Severity</MudTh>
+            <MudTh>Target</MudTh>
+            <MudTh>Window</MudTh>
+            <MudTh>Active</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd Style="font-weight:600;">@context.Title</MudTd>
+            <MudTd>
+                <MudChip T="string" Size="Size.Small"
+                         Color="@SeverityColor(context.Severity)" Variant="Variant.Filled">
+                    @context.Severity
+                </MudChip>
+            </MudTd>
+            <MudTd>@(string.IsNullOrEmpty(context.TargetTag) ? "All tenants" : $"tag: {context.TargetTag}")</MudTd>
+            <MudTd>
+                @context.StartsAt.ToLocalTime().ToString("MMM d")
+                @(context.EndsAt is null ? "→ ∞" : $"→ {context.EndsAt?.ToLocalTime():MMM d}")
+            </MudTd>
+            <MudTd>
+                @if (context.IsActive)
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" />
+                }
+                else
+                {
+                    <MudIcon Icon="@Icons.Material.Filled.PauseCircleOutline" Color="Color.Default" Size="Size.Small" />
+                }
+            </MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                               OnClick="@(() => OpenEditAsync(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                               OnClick="@(() => DeleteAsync(context))" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<AdminAnnouncementRow>? items;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        items = await Admin.GetAnnouncementsAsync();
+    }
+
+    private async Task OpenNewAsync()
+    {
+        var dlg = await Dialog.ShowAsync<AnnouncementEditorDialog>("New announcement",
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dlg.Result;
+        if (result is not null && !result.Canceled) await LoadAsync();
+    }
+
+    private async Task OpenEditAsync(AdminAnnouncementRow row)
+    {
+        var parameters = new DialogParameters { ["Existing"] = row };
+        var dlg = await Dialog.ShowAsync<AnnouncementEditorDialog>("Edit announcement", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dlg.Result;
+        if (result is not null && !result.Canceled) await LoadAsync();
+    }
+
+    private async Task DeleteAsync(AdminAnnouncementRow row)
+    {
+        var confirm = await Dialog.ShowMessageBox("Delete announcement?",
+            $"Permanently delete '{row.Title}'?", yesText: "Delete", cancelText: "Cancel");
+        if (confirm != true) return;
+
+        try
+        {
+            await Admin.DeleteAnnouncementAsync(row.Id);
+            Snackbar.Add("Deleted.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Delete failed: {ex.Message}", Severity.Error); }
+    }
+
+    private static Color SeverityColor(string severity) => severity switch
+    {
+        "Critical" => Color.Error,
+        "Warning" => Color.Warning,
+        _ => Color.Info,
+    };
+}

@@ -1,0 +1,117 @@
+@page "/admin/audit"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "SuperAdmin")]
+@inject AdminService Admin
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<PageTitle>Audit log — Admin — GoatLab</PageTitle>
+
+<div class="d-flex align-center mb-3">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/admin" />
+    <MudText Typo="Typo.h4" Class="ml-2" Style="font-weight:700;">Audit log</MudText>
+    <MudSpacer />
+    @if (data is not null)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mr-3">@data.TotalRows row(s) total</MudText>
+    }
+    <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Download" OnClick="ExportAsync">Export CSV</MudButton>
+</div>
+
+@if (data is null)
+{
+    <MudProgressLinear Indeterminate Color="Color.Primary" />
+}
+else
+{
+    <MudTable Items="@data.Rows" Dense Hover Outlined Elevation="0" Class="section-card" T="AdminAuditRow">
+        <HeaderContent>
+            <MudTh Style="width:170px;">When</MudTh>
+            <MudTh>Actor</MudTh>
+            <MudTh>Action</MudTh>
+            <MudTh>Target</MudTh>
+            <MudTh>Detail</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudText Typo="Typo.body2">@context.At.ToLocalTime().ToString("MMM d, yyyy")</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@context.At.ToLocalTime().ToString("h:mm:ss tt")</MudText>
+            </MudTd>
+            <MudTd>@context.ActorEmail</MudTd>
+            <MudTd>
+                <MudChip T="string" Size="Size.Small" Color="@ColorFor(context.Action)" Variant="Variant.Filled">
+                    @context.Action
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                @if (context.TargetType is not null)
+                {
+                    <MudLink Href="@TargetLink(context)">
+                        @context.TargetType #@context.TargetId
+                    </MudLink>
+                }
+                else
+                {
+                    <span>—</span>
+                }
+            </MudTd>
+            <MudTd>
+                <MudText Typo="Typo.body2" Style="font-family:ui-monospace,monospace;">@(context.Detail ?? "—")</MudText>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    <div class="d-flex align-center justify-space-between mt-3">
+        <MudText Typo="Typo.caption" Color="Color.Secondary">
+            Page @data.Page · showing @data.Rows.Count of @data.TotalRows
+        </MudText>
+        <div class="d-flex gap-2">
+            <MudButton Disabled="@(data.Page <= 1)" OnClick="@(() => GoToAsync(data.Page - 1))"
+                       StartIcon="@Icons.Material.Filled.ChevronLeft">Previous</MudButton>
+            <MudButton Disabled="@(!HasNext)" OnClick="@(() => GoToAsync(data.Page + 1))"
+                       EndIcon="@Icons.Material.Filled.ChevronRight">Next</MudButton>
+        </div>
+    </div>
+}
+
+@code {
+    private AdminAuditPage? data;
+    private const int PageSize = 50;
+    private bool HasNext => data is not null && data.Page * data.PageSize < data.TotalRows;
+
+    protected override async Task OnInitializedAsync() => await GoToAsync(1);
+
+    private async Task GoToAsync(int p)
+    {
+        data = await Admin.GetAuditAsync(p, PageSize);
+    }
+
+    private async Task ExportAsync()
+    {
+        try
+        {
+            var bytes = await Admin.ExportAuditCsvAsync();
+            var base64 = Convert.ToBase64String(bytes);
+            await JS.InvokeVoidAsync("goatLab.downloadFile",
+                $"goatlab-audit-{DateTime.UtcNow:yyyyMMdd-HHmm}.csv", "text/csv", base64);
+        }
+        catch (Exception ex) { Snackbar.Add($"Export failed: {ex.Message}", Severity.Error); }
+    }
+
+    private static Color ColorFor(string action) => action switch
+    {
+        var a when a.StartsWith("impersonation.") => Color.Info,
+        var a when a.StartsWith("user.grant_super_admin") => Color.Warning,
+        var a when a.StartsWith("user.revoke_super_admin") => Color.Warning,
+        var a when a.StartsWith("user.reset_password") => Color.Warning,
+        var a when a.StartsWith("tenant.") => Color.Primary,
+        _ => Color.Default,
+    };
+
+    private static string TargetLink(AdminAuditRow row) => row.TargetType switch
+    {
+        "Tenant" => $"/admin/tenants/{row.TargetId}",
+        "User" => $"/admin/users/{row.TargetId}",
+        _ => "#",
+    };
+}

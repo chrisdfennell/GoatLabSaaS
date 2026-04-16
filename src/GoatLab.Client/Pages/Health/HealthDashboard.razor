@@ -1,0 +1,333 @@
+@page "/health/dashboard"
+@inject HealthService HealthSvc
+@inject NavigationManager Nav
+
+<PageTitle>Herd Health — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-pink">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.MonitorHeart" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Herd Health Dashboard</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Needs Attention</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">
+            Everything that isn't trending well — overdue meds, FAMACHA at risk, BCS slipping, weight loss, expired meds.
+        </MudText>
+    </div>
+    <div style="position:relative;z-index:1;display:flex;gap:8px;">
+        <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#ad1457;"
+                   StartIcon="@Icons.Material.Filled.Vaccines" Href="/health/protocols">Protocols</MudButton>
+        <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                   StartIcon="@Icons.Material.Filled.LocalHospital" Href="/health">All records</MudButton>
+    </div>
+</div>
+
+@if (dashboard == null)
+{
+    <div class="polished-section"><MudProgressCircular Indeterminate /></div>
+}
+else if (Counts.Overdue == 0 && Counts.Famacha == 0 && Counts.Bcs == 0 && Counts.WeightLoss == 0 && Counts.Sick == 0 && Counts.ExpiringMeds == 0)
+{
+    <MudPaper Class="polished-section" Elevation="0">
+        <div class="inline-empty">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Style="color:#2e7d32;" />
+            <MudText Typo="Typo.h6">All clear</MudText>
+            <MudText Typo="Typo.body2">No urgent health issues across the herd. Keep up the good work.</MudText>
+        </div>
+    </MudPaper>
+}
+else
+{
+    <div class="hd-tiles">
+        @RenderTile("Overdue meds", Counts.Overdue, "#b71c1c", Icons.Material.Filled.Warning)
+        @RenderTile("Due ≤14 days", Counts.Upcoming, "#ef6c00", Icons.Material.Filled.Schedule)
+        @RenderTile("FAMACHA ≥3", Counts.Famacha, "#c62828", Icons.Material.Filled.Visibility)
+        @RenderTile("BCS concern", Counts.Bcs, "#f57c00", Icons.Material.Filled.FitnessCenter)
+        @RenderTile("Weight loss", Counts.WeightLoss, "#6a1b9a", Icons.Material.Filled.TrendingDown)
+        @RenderTile("Sick / At vet", Counts.Sick, "#b71c1c", Icons.Material.Filled.Sick)
+        @RenderTile("Expiring meds", Counts.ExpiringMeds, "#ef6c00", Icons.Material.Filled.MedicalServices)
+    </div>
+
+    <MudGrid>
+        @if (dashboard.OverdueMedical.Any())
+        {
+            <MudItem xs="12" md="6">
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Warning" Style="color:#b71c1c;" />
+                            <div><MudText Typo="Typo.h6">Overdue medical</MudText></div>
+                        </div>
+                    </div>
+                    <div class="hd-list">
+                        @foreach (var o in dashboard.OverdueMedical)
+                        {
+                            <div class="hd-row" style="border-left-color:#b71c1c;"
+                                 @onclick="@(() => Nav.NavigateTo($"/herd/{o.GoatId}"))">
+                                <div>
+                                    <div class="hd-row-name">@o.GoatName</div>
+                                    <div class="hd-row-detail">@o.Title</div>
+                                </div>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">
+                                    @o.DaysOverdue d overdue
+                                </MudChip>
+                            </div>
+                        }
+                    </div>
+                </MudPaper>
+            </MudItem>
+        }
+
+        @if (dashboard.UpcomingMedical.Any())
+        {
+            <MudItem xs="12" md="6">
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Schedule" Style="color:#ef6c00;" />
+                            <div><MudText Typo="Typo.h6">Due in next 2 weeks</MudText></div>
+                        </div>
+                    </div>
+                    <div class="hd-list">
+                        @foreach (var u in dashboard.UpcomingMedical)
+                        {
+                            <div class="hd-row" style="border-left-color:#ef6c00;"
+                                 @onclick="@(() => Nav.NavigateTo($"/herd/{u.GoatId}"))">
+                                <div>
+                                    <div class="hd-row-name">@u.GoatName</div>
+                                    <div class="hd-row-detail">@u.Title</div>
+                                </div>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">
+                                    in @u.DaysUntil d
+                                </MudChip>
+                            </div>
+                        }
+                    </div>
+                </MudPaper>
+            </MudItem>
+        }
+
+        @if (dashboard.FamachaAtRisk.Any())
+        {
+            <MudItem xs="12" md="6">
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Visibility" Style="color:#c62828;" />
+                            <div>
+                                <MudText Typo="Typo.h6">FAMACHA at risk</MudText>
+                                <MudText Typo="Typo.body2" Class="section-hint">Latest score 3 or higher.</MudText>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hd-list">
+                        @foreach (var f in dashboard.FamachaAtRisk)
+                        {
+                            <div class="hd-row" style="@($"border-left-color:{FamachaColor(f.Score)};")"
+                                 @onclick="@(() => Nav.NavigateTo($"/herd/{f.GoatId}"))">
+                                <div>
+                                    <div class="hd-row-name">@f.GoatName</div>
+                                    <div class="hd-row-detail">Last scored @f.Date.ToString("MMM d, yyyy")</div>
+                                </div>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">
+                                    Score @f.Score
+                                </MudChip>
+                            </div>
+                        }
+                    </div>
+                </MudPaper>
+            </MudItem>
+        }
+
+        @if (dashboard.BcsConcerns.Any())
+        {
+            <MudItem xs="12" md="6">
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.FitnessCenter" Style="color:#f57c00;" />
+                            <div>
+                                <MudText Typo="Typo.h6">BCS concerns</MudText>
+                                <MudText Typo="Typo.body2" Class="section-hint">Body condition outside the 3 ideal range.</MudText>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hd-list">
+                        @foreach (var b in dashboard.BcsConcerns)
+                        {
+                            <div class="hd-row" style="border-left-color:#f57c00;"
+                                 @onclick="@(() => Nav.NavigateTo($"/herd/{b.GoatId}"))">
+                                <div>
+                                    <div class="hd-row-name">@b.GoatName</div>
+                                    <div class="hd-row-detail">@b.Concern · last scored @b.Date.ToString("MMM d, yyyy")</div>
+                                </div>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">
+                                    BCS @b.Score
+                                </MudChip>
+                            </div>
+                        }
+                    </div>
+                </MudPaper>
+            </MudItem>
+        }
+
+        @if (dashboard.WeightLoss.Any())
+        {
+            <MudItem xs="12" md="6">
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.TrendingDown" Style="color:#6a1b9a;" />
+                            <div>
+                                <MudText Typo="Typo.h6">Weight loss flag</MudText>
+                                <MudText Typo="Typo.body2" Class="section-hint">≥5% loss between consecutive weigh-ins.</MudText>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hd-list">
+                        @foreach (var w in dashboard.WeightLoss)
+                        {
+                            <div class="hd-row" style="border-left-color:#6a1b9a;"
+                                 @onclick="@(() => Nav.NavigateTo($"/herd/{w.GoatId}"))">
+                                <div>
+                                    <div class="hd-row-name">@w.GoatName</div>
+                                    <div class="hd-row-detail">@w.PriorLbs.ToString("F1") → @w.LatestLbs.ToString("F1") lbs since @w.Since.ToString("MMM d")</div>
+                                </div>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Tertiary" Variant="Variant.Filled">
+                                    −@w.LossPct.ToString("F1")%
+                                </MudChip>
+                            </div>
+                        }
+                    </div>
+                </MudPaper>
+            </MudItem>
+        }
+
+        @if (dashboard.SickGoats.Any())
+        {
+            <MudItem xs="12" md="6">
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Sick" Style="color:#b71c1c;" />
+                            <div><MudText Typo="Typo.h6">Sick or at vet</MudText></div>
+                        </div>
+                    </div>
+                    <div class="hd-list">
+                        @foreach (var s in dashboard.SickGoats)
+                        {
+                            <div class="hd-row" style="border-left-color:#b71c1c;"
+                                 @onclick="@(() => Nav.NavigateTo($"/herd/{s.Id}"))">
+                                <div>
+                                    <div class="hd-row-name">@s.Name</div>
+                                </div>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">@s.Status</MudChip>
+                            </div>
+                        }
+                    </div>
+                </MudPaper>
+            </MudItem>
+        }
+
+        @if (dashboard.ExpiringMeds.Any())
+        {
+            <MudItem xs="12" md="6">
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.MedicalServices" Style="color:#ef6c00;" />
+                            <div>
+                                <MudText Typo="Typo.h6">Expiring meds</MudText>
+                                <MudText Typo="Typo.body2" Class="section-hint">Within 30 days or already expired.</MudText>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hd-list">
+                        @foreach (var m in dashboard.ExpiringMeds)
+                        {
+                            <div class="hd-row" style="@($"border-left-color:{(m.Expired ? "#b71c1c" : "#ef6c00")};")">
+                                <div>
+                                    <div class="hd-row-name">@m.Name</div>
+                                    <div class="hd-row-detail">@m.Quantity @m.Unit · exp @m.ExpirationDate?.ToString("MMM d, yyyy")</div>
+                                </div>
+                                <MudChip T="string" Size="Size.Small" Color="@(m.Expired ? Color.Error : Color.Warning)" Variant="Variant.Filled">
+                                    @(m.Expired ? "Expired" : "Soon")
+                                </MudChip>
+                            </div>
+                        }
+                    </div>
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+<style>
+.hd-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.hd-tile {
+    background: var(--mud-palette-surface);
+    border-radius: 12px;
+    padding: 14px;
+    border-left: 4px solid #888;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.mud-theme-dark .hd-tile { background: rgba(255,255,255,0.04); }
+.hd-tile-value { font-size: 1.6rem; font-weight: 800; line-height: 1; }
+.hd-tile-label { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px; }
+.hd-tile.zero { opacity: 0.45; }
+
+.hd-list { display: flex; flex-direction: column; gap: 6px; }
+.hd-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border-left: 3px solid #888;
+    background: var(--mud-palette-surface);
+    cursor: pointer;
+    transition: transform .12s;
+}
+.mud-theme-dark .hd-row { background: rgba(255,255,255,0.03); }
+.hd-row:hover { transform: translateX(2px); }
+.hd-row-name { font-weight: 700; font-size: 0.95rem; }
+.hd-row-detail { font-size: 0.78rem; color: #777; margin-top: 2px; }
+</style>
+
+@code {
+    private HealthDashboardData? dashboard;
+
+    private DashboardCounts Counts => dashboard?.Counts ?? new DashboardCounts();
+
+    protected override async Task OnInitializedAsync()
+    {
+        dashboard = await HealthSvc.GetDashboardAsync();
+    }
+
+    private RenderFragment RenderTile(string label, int count, string color, string icon) => __builder =>
+    {
+        <div class="@($"hd-tile {(count == 0 ? "zero" : "")}")" style="@($"border-left-color:{color};")">
+            <MudIcon Icon="@icon" Style="@($"color:{color};font-size:1.6rem;")" />
+            <div>
+                <div class="hd-tile-value" style="@($"color:{(count > 0 ? color : "#888")};")">@count</div>
+                <div class="hd-tile-label">@label</div>
+            </div>
+        </div>
+    };
+
+    private static string FamachaColor(int score) => score switch
+    {
+        5 => "#7f0000",
+        4 => "#b71c1c",
+        3 => "#ef6c00",
+        _ => "#888"
+    };
+}

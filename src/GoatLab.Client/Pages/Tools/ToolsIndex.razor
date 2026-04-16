@@ -1,0 +1,359 @@
+@page "/tools"
+@inject ToolsService ToolsSvc
+@inject PwaService Pwa
+@inject IJSRuntime JS
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@implements IDisposable
+
+<PageTitle>Tools — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-indigo">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.Build" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Tools &amp; Utilities</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Workshop</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Backups, data exports, calculators — everything you need to keep things running.</MudText>
+    </div>
+</div>
+
+<MudGrid>
+    @* Backup & Restore *@
+    <MudItem xs="12" md="6">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.CloudDownload" />
+                    <div>
+                        <MudText Typo="Typo.h6">Backup</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Download everything — store off-site.</MudText>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex flex-column" style="gap:10px;">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Storage"
+                           OnClick="BackupDatabase" FullWidth Disabled="@backupBusy">
+                    @(backupBusy ? "Preparing…" : "Download Database (.db)")
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PhotoLibrary"
+                           OnClick="BackupMedia" FullWidth Disabled="@backupBusy">
+                    Download Photos (.zip)
+                </MudButton>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="6">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.CloudUpload" />
+                    <div>
+                        <MudText Typo="Typo.h6">Restore</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Upload a .db backup to replace the current database.</MudText>
+                    </div>
+                </div>
+            </div>
+            <MudAlert Severity="Severity.Warning" Dense Class="mb-3" Icon="@Icons.Material.Filled.Warning">
+                Restore replaces everything. The app takes a pre-restore backup first.
+            </MudAlert>
+            <MudFileUpload T="IBrowserFile" FilesChanged="RestoreDatabase" Accept=".db">
+                <ActivatorContent>
+                    <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.RestoreFromTrash"
+                               FullWidth Disabled="@restoring">
+                        @(restoring ? "Restoring…" : "Upload .db to Restore")
+                    </MudButton>
+                </ActivatorContent>
+            </MudFileUpload>
+        </MudPaper>
+    </MudItem>
+
+    @* Install app *@
+    <MudItem xs="12">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.InstallMobile" />
+                    <div>
+                        <MudText Typo="Typo.h6">Install GoatLab</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">
+                            @(installed
+                                ? "GoatLab is installed — it works offline and launches from your home screen."
+                                : canInstall
+                                    ? "Install GoatLab to your device. Works offline in the pasture with no signal."
+                                    : "On iOS, use Safari's Share → Add to Home Screen. On desktop Chrome/Edge, look for the install icon in the address bar.")
+                        </MudText>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex" style="gap:10px;flex-wrap:wrap;">
+                @if (!installed && canInstall)
+                {
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.InstallMobile" OnClick="InstallApp">
+                        Install app
+                    </MudButton>
+                }
+                @if (installed)
+                {
+                    <MudChip T="string" Color="Color.Success" Variant="Variant.Filled" Icon="@Icons.Material.Filled.CheckCircle">
+                        Installed
+                    </MudChip>
+                }
+                <MudChip T="string" Color="@(online ? Color.Success : Color.Error)" Variant="Variant.Outlined"
+                         Icon="@(online ? Icons.Material.Filled.CloudDone : Icons.Material.Filled.CloudOff)">
+                    @(online ? "Online" : "Offline")
+                </MudChip>
+            </div>
+        </MudPaper>
+    </MudItem>
+
+    @* CSV Exports *@
+    <MudItem xs="12">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.TableChart" />
+                    <div>
+                        <MudText Typo="Typo.h6">CSV Exports</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Download filtered data for spreadsheets, reports, or accountants.</MudText>
+                    </div>
+                </div>
+            </div>
+            <MudGrid>
+                <MudItem xs="6" sm="3">
+                    <MudButton Variant="Variant.Outlined" FullWidth StartIcon="@GoatLabIcons.Hoof" OnClick="ExportGoats">Goats</MudButton>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudButton Variant="Variant.Outlined" FullWidth StartIcon="@Icons.Material.Filled.WaterDrop" OnClick="ExportMilk">Milk Logs</MudButton>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudButton Variant="Variant.Outlined" FullWidth StartIcon="@Icons.Material.Filled.LocalHospital" OnClick="ExportMedical">Medical</MudButton>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudButton Variant="Variant.Outlined" FullWidth StartIcon="@Icons.Material.Filled.AttachMoney" OnClick="ExportFinances">Finances</MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudItem>
+
+    @* Calculators *@
+    <MudItem xs="12" md="4">
+        <MudPaper Class="polished-section" Elevation="0" Style="height:100%;">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.ChildCare" />
+                    <div><MudText Typo="Typo.h6">Gestation Calculator</MudText></div>
+                </div>
+            </div>
+            <MudDatePicker @bind-Date="gestBreedDate" Label="Breeding Date" Variant="Variant.Outlined" Editable />
+            @if (gestBreedDate.HasValue)
+            {
+                var due = gestBreedDate.Value.AddDays(150);
+                var remaining = (due - DateTime.Now).Days;
+                <MudAlert Severity="Severity.Info" Class="mt-3">
+                    Due: <strong>@due.ToString("MMM d, yyyy")</strong><br />
+                    @(remaining > 0 ? $"{remaining} days remaining" : "Past due!")
+                </MudAlert>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudPaper Class="polished-section" Elevation="0" Style="height:100%;">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Grain" />
+                    <div><MudText Typo="Typo.h6">Feed Calculator</MudText></div>
+                </div>
+            </div>
+            <MudNumericField @bind-Value="feedGoatCount" Label="Number of Goats" Variant="Variant.Outlined" Min="1" />
+            <MudNumericField @bind-Value="feedLbsPerDay" Label="Feed lbs/goat/day" Variant="Variant.Outlined" Min="0.1" Step="0.5" Class="mt-2" />
+            @if (feedGoatCount > 0 && feedLbsPerDay > 0)
+            {
+                var daily = feedGoatCount * feedLbsPerDay;
+                <MudAlert Severity="Severity.Info" Class="mt-3">
+                    Daily: <strong>@daily.ToString("F1") lbs</strong><br />
+                    Weekly: <strong>@((daily * 7).ToString("F0")) lbs</strong><br />
+                    Monthly: <strong>@((daily * 30).ToString("F0")) lbs</strong>
+                </MudAlert>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudPaper Class="polished-section" Elevation="0" Style="height:100%;">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.WaterDrop" />
+                    <div><MudText Typo="Typo.h6">Water Calculator</MudText></div>
+                </div>
+            </div>
+            <MudNumericField @bind-Value="waterGoatCount" Label="Number of Goats" Variant="Variant.Outlined" Min="1" />
+            @if (waterGoatCount > 0)
+            {
+                var gallonsPerDay = waterGoatCount * 2.5;
+                <MudAlert Severity="Severity.Info" Class="mt-3">
+                    Daily: <strong>@gallonsPerDay.ToString("F1") gal</strong> (~2.5 gal/goat)<br />
+                    Weekly: <strong>@((gallonsPerDay * 7).ToString("F0")) gal</strong>
+                </MudAlert>
+            }
+        </MudPaper>
+    </MudItem>
+
+    @* Quick links *@
+    <MudItem xs="12">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Apps" />
+                    <div>
+                        <MudText Typo="Typo.h6">Quick links</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Power tools from around the app.</MudText>
+                    </div>
+                </div>
+            </div>
+            <MudGrid>
+                <MudItem xs="6" sm="3">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth Href="/scan"
+                               StartIcon="@Icons.Material.Filled.QrCodeScanner">Scan Tag</MudButton>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth Href="/herd/weigh-in"
+                               StartIcon="@Icons.Material.Filled.Scale">Bulk Weigh-In</MudButton>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth Href="/herd/report"
+                               StartIcon="@Icons.Material.Filled.PictureAsPdf">Herd Report</MudButton>
+                </MudItem>
+                <MudItem xs="6" sm="3">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth Href="/care-guide/dosage"
+                               StartIcon="@Icons.Material.Filled.Calculate">Dosage Calc</MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private DateTime? gestBreedDate;
+    private int feedGoatCount = 10;
+    private double feedLbsPerDay = 3.0;
+    private int waterGoatCount = 10;
+    private bool backupBusy;
+    private bool restoring;
+    private bool online = true;
+    private bool canInstall;
+    private bool installed;
+    private DotNetObjectReference<object>? pwaRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                online = await Pwa.IsOnlineAsync();
+                installed = await Pwa.IsStandaloneAsync();
+                canInstall = await Pwa.CanInstallAsync();
+                pwaRef = DotNetObjectReference.Create<object>(this);
+                await Pwa.RegisterOnlineChangedAsync(pwaRef);
+                await Pwa.RegisterInstallAvailableChangedAsync(pwaRef);
+            }
+            catch { }
+            StateHasChanged();
+        }
+    }
+
+    [JSInvokable]
+    public Task OnOnlineChanged(bool isOnline) { online = isOnline; return InvokeAsync(StateHasChanged); }
+
+    [JSInvokable]
+    public Task OnInstallAvailableChanged(bool available) { canInstall = available; return InvokeAsync(StateHasChanged); }
+
+    private async Task InstallApp()
+    {
+        var outcome = await Pwa.PromptInstallAsync();
+        if (outcome == "accepted")
+        {
+            installed = true;
+            Snackbar.Add("GoatLab installed", Severity.Success);
+        }
+        canInstall = false;
+    }
+
+    public void Dispose() => pwaRef?.Dispose();
+
+    private async Task BackupDatabase()
+    {
+        backupBusy = true;
+        try
+        {
+            var bytes = await ToolsSvc.BackupDatabaseAsync();
+            await DownloadFile($"goatlab-backup-{DateTime.Now:yyyyMMdd-HHmm}.db", "application/octet-stream", bytes);
+            Snackbar.Add("Database backup downloaded", Severity.Success);
+        }
+        catch { Snackbar.Add("Backup failed.", Severity.Error); }
+        finally { backupBusy = false; }
+    }
+
+    private async Task BackupMedia()
+    {
+        backupBusy = true;
+        try
+        {
+            var bytes = await ToolsSvc.BackupMediaAsync();
+            await DownloadFile($"goatlab-media-{DateTime.Now:yyyyMMdd-HHmm}.zip", "application/zip", bytes);
+            Snackbar.Add("Media backup downloaded", Severity.Success);
+        }
+        catch { Snackbar.Add("Backup failed.", Severity.Error); }
+        finally { backupBusy = false; }
+    }
+
+    private async Task RestoreDatabase(IBrowserFile? file)
+    {
+        if (file == null) return;
+        var confirmed = await Dialog.ShowMessageBox(
+            "Replace the database?",
+            $"Restoring {file.Name} will replace all current data. A pre-restore backup is saved automatically. Restart the app after. Proceed?",
+            yesText: "Restore", cancelText: "Cancel");
+        if (confirmed != true) return;
+
+        restoring = true;
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 500 * 1024 * 1024);
+            await ToolsSvc.RestoreDatabaseAsync(stream, file.Name);
+            Snackbar.Add("Database restored. Restart the app to apply changes.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Restore failed: {ex.Message}", Severity.Error);
+        }
+        finally { restoring = false; }
+    }
+
+    private async Task ExportGoats() => await ExportCsv(ToolsSvc.ExportGoatsCsvAsync, "goats.csv");
+    private async Task ExportMilk() => await ExportCsv(ToolsSvc.ExportMilkCsvAsync, "milk-logs.csv");
+    private async Task ExportMedical() => await ExportCsv(ToolsSvc.ExportMedicalCsvAsync, "medical-records.csv");
+    private async Task ExportFinances() => await ExportCsv(ToolsSvc.ExportFinancesCsvAsync, "finances.csv");
+
+    private async Task ExportCsv(Func<Task<byte[]>> fetcher, string fileName)
+    {
+        try
+        {
+            var bytes = await fetcher();
+            await DownloadFile(fileName, "text/csv", bytes);
+            Snackbar.Add($"{fileName} exported", Severity.Success);
+        }
+        catch { Snackbar.Add("Export failed.", Severity.Error); }
+    }
+
+    private async Task DownloadFile(string fileName, string contentType, byte[] bytes)
+    {
+        var base64 = Convert.ToBase64String(bytes);
+        await JS.InvokeVoidAsync("goatLab.downloadFile", fileName, contentType, base64);
+    }
+}

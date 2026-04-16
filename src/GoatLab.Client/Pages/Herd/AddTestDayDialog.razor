@@ -1,0 +1,95 @@
+@inject MilkService MilkSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12">
+                <MudDatePicker @bind-Date="testDate" Label="Test date" Variant="Variant.Outlined" Editable />
+            </MudItem>
+            <MudItem xs="6">
+                <MudNumericField T="double?" @bind-Value="amLbs" Label="AM milking" Variant="Variant.Outlined"
+                                 Adornment="Adornment.End" AdornmentText="lbs" Min="0.0" Step="0.1" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudNumericField T="double?" @bind-Value="pmLbs" Label="PM milking" Variant="Variant.Outlined"
+                                 Adornment="Adornment.End" AdornmentText="lbs" Min="0.0" Step="0.1" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                    Total: <strong>@((amLbs ?? 0 + pmLbs ?? 0).ToString("F1")) lbs</strong>
+                </MudText>
+            </MudItem>
+            <MudItem xs="12">
+                <MudDivider Class="my-2" />
+                <MudText Typo="Typo.caption" Class="field-label">Components (optional — DHIR style)</MudText>
+            </MudItem>
+            <MudItem xs="6" sm="4">
+                <MudNumericField T="decimal?" @bind-Value="butterfat" Label="Butterfat %" Variant="Variant.Outlined"
+                                 Min="0m" Max="10m" Step="0.1m" />
+            </MudItem>
+            <MudItem xs="6" sm="4">
+                <MudNumericField T="decimal?" @bind-Value="protein" Label="Protein %" Variant="Variant.Outlined"
+                                 Min="0m" Max="10m" Step="0.1m" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudNumericField T="int?" @bind-Value="scc" Label="SCC (thousands)" Variant="Variant.Outlined"
+                                 Min="0" HelperText="250 = 250,000/mL" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="notes" Label="Notes" Variant="Variant.Outlined" Lines="2" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save"
+                   Disabled="@(saving || testDate == null || (amLbs == null && pmLbs == null))">
+            @(saving ? "Saving…" : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int LactationId { get; set; }
+    [Parameter] public int GoatId { get; set; }
+
+    private DateTime? testDate = DateTime.Today;
+    private double? amLbs;
+    private double? pmLbs;
+    private decimal? butterfat;
+    private decimal? protein;
+    private int? scc;
+    private string? notes;
+    private bool saving;
+
+    private async Task Save()
+    {
+        if (testDate == null) return;
+        saving = true;
+        try
+        {
+            var total = (amLbs ?? 0) + (pmLbs ?? 0);
+            await MilkSvc.CreateTestDayAsync(new MilkTestDay
+            {
+                LactationId = LactationId,
+                GoatId = GoatId,
+                TestDate = testDate.Value,
+                AmLbs = amLbs,
+                PmLbs = pmLbs,
+                TotalLbs = total,
+                ButterfatPercent = butterfat,
+                ProteinPercent = protein,
+                SomaticCellCount = scc,
+                Notes = notes
+            });
+            Snackbar.Add("Test day saved", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add($"Save failed: {ex.Message}", Severity.Error); }
+        finally { saving = false; }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

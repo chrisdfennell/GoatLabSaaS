@@ -1,0 +1,288 @@
+@page "/breeding/calendar"
+@inject BreedingService BreedingSvc
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Kidding Calendar — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-pink">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.CalendarMonth" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Kidding Calendar</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Who's due, who's here</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">
+            Predicted due dates from confirmed breedings, plus every kidding recorded in the last 90 days.
+        </MudText>
+    </div>
+    <div style="position:relative;z-index:1;display:flex;gap:8px;">
+        <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#ad1457;"
+                   StartIcon="@Icons.Material.Filled.ArrowBack" Href="/breeding">Breeding</MudButton>
+    </div>
+</div>
+
+@if (season == null)
+{
+    <div class="polished-section"><MudProgressCircular Indeterminate /></div>
+}
+else
+{
+    @* Summary tiles *@
+    <div class="kc-tiles">
+        <div class="kc-tile kc-tile-warning">
+            <MudIcon Icon="@Icons.Material.Filled.HourglassTop" />
+            <div>
+                <div class="kc-tile-value">@Overdue.Count</div>
+                <div class="kc-tile-label">Overdue</div>
+            </div>
+        </div>
+        <div class="kc-tile kc-tile-info">
+            <MudIcon Icon="@Icons.Material.Filled.ChildCare" />
+            <div>
+                <div class="kc-tile-value">@Within7.Count</div>
+                <div class="kc-tile-label">Due this week</div>
+            </div>
+        </div>
+        <div class="kc-tile kc-tile-neutral">
+            <MudIcon Icon="@Icons.Material.Filled.Schedule" />
+            <div>
+                <div class="kc-tile-value">@Upcoming.Count</div>
+                <div class="kc-tile-label">Upcoming (8-60d)</div>
+            </div>
+        </div>
+        <div class="kc-tile kc-tile-success">
+            <MudIcon Icon="@Icons.Material.Filled.Celebration" />
+            <div>
+                <div class="kc-tile-value">@season.RecentBirths.Count</div>
+                <div class="kc-tile-label">Recent kiddings</div>
+            </div>
+        </div>
+    </div>
+
+    @* Upcoming list *@
+    <MudPaper Class="polished-section" Elevation="0">
+        <div class="polished-section-header">
+            <div class="polished-section-header-title">
+                <MudIcon Icon="@Icons.Material.Filled.Schedule" />
+                <div>
+                    <MudText Typo="Typo.h6">Predicted kiddings</MudText>
+                    <MudText Typo="Typo.body2" Class="section-hint">
+                        @season.UpcomingDueDates.Count confirmed breeding@(season.UpcomingDueDates.Count == 1 ? "" : "s") on the books.
+                    </MudText>
+                </div>
+            </div>
+        </div>
+
+        @if (!season.UpcomingDueDates.Any())
+        {
+            <div class="inline-empty">
+                <MudIcon Icon="@Icons.Material.Filled.EventAvailable" />
+                <MudText Typo="Typo.body1">No confirmed breedings yet.</MudText>
+                <MudText Typo="Typo.body2">Log a breeding and mark its outcome as "Confirmed" to see due dates here.</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/breeding" Class="mt-3"
+                           StartIcon="@Icons.Material.Filled.Add">Record a breeding</MudButton>
+            </div>
+        }
+        else
+        {
+            <div class="kc-list">
+                @foreach (var b in season.UpcomingDueDates)
+                {
+                    var daysOut = b.EstimatedDueDate.HasValue ? (b.EstimatedDueDate.Value - DateTime.Today).Days : 999;
+                    var (accent, label) = DaysToTone(daysOut);
+                    <div class="kc-row" style="@($"border-left:4px solid {accent};")">
+                        <div class="kc-date">
+                            <div class="kc-date-big">@(b.EstimatedDueDate?.ToString("MMM d") ?? "—")</div>
+                            <div class="kc-date-small">@(b.EstimatedDueDate?.ToString("yyyy") ?? "")</div>
+                        </div>
+                        <div class="kc-doe">
+                            <div class="kc-doe-name">@b.Doe.Name</div>
+                            <div class="kc-doe-meta">
+                                Bred @b.BreedingDate.ToString("MMM d, yyyy")
+                                @if (b.Buck != null) { <span> · by @b.Buck.Name</span> }
+                            </div>
+                        </div>
+                        <MudChip T="string" Size="Size.Small"
+                                 Color="@ChipColor(daysOut)" Variant="Variant.Filled">
+                            @label
+                        </MudChip>
+                        <div class="kc-actions">
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.ChildCare"
+                                       OnClick="@(() => OpenKiddingDialog(b))">Record kidding</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                                       StartIcon="@Icons.Material.Filled.Visibility"
+                                       OnClick="@(() => Nav.NavigateTo($"/herd/{b.Doe.Id}"))">Doe</MudButton>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </MudPaper>
+
+    @* Recent kiddings *@
+    @if (season.RecentBirths.Any())
+    {
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Celebration" />
+                    <div>
+                        <MudText Typo="Typo.h6">Recent kiddings</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Last 30 days.</MudText>
+                    </div>
+                </div>
+            </div>
+            <MudGrid>
+                @foreach (var k in season.RecentBirths)
+                {
+                    var outcomeColor = k.Outcome switch
+                    {
+                        KiddingOutcome.Healthy => "#2e7d32",
+                        KiddingOutcome.Complications => "#f57c00",
+                        _ => "#c62828"
+                    };
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudPaper Outlined Class="pa-3" Style="@($"border-left:4px solid {outcomeColor};cursor:pointer;")"
+                                  @onclick="@(() => OpenEditDialog(k))">
+                            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
+                                <div>
+                                    <MudText Typo="Typo.subtitle1" Style="font-weight:700;">
+                                        @(k.BreedingRecord?.Doe?.Name ?? "Doe")
+                                    </MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @k.KiddingDate.ToString("MMM d, yyyy")
+                                    </MudText>
+                                </div>
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Filled"
+                                         Color="@OutcomeColor(k.Outcome)">@k.Outcome</MudChip>
+                            </div>
+                            <div class="mt-2" style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Icon="@GoatLabIcons.Hoof">
+                                    @k.KidsBorn born
+                                </MudChip>
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" Icon="@Icons.Material.Filled.Favorite">
+                                    @k.KidsAlive alive
+                                </MudChip>
+                                @if (k.DifficultyScore.HasValue)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                                        Difficulty @k.DifficultyScore/5
+                                    </MudChip>
+                                }
+                            </div>
+                        </MudPaper>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudPaper>
+    }
+}
+
+<style>
+.kc-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+}
+.kc-tile {
+    background: var(--mud-palette-surface);
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border-left: 4px solid #888;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+}
+.kc-tile .mud-icon-root { font-size: 2rem; opacity: 0.75; }
+.kc-tile-value { font-size: 1.8rem; font-weight: 800; line-height: 1; }
+.kc-tile-label { font-size: 0.8rem; color: #777; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 3px; }
+.kc-tile-warning { border-left-color: #b71c1c; color: #b71c1c; }
+.kc-tile-info    { border-left-color: #ef6c00; color: #ef6c00; }
+.kc-tile-neutral { border-left-color: #1976d2; color: #1976d2; }
+.kc-tile-success { border-left-color: #2e7d32; color: #2e7d32; }
+.mud-theme-dark .kc-tile { background: rgba(255,255,255,0.04); }
+
+.kc-list { display: flex; flex-direction: column; gap: 8px; }
+.kc-row {
+    display: grid;
+    grid-template-columns: 70px 1fr auto auto;
+    gap: 16px;
+    align-items: center;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: var(--mud-palette-surface);
+    border: 1px solid rgba(0,0,0,0.06);
+}
+.mud-theme-dark .kc-row { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.08); }
+.kc-date { text-align: center; }
+.kc-date-big { font-weight: 800; font-size: 1.1rem; line-height: 1; }
+.kc-date-small { font-size: 0.75rem; color: #888; margin-top: 3px; }
+.kc-doe-name { font-weight: 700; font-size: 1rem; }
+.kc-doe-meta { font-size: 0.8rem; color: #777; margin-top: 2px; }
+.kc-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+@@media (max-width: 640px) {
+    .kc-row { grid-template-columns: 60px 1fr; }
+    .kc-row > *:nth-child(3), .kc-row > *:nth-child(4) { grid-column: 1 / -1; }
+}
+</style>
+
+@code {
+    private KiddingSeason? season;
+
+    private List<BreedingRecord> Overdue =>
+        season?.UpcomingDueDates.Where(b => b.EstimatedDueDate.HasValue && (b.EstimatedDueDate.Value - DateTime.Today).Days < 0).ToList() ?? new();
+    private List<BreedingRecord> Within7 =>
+        season?.UpcomingDueDates.Where(b => b.EstimatedDueDate.HasValue && (b.EstimatedDueDate.Value - DateTime.Today).Days is >= 0 and <= 7).ToList() ?? new();
+    private List<BreedingRecord> Upcoming =>
+        season?.UpcomingDueDates.Where(b => b.EstimatedDueDate.HasValue && (b.EstimatedDueDate.Value - DateTime.Today).Days is > 7 and <= 60).ToList() ?? new();
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        season = await BreedingSvc.GetKiddingSeasonAsync();
+    }
+
+    private async Task OpenKiddingDialog(BreedingRecord b)
+    {
+        var parameters = new DialogParameters { ["Breeding"] = b };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dlg = await Dialog.ShowAsync<RecordKiddingDialog>($"Record kidding for {b.Doe.Name}", parameters, options);
+        var result = await dlg.Result;
+        if (result != null && !result.Canceled) await Load();
+    }
+
+    private async Task OpenEditDialog(KiddingRecord k)
+    {
+        var full = await BreedingSvc.GetKiddingAsync(k.Id);
+        if (full == null) return;
+        var parameters = new DialogParameters { ["Breeding"] = full.BreedingRecord, ["Existing"] = full };
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var dlg = await Dialog.ShowAsync<RecordKiddingDialog>($"Kidding — {full.BreedingRecord.Doe.Name}", parameters, options);
+        var result = await dlg.Result;
+        if (result != null && !result.Canceled) await Load();
+    }
+
+    private static (string accent, string label) DaysToTone(int days) =>
+        days < 0 ? ("#b71c1c", $"{-days}d overdue")
+        : days == 0 ? ("#b71c1c", "Today")
+        : days <= 7 ? ("#ef6c00", $"In {days}d")
+        : days <= 30 ? ("#f9a825", $"In {days}d")
+        : ("#1976d2", $"In {days}d");
+
+    private static Color ChipColor(int days) =>
+        days <= 0 ? Color.Error : days <= 7 ? Color.Warning : days <= 30 ? Color.Tertiary : Color.Info;
+
+    private static Color OutcomeColor(KiddingOutcome o) => o switch
+    {
+        KiddingOutcome.Healthy => Color.Success,
+        KiddingOutcome.Complications => Color.Warning,
+        _ => Color.Error
+    };
+}

@@ -1,0 +1,274 @@
+@page "/finance"
+@inject FinanceService FinSvc
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<PageTitle>Finances — GoatLab</PageTitle>
+
+<div class="page-hero @(dashboard != null && dashboard.NetProfit < 0 ? "page-hero-orange" : "page-hero-green")">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.AccountBalance" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Finances</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">@(dashboard == null ? "Books" : dashboard.NetProfit >= 0 ? "In the Black" : "In the Red")</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Every dollar in and out of the farm.</MudText>
+        @if (dashboard != null)
+        {
+            <div class="page-hero-stats">
+                <div class="page-hero-stat">
+                    <MudText Typo="Typo.h5" Class="page-hero-stat-value">$@dashboard.TotalIncome.ToString("N2")</MudText>
+                    <MudText Class="page-hero-stat-label">Income</MudText>
+                </div>
+                <div class="page-hero-stat">
+                    <MudText Typo="Typo.h5" Class="page-hero-stat-value">$@dashboard.TotalExpenses.ToString("N2")</MudText>
+                    <MudText Class="page-hero-stat-label">Expenses</MudText>
+                </div>
+                <div class="page-hero-stat">
+                    <MudText Typo="Typo.h5" Class="page-hero-stat-value">$@dashboard.NetProfit.ToString("N2")</MudText>
+                    <MudText Class="page-hero-stat-label">Net</MudText>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<MudPaper Class="polished-section" Elevation="0">
+    <div class="polished-section-header">
+        <div class="polished-section-header-title">
+            <MudIcon Icon="@Icons.Material.Filled.AddCircle" />
+            <div>
+                <MudText Typo="Typo.h6">Add Transaction</MudText>
+                <MudText Typo="Typo.body2" Class="section-hint">Income or expense — logged to your ledger.</MudText>
+            </div>
+        </div>
+    </div>
+    <MudGrid>
+        <MudItem xs="12">
+            <MudText Class="field-label">Type</MudText>
+            <div class="pill-group">
+                <button type="button"
+                        class="@($"pill pill-success {(newTxn.Type == TransactionType.Income ? "pill-active" : "")}")"
+                        @onclick="() => newTxn.Type = TransactionType.Income">
+                    <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Size="Size.Small" />
+                    <span>Income</span>
+                </button>
+                <button type="button"
+                        class="@($"pill pill-error {(newTxn.Type == TransactionType.Expense ? "pill-active" : "")}")"
+                        @onclick="() => newTxn.Type = TransactionType.Expense">
+                    <MudIcon Icon="@Icons.Material.Filled.TrendingDown" Size="Size.Small" />
+                    <span>Expense</span>
+                </button>
+            </div>
+        </MudItem>
+        <MudItem xs="12" sm="5">
+            <MudTextField @bind-Value="newTxn.Description" Label="Description" Variant="Variant.Outlined" Required
+                          Placeholder="e.g. Hay delivery, vet visit, milk sale" />
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudNumericField @bind-Value="newTxn.Amount" Label="Amount" Variant="Variant.Outlined" Format="F2"
+                             Adornment="Adornment.Start" AdornmentText="$" />
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudDatePicker @bind-Date="txnDate" Label="Date" Variant="Variant.Outlined" Editable />
+        </MudItem>
+        <MudItem xs="12" sm="1" Class="d-flex align-end">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth OnClick="SaveTransaction" Size="Size.Large">
+                <MudIcon Icon="@Icons.Material.Filled.Add" />
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudGrid>
+    <MudItem xs="12" md="7">
+        <MudPaper Class="polished-section" Elevation="0" Style="height:100%;">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.PieChart" />
+                    <div>
+                        <MudText Typo="Typo.h6">Expenses by category</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Last 12 months.</MudText>
+                    </div>
+                </div>
+            </div>
+            @if (categoryBreakdown == null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (!categoryBreakdown.Any())
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.Receipt" />
+                    <MudText Typo="Typo.body2">No expenses in the last 12 months.</MudText>
+                </div>
+            }
+            else
+            {
+                var total = categoryBreakdown.Sum(c => c.Total);
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    @foreach (var c in categoryBreakdown)
+                    {
+                        var pct = total > 0 ? (double)(c.Total / total) : 0;
+                        <div>
+                            <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-bottom:4px;">
+                                <span style="font-weight:600;">@c.Category</span>
+                                <span>$@c.Total.ToString("N2") · @(pct*100).ToString("F0")%</span>
+                            </div>
+                            <div class="cat-bar">
+                                <div class="cat-bar-fill" style="@($"width:{pct*100:F1}%;background:{CategoryColor(c.Category)};")"></div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="5">
+        <MudPaper Class="polished-section" Elevation="0" Style="height:100%;">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Gavel" />
+                    <div>
+                        <MudText Typo="Typo.h6">Tax export</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Schedule F-grouped CSV for your accountant.</MudText>
+                    </div>
+                </div>
+            </div>
+            <MudGrid>
+                <MudItem xs="6">
+                    <MudNumericField T="int" @bind-Value="taxYear" Label="Year" Variant="Variant.Outlined" Min="2000" Max="2100" />
+                </MudItem>
+                <MudItem xs="6" Class="d-flex align-end">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth
+                               StartIcon="@Icons.Material.Filled.Download" OnClick="DownloadTaxExport"
+                               Disabled="@taxBusy">
+                        @(taxBusy ? "Preparing…" : "Download CSV")
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+            <MudAlert Severity="Severity.Info" Dense Class="mt-3" Icon="@Icons.Material.Filled.Info">
+                Groups each transaction by Schedule F line item (Line 18 Feed, Line 32 Vet, etc.).
+                Always verify with your tax preparer.
+            </MudAlert>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+<style>
+.cat-bar { height: 10px; background: rgba(0,0,0,0.06); border-radius: 5px; overflow: hidden; }
+.mud-theme-dark .cat-bar { background: rgba(255,255,255,0.08); }
+.cat-bar-fill { height: 100%; transition: width .3s ease; }
+</style>
+
+<MudPaper Class="polished-section" Elevation="0">
+    <div class="polished-section-header">
+        <div class="polished-section-header-title">
+            <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" />
+            <div>
+                <MudText Typo="Typo.h6">Transaction History</MudText>
+                <MudText Typo="Typo.body2" Class="section-hint">Most recent first.</MudText>
+            </div>
+        </div>
+    </div>
+
+    @if (transactions == null)
+    {
+        <MudProgressLinear Indeterminate Color="Color.Primary" />
+    }
+    else if (transactions.Count == 0)
+    {
+        <div class="inline-empty">
+            <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" />
+            <MudText Typo="Typo.body1">No transactions yet</MudText>
+            <MudText Typo="Typo.body2">Start logging income and expenses to see your farm's finances.</MudText>
+        </div>
+    }
+    else
+    {
+        <div class="record-list">
+            @foreach (var t in transactions)
+            {
+                var isIncome = t.Type == TransactionType.Income;
+                <div class="record-card">
+                    <div class="record-card-icon @(isIncome ? "record-card-icon-green" : "record-card-icon-red")">
+                        <MudIcon Icon="@(isIncome ? Icons.Material.Filled.TrendingUp : Icons.Material.Filled.TrendingDown)" />
+                    </div>
+                    <div class="record-card-body">
+                        <div class="record-card-primary">@t.Description</div>
+                        <div class="record-card-secondary">
+                            @t.Date.ToString("MMM d, yyyy")
+                            @if (!string.IsNullOrEmpty(t.Category)) { <span> · @t.Category</span> }
+                        </div>
+                    </div>
+                    <MudText Class="@($"record-card-amount {(isIncome ? "record-card-amount-income" : "record-card-amount-expense")}")">
+                        @(isIncome ? "+" : "−")$@t.Amount.ToString("F2")
+                    </MudText>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="() => DeleteTxn(t.Id)" />
+                </div>
+            }
+        </div>
+    }
+</MudPaper>
+
+@code {
+    private List<Transaction>? transactions;
+    private FinanceDashboard? dashboard;
+    private List<CategoryTotal>? categoryBreakdown;
+    private Transaction newTxn = new();
+    private DateTime? txnDate = DateTime.Today;
+    private int taxYear = DateTime.Today.Year;
+    private bool taxBusy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadTransactions(), LoadDashboard(), LoadBreakdown());
+    }
+
+    private async Task LoadTransactions() => transactions = await FinSvc.GetAllAsync();
+    private async Task LoadDashboard() => dashboard = await FinSvc.GetDashboardAsync();
+    private async Task LoadBreakdown() => categoryBreakdown = await FinSvc.GetExpenseBreakdownAsync();
+
+    private async Task DownloadTaxExport()
+    {
+        taxBusy = true;
+        try
+        {
+            var bytes = await FinSvc.GetTaxExportAsync(taxYear);
+            var base64 = Convert.ToBase64String(bytes);
+            await JS.InvokeVoidAsync("goatLab.downloadFile", $"goatlab-tax-{taxYear}.csv", "text/csv", base64);
+            Snackbar.Add($"{taxYear} tax export downloaded", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add($"Export failed: {ex.Message}", Severity.Error); }
+        finally { taxBusy = false; }
+    }
+
+    private static string CategoryColor(string cat) => cat switch
+    {
+        "Feed" => "#fb8c00",
+        "Veterinary" => "#c62828",
+        "Equipment" => "#6a1b9a",
+        "Supplies" => "#00838f",
+        "Labor" => "#455a64",
+        "Facility" => "#1565c0",
+        "Transport" => "#827717",
+        "Insurance" => "#ad1457",
+        _ => "#546e7a"
+    };
+
+    private async Task SaveTransaction()
+    {
+        newTxn.Date = txnDate ?? DateTime.UtcNow;
+        await FinSvc.CreateAsync(newTxn);
+        Snackbar.Add($"{(newTxn.Type == TransactionType.Income ? "Income" : "Expense")} logged: ${newTxn.Amount:F2}", Severity.Success);
+        newTxn = new();
+        await Task.WhenAll(LoadTransactions(), LoadDashboard(), LoadBreakdown());
+    }
+
+    private async Task DeleteTxn(int id)
+    {
+        await FinSvc.DeleteAsync(id);
+        await Task.WhenAll(LoadTransactions(), LoadDashboard(), LoadBreakdown());
+    }
+}

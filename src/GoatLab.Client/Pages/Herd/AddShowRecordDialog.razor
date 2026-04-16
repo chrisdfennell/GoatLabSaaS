@@ -1,0 +1,74 @@
+@inject ShowService ShowSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" sm="7">
+                <MudTextField @bind-Value="record.ShowName" Label="Show name" Variant="Variant.Outlined" Required />
+            </MudItem>
+            <MudItem xs="12" sm="5">
+                <MudDatePicker @bind-Date="showDate" Label="Show date" Variant="Variant.Outlined" Editable />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="record.Location" Label="Location" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="record.Judge" Label="Judge" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="record.Class" Label="Class" Variant="Variant.Outlined"
+                              Placeholder="e.g. Senior Doe 2-year-old" />
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="int?" @bind-Value="record.Placing" Label="Placing"
+                                 Variant="Variant.Outlined" Min="1" />
+            </MudItem>
+            <MudItem xs="6" sm="3">
+                <MudNumericField T="int?" @bind-Value="record.ClassSize" Label="Class size"
+                                 Variant="Variant.Outlined" Min="1" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="record.Awards" Label="Awards / championships"
+                              Variant="Variant.Outlined"
+                              Placeholder="e.g. Grand Champion, BOB, Reserve" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="record.Notes" Label="Notes" Variant="Variant.Outlined" Lines="2" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save"
+                   Disabled="@(saving || string.IsNullOrWhiteSpace(record.ShowName))">
+            @(saving ? "Saving…" : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int GoatId { get; set; }
+
+    private ShowRecord record = new();
+    private DateTime? showDate = DateTime.Today;
+    private bool saving;
+
+    private async Task Save()
+    {
+        saving = true;
+        try
+        {
+            record.GoatId = GoatId;
+            record.ShowDate = showDate ?? DateTime.Today;
+            await ShowSvc.CreateShowAsync(record);
+            Snackbar.Add("Show record saved", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add($"Save failed: {ex.Message}", Severity.Error); }
+        finally { saving = false; }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

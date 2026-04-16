@@ -1,0 +1,163 @@
+@page "/health/protocols"
+@inject ProtocolService ProtocolSvc
+@inject HealthService HealthSvc
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+
+<PageTitle>Vaccination Protocols — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-pink">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.Vaccines" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Protocols</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Vaccination &amp; Treatment Templates</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">
+            Pre-built schedules — apply once and the next year of CDT boosters, dewormings, and pre-kidding doses are queued automatically.
+        </MudText>
+    </div>
+    <div style="position:relative;z-index:1;display:flex;gap:8px;">
+        <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#ad1457;"
+                   StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => EditProtocol())">New protocol</MudButton>
+        <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                   StartIcon="@Icons.Material.Filled.Dashboard" Href="/health/dashboard">Dashboard</MudButton>
+    </div>
+</div>
+
+@if (protocols == null)
+{
+    <div class="polished-section"><MudProgressLinear Indeterminate Color="Color.Primary" /></div>
+}
+else if (!protocols.Any())
+{
+    <div class="polished-section">
+        <div class="inline-empty">
+            <MudIcon Icon="@Icons.Material.Filled.Vaccines" />
+            <MudText Typo="Typo.body1">No protocols yet</MudText>
+            <MudText Typo="Typo.body2">Built-in templates will be created the first time this page loads.</MudText>
+        </div>
+    </div>
+}
+else
+{
+    <MudGrid>
+        @foreach (var p in protocols)
+        {
+            <MudItem xs="12" md="6">
+                <MudPaper Class="polished-section" Elevation="0" Style="height:100%;">
+                    <div class="d-flex justify-space-between align-start">
+                        <div style="flex:1;">
+                            <div class="d-flex align-center" style="gap:8px;">
+                                <MudText Typo="Typo.h6" Style="font-weight:700;">@p.Name</MudText>
+                                @if (p.IsBuiltIn)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">Built-in</MudChip>
+                                }
+                                @if (!string.IsNullOrEmpty(p.AppliesTo))
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@p.AppliesTo</MudChip>
+                                }
+                            </div>
+                            @if (!string.IsNullOrEmpty(p.Description))
+                            {
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">@p.Description</MudText>
+                            }
+                        </div>
+                        <div class="d-flex" style="gap:4px;">
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditProtocol(p))" />
+                            @if (!p.IsBuiltIn)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="@(() => DeleteProtocol(p.Id))" />
+                            }
+                        </div>
+                    </div>
+
+                    <MudDivider Class="my-3" />
+
+                    <MudText Typo="Typo.caption" Style="text-transform:uppercase;letter-spacing:1px;color:#888;font-weight:600;">
+                        @p.Doses.Count dose@(p.Doses.Count == 1 ? "" : "s")
+                    </MudText>
+                    <div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;">
+                        @foreach (var d in p.Doses.OrderBy(x => x.DayOffset))
+                        {
+                            <div class="dose-row">
+                                <span class="dose-day">@(d.DayOffset == 0 ? "Day 0" : $"Day +{d.DayOffset}")</span>
+                                <span class="dose-title">@d.Title</span>
+                                @if (d.Recurrence != RecurrenceInterval.None)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Tertiary">
+                                        repeats @d.Recurrence
+                                    </MudChip>
+                                }
+                                @if (d.Medication != null)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@d.Medication.Name</MudChip>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    <div class="mt-3">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.PlayArrow" FullWidth
+                                   OnClick="@(() => ApplyProtocol(p))">
+                            Apply to goats
+                        </MudButton>
+                    </div>
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+<style>
+.dose-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.03);
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+}
+.mud-theme-dark .dose-row { background: rgba(255,255,255,0.04); }
+.dose-day { font-weight: 700; min-width: 70px; color: #ad1457; }
+.dose-title { font-weight: 500; flex: 1; min-width: 120px; }
+</style>
+
+@code {
+    private List<VaccinationProtocol>? protocols;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load() => protocols = await ProtocolSvc.GetAllAsync();
+
+    private async Task EditProtocol(VaccinationProtocol? existing = null)
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
+        var parameters = new DialogParameters { ["Existing"] = existing };
+        var dlg = await Dialog.ShowAsync<EditProtocolDialog>(existing == null ? "New protocol" : "Edit protocol", parameters, options);
+        var result = await dlg.Result;
+        if (result != null && !result.Canceled) await Load();
+    }
+
+    private async Task DeleteProtocol(int id)
+    {
+        var confirm = await Dialog.ShowMessageBox("Delete protocol?",
+            "Goats already on this protocol keep their existing scheduled doses.",
+            yesText: "Delete", cancelText: "Cancel");
+        if (confirm != true) return;
+        await ProtocolSvc.DeleteAsync(id);
+        await Load();
+    }
+
+    private async Task ApplyProtocol(VaccinationProtocol p)
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        var parameters = new DialogParameters { ["Protocol"] = p };
+        var dlg = await Dialog.ShowAsync<ApplyProtocolDialog>($"Apply: {p.Name}", parameters, options);
+        await dlg.Result;
+    }
+}

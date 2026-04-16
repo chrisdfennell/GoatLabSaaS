@@ -1,0 +1,129 @@
+@inject ProtocolService ProtocolSvc
+@inject GoatService GoatSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudAlert Severity="Severity.Info" Dense Class="mb-3" Icon="@Icons.Material.Filled.Info">
+            Each dose becomes a Medical Record dated <strong>start + day offset</strong>. Recurring doses get
+            a NextDueDate so they show up on the dashboard automatically.
+        </MudAlert>
+
+        <MudDatePicker @bind-Date="startDate" Label="Start date" Variant="Variant.Outlined" Editable />
+
+        <MudText Class="field-label mt-3">Pick goats (@selected.Count selected)</MudText>
+        <div class="d-flex" style="gap:6px;margin-bottom:8px;">
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="SelectAll">Select all</MudButton>
+            <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="ClearAll">Clear</MudButton>
+            @if (!string.IsNullOrEmpty(Protocol?.AppliesTo))
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                           OnClick="SelectByAppliesTo">
+                    Select @Protocol.AppliesTo only
+                </MudButton>
+            }
+        </div>
+
+        @if (allGoats == null)
+        {
+            <MudProgressLinear Indeterminate Color="Color.Primary" />
+        }
+        else
+        {
+            <div style="max-height:300px;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:6px;">
+                @foreach (var g in allGoats)
+                {
+                    var on = selected.Contains(g.Id);
+                    <div class="@($"goat-pick {(on ? "goat-pick-on" : "")}")"
+                         @onclick="() => Toggle(g.Id)">
+                        <MudIcon Icon="@(g.Gender == Gender.Female ? Icons.Material.Filled.Female : Icons.Material.Filled.Male)"
+                                 Style="@($"color:{(g.Gender == Gender.Female ? "#e91e63" : "#1976d2")};")" Size="Size.Small" />
+                        <span>@g.Name</span>
+                    </div>
+                }
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Apply"
+                   Disabled="@(applying || !selected.Any())">
+            @(applying ? "Applying…" : $"Apply to {selected.Count} goat{(selected.Count == 1 ? "" : "s")}")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<style>
+.goat-pick {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid rgba(0,0,0,0.12);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+.mud-theme-dark .goat-pick { border-color: rgba(255,255,255,0.12); }
+.goat-pick-on {
+    border-color: #2e7d32;
+    background: rgba(46,125,50,0.1);
+    font-weight: 600;
+}
+</style>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public VaccinationProtocol Protocol { get; set; } = default!;
+
+    private DateTime? startDate = DateTime.Today;
+    private List<Goat>? allGoats;
+    private HashSet<int> selected = new();
+    private bool applying;
+
+    protected override async Task OnInitializedAsync()
+    {
+        allGoats = await GoatSvc.GetAllAsync();
+    }
+
+    private void Toggle(int id)
+    {
+        if (!selected.Add(id)) selected.Remove(id);
+    }
+
+    private void SelectAll()
+    {
+        if (allGoats == null) return;
+        selected = allGoats.Select(g => g.Id).ToHashSet();
+    }
+
+    private void ClearAll() => selected.Clear();
+
+    private void SelectByAppliesTo()
+    {
+        if (allGoats == null || string.IsNullOrEmpty(Protocol.AppliesTo)) return;
+        selected = Protocol.AppliesTo switch
+        {
+            "Doe" => allGoats.Where(g => g.Gender == Gender.Female).Select(g => g.Id).ToHashSet(),
+            "Buck" => allGoats.Where(g => g.Gender == Gender.Male).Select(g => g.Id).ToHashSet(),
+            "Kid" => allGoats.Where(g => g.DateOfBirth.HasValue && (DateTime.Today - g.DateOfBirth.Value).TotalDays < 365).Select(g => g.Id).ToHashSet(),
+            "Adult" => allGoats.Where(g => g.DateOfBirth.HasValue && (DateTime.Today - g.DateOfBirth.Value).TotalDays >= 365).Select(g => g.Id).ToHashSet(),
+            _ => selected
+        };
+    }
+
+    private async Task Apply()
+    {
+        applying = true;
+        try
+        {
+            var result = await ProtocolSvc.ApplyAsync(Protocol.Id, selected.ToList(), startDate);
+            Snackbar.Add($"Created {result?.RecordsCreated ?? 0} records across {result?.GoatsCovered ?? 0} goats", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        catch (Exception ex) { Snackbar.Add($"Apply failed: {ex.Message}", Severity.Error); }
+        finally { applying = false; }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

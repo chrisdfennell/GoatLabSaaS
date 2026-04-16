@@ -1,0 +1,73 @@
+@page "/admin/users"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "SuperAdmin")]
+@inject AdminService Admin
+@inject NavigationManager Nav
+
+<PageTitle>Users — Admin — GoatLab</PageTitle>
+
+<div class="d-flex align-center mb-3">
+    <MudIconButton Icon="@Icons.Material.Filled.ArrowBack" Href="/admin" />
+    <MudText Typo="Typo.h4" Class="ml-2" Style="font-weight:700;">Users</MudText>
+    <MudSpacer />
+    <MudTextField @bind-Value="search" Placeholder="Search email or name"
+                  Variant="Variant.Outlined" Margin="Margin.Dense"
+                  Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                  Style="max-width:320px;" />
+</div>
+
+@if (users is null)
+{
+    <MudProgressLinear Indeterminate Color="Color.Primary" />
+}
+else
+{
+    <MudTable Items="@Filtered" Dense Hover Outlined Elevation="0" Class="section-card"
+              OnRowClick="OnRowClick" T="AdminUserRow" Style="cursor:pointer;">
+        <HeaderContent>
+            <MudTh>Display name</MudTh>
+            <MudTh>Email</MudTh>
+            <MudTh Style="text-align:right;">Tenants</MudTh>
+            <MudTh>Role</MudTh>
+            <MudTh>Joined</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="Display name" Style="font-weight:600;">@context.DisplayName</MudTd>
+            <MudTd DataLabel="Email">@context.Email</MudTd>
+            <MudTd DataLabel="Tenants" Style="text-align:right;">@context.MembershipCount</MudTd>
+            <MudTd DataLabel="Role">
+                @if (context.IsSuperAdmin)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
+                             Icon="@Icons.Material.Filled.Shield">Super admin</MudChip>
+                }
+                else
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">User</MudText>
+                }
+            </MudTd>
+            <MudTd DataLabel="Joined">@context.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")</MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<AdminUserRow>? users;
+    private string search = string.Empty;
+
+    private IEnumerable<AdminUserRow> Filtered =>
+        users is null ? Array.Empty<AdminUserRow>()
+            : string.IsNullOrWhiteSpace(search) ? users
+            : users.Where(u =>
+                u.Email.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                u.DisplayName.Contains(search, StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        users = await Admin.GetUsersAsync();
+    }
+
+    private void OnRowClick(TableRowClickEventArgs<AdminUserRow> args)
+    {
+        if (args.Item is not null) Nav.NavigateTo($"/admin/users/{args.Item.Id}");
+    }
+}

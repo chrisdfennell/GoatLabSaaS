@@ -1,0 +1,333 @@
+@page "/care-guide/famacha"
+@inject HealthService HealthSvc
+@inject GoatService GoatSvc
+@inject ISnackbar Snackbar
+
+<PageTitle>FAMACHA &amp; BCS — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-pink">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.Visibility" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Visual Scoring Guide</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">FAMACHA &amp; Body Condition</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Anemia scoring by eyelid color, and body condition by feel.</MudText>
+    </div>
+    <div style="position:relative;z-index:1;">
+        <MudButton Variant="Variant.Filled" Style="background:rgba(255,255,255,0.92);color:#ad1457;"
+                   StartIcon="@Icons.Material.Filled.ArrowBack" Href="/care-guide">Back</MudButton>
+    </div>
+</div>
+
+@* FAMACHA *@
+<MudPaper Class="polished-section" Elevation="0">
+    <div class="polished-section-header">
+        <div class="polished-section-header-title">
+            <MudIcon Icon="@Icons.Material.Filled.RemoveRedEye" />
+            <div>
+                <MudText Typo="Typo.h6">FAMACHA — Anemia Score</MudText>
+                <MudText Typo="Typo.body2" Class="section-hint">
+                    Pull the lower eyelid down and compare the inside color. 1 = healthy red, 5 = bone white (severe anemia).
+                </MudText>
+            </div>
+        </div>
+    </div>
+
+    <MudGrid>
+        @foreach (var s in famachaScale)
+        {
+            <MudItem xs="12" sm="6" md="4" lg="2-4">
+                <div class="famacha-card">
+                    <div class="famacha-swatch" style="@($"background:{s.Color};")">
+                        <div class="famacha-number">@s.Score</div>
+                        <div class="famacha-eye">
+                            <div class="famacha-eyelid" style="@($"background:{s.Color};border-color:{s.BorderColor};")"></div>
+                        </div>
+                    </div>
+                    <div class="famacha-content">
+                        <MudText Typo="Typo.subtitle1" Style="font-weight:700;">@s.Label</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">@s.Description</MudText>
+                        <MudChip T="string" Size="Size.Small" Color="@s.Action" Variant="Variant.Filled" Class="mt-2">
+                            @s.ActionText
+                        </MudChip>
+                    </div>
+                </div>
+            </MudItem>
+        }
+    </MudGrid>
+
+    <MudAlert Severity="Severity.Info" Class="mt-3" Icon="@Icons.Material.Filled.TipsAndUpdates">
+        <strong>Tip:</strong> Only deworm goats scoring 3, 4, or 5 to slow parasite resistance. Score the whole herd monthly during worm season.
+    </MudAlert>
+</MudPaper>
+
+@* BCS *@
+<MudPaper Class="polished-section" Elevation="0">
+    <div class="polished-section-header">
+        <div class="polished-section-header-title">
+            <MudIcon Icon="@Icons.Material.Filled.FitnessCenter" />
+            <div>
+                <MudText Typo="Typo.h6">Body Condition Score (BCS)</MudText>
+                <MudText Typo="Typo.body2" Class="section-hint">
+                    Feel along the lumbar spine (behind the ribs) and assess fat cover. 1 = emaciated, 5 = obese. Ideal is 2.5–3.5.
+                </MudText>
+            </div>
+        </div>
+    </div>
+
+    <MudGrid>
+        @foreach (var b in bcsScale)
+        {
+            <MudItem xs="12" sm="6" md="4" lg="2-4">
+                <MudPaper Outlined Class="pa-3" Style="@($"height:100%;border-radius:12px;border-left:4px solid {b.AccentColor};")">
+                    <div class="d-flex align-center mb-2" style="gap:10px;">
+                        <div style="@($"width:44px;height:44px;border-radius:50%;background:{b.AccentColor};display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:1.4rem;")">
+                            @b.Score
+                        </div>
+                        <div>
+                            <MudText Typo="Typo.subtitle1" Style="font-weight:700;">@b.Label</MudText>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@b.ShortDesc</MudText>
+                        </div>
+                    </div>
+                    <MudText Typo="Typo.caption" Style="text-transform:uppercase;letter-spacing:1px;color:#888;">Feel test</MudText>
+                    <MudText Typo="Typo.body2">@b.FeelTest</MudText>
+                    <MudText Typo="Typo.caption" Style="text-transform:uppercase;letter-spacing:1px;color:#888;" Class="mt-2 d-block">Action</MudText>
+                    <MudText Typo="Typo.body2">@b.Action</MudText>
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
+</MudPaper>
+
+@* Quick logger *@
+<MudPaper Class="polished-section" Elevation="0">
+    <div class="polished-section-header">
+        <div class="polished-section-header-title">
+            <MudIcon Icon="@Icons.Material.Filled.Speed" />
+            <div>
+                <MudText Typo="Typo.h6">Quick Log</MudText>
+                <MudText Typo="Typo.body2" Class="section-hint">Log a score while you're out in the pen.</MudText>
+            </div>
+        </div>
+    </div>
+
+    <MudGrid>
+        <MudItem xs="12" sm="6">
+            <MudSelect T="int?" @bind-Value="logGoatId" Label="Goat" Variant="Variant.Outlined"
+                       AnchorOrigin="Origin.BottomCenter" Clearable>
+                @if (goats != null)
+                {
+                    @foreach (var g in goats)
+                    {
+                        <MudSelectItem Value="@((int?)g.Id)">@g.Name</MudSelectItem>
+                    }
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6">
+            <MudDatePicker @bind-Date="logDate" Label="Date" Variant="Variant.Outlined" Editable />
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudText Class="field-label">FAMACHA score</MudText>
+            <div class="pill-group">
+                @for (int i = 1; i <= 5; i++)
+                {
+                    var score = i;
+                    <button type="button"
+                            class="@($"pill {GetFamachaPillClass(score)} {(logFamacha == score ? "pill-active" : "")}")"
+                            @onclick="() => logFamacha = score">
+                        <span style="font-weight:700;">@score</span>
+                    </button>
+                }
+                <button type="button" class="@($"pill pill-neutral {(logFamacha == null ? "pill-active" : "")}")"
+                        @onclick="() => logFamacha = null">None</button>
+            </div>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudText Class="field-label">BCS score</MudText>
+            <div class="pill-group">
+                @for (int i = 1; i <= 5; i++)
+                {
+                    var score = i;
+                    <button type="button"
+                            class="@($"pill {GetBcsPillClass(score)} {(logBcs == score ? "pill-active" : "")}")"
+                            @onclick="() => logBcs = score">
+                        <span style="font-weight:700;">@score</span>
+                    </button>
+                }
+                <button type="button" class="@($"pill pill-neutral {(logBcs == null ? "pill-active" : "")}")"
+                        @onclick="() => logBcs = null">None</button>
+            </div>
+        </MudItem>
+
+        <MudItem xs="12" Class="d-flex justify-end">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                       OnClick="SaveScores"
+                       Disabled="@(logGoatId == null || (logFamacha == null && logBcs == null))">
+                Save Score@((logFamacha != null && logBcs != null) ? "s" : "")
+            </MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<style>
+.famacha-card {
+    background: var(--mud-palette-surface);
+    border-radius: 14px;
+    overflow: hidden;
+    border: 1px solid rgba(0,0,0,0.08);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+.mud-theme-dark .famacha-card { border-color: rgba(255,255,255,0.08); }
+.famacha-swatch {
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    color: #fff;
+}
+.famacha-number {
+    position: absolute;
+    top: 8px;
+    left: 10px;
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: #fff;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+.famacha-eye {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.15);
+}
+.famacha-eyelid {
+    width: 70%;
+    height: 28%;
+    border-radius: 20px;
+    border: 2px solid #333;
+}
+.famacha-content { padding: 14px; flex: 1; }
+</style>
+
+@code {
+    private List<Goat>? goats;
+    private int? logGoatId;
+    private DateTime? logDate = DateTime.Today;
+    private int? logFamacha;
+    private int? logBcs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        goats = await GoatSvc.GetAllAsync();
+    }
+
+    private async Task SaveScores()
+    {
+        if (logGoatId == null) return;
+        var saved = 0;
+        var queued = 0;
+        if (logFamacha.HasValue)
+        {
+            try
+            {
+                await HealthSvc.CreateFamachaAsync(new FamachaScore
+                {
+                    GoatId = logGoatId.Value,
+                    Score = logFamacha.Value,
+                    Date = logDate ?? DateTime.UtcNow
+                });
+                saved++;
+            }
+            catch (OfflineQueuedException) { queued++; }
+        }
+        if (logBcs.HasValue)
+        {
+            try
+            {
+                await HealthSvc.CreateBcsAsync(new BodyConditionScore
+                {
+                    GoatId = logGoatId.Value,
+                    Score = logBcs.Value,
+                    Date = logDate ?? DateTime.UtcNow
+                });
+                saved++;
+            }
+            catch (OfflineQueuedException) { queued++; }
+        }
+        if (saved > 0) Snackbar.Add($"Logged {saved} score{(saved == 1 ? "" : "s")}", Severity.Success);
+        if (queued > 0) Snackbar.Add($"Offline — {queued} score{(queued == 1 ? "" : "s")} queued to sync", Severity.Info);
+        logFamacha = null;
+        logBcs = null;
+    }
+
+    private string GetFamachaPillClass(int score) => score switch
+    {
+        1 => "pill-success",
+        2 => "pill-info",
+        3 => "pill-warning",
+        4 or 5 => "pill-error",
+        _ => "pill-neutral"
+    };
+
+    private string GetBcsPillClass(int score) => score switch
+    {
+        1 or 5 => "pill-error",
+        2 or 4 => "pill-warning",
+        3 => "pill-success",
+        _ => "pill-neutral"
+    };
+
+    private record FamachaLevel(int Score, string Label, string Description, string Color, string BorderColor,
+                                Color Action, string ActionText);
+
+    private readonly List<FamachaLevel> famachaScale = new()
+    {
+        new FamachaLevel(1, "Optimal", "Deep cherry-red eyelid. Packed cell volume ~28+. Herd is handling parasite load.",
+                         "#b71c1c", "#680000", Color.Success, "Do not deworm"),
+        new FamachaLevel(2, "Good", "Red to reddish-pink. PCV ~23-27. Healthy parasite tolerance.",
+                         "#e53935", "#7f1818", Color.Success, "Do not deworm"),
+        new FamachaLevel(3, "Caution", "Pink. PCV ~18-22. Borderline — watch weekly, treat if trending down.",
+                         "#f48fb1", "#ad1457", Color.Warning, "Deworm if other signs"),
+        new FamachaLevel(4, "Anemic", "Pale pink to white. PCV ~13-17. Clinical anemia.",
+                         "#fce4ec", "#e91e63", Color.Error, "Deworm now"),
+        new FamachaLevel(5, "Severe", "White / bone. PCV < 12. Life-threatening.",
+                         "#ffffff", "#e91e63", Color.Error, "Emergency — treat now")
+    };
+
+    private record BcsLevel(int Score, string Label, string ShortDesc, string FeelTest, string Action, string AccentColor);
+
+    private readonly List<BcsLevel> bcsScale = new()
+    {
+        new BcsLevel(1, "Emaciated", "Dangerously thin",
+                     "Spine feels like a knife edge, ribs individually prominent, no fat over loin, visible pelvis.",
+                     "Veterinary attention — parasite check, dental, rule out chronic disease. Boost feed immediately.",
+                     "#c62828"),
+        new BcsLevel(2, "Thin", "Underweight",
+                     "Spine feels sharp but not knife-edged, ribs easy to count, slight fat cover over loin.",
+                     "Increase energy in diet. Check for parasite load. Monitor weekly.",
+                     "#f57c00"),
+        new BcsLevel(3, "Ideal", "Right where you want",
+                     "Smooth fat over ribs, spine detectable with light pressure, rounded loin.",
+                     "Maintain current diet. Target for most of the year.",
+                     "#2e7d32"),
+        new BcsLevel(4, "Fat", "Slightly over",
+                     "Ribs difficult to feel, spine is rounded, thick fat cover over loin and tail head.",
+                     "Reduce grain. Increase exercise / pasture time. Risk of pregnancy toxemia.",
+                     "#f57c00"),
+        new BcsLevel(5, "Obese", "Dangerously fat",
+                     "Ribs and spine not palpable, rolls of fat at brisket and base of tail, waddling gait.",
+                     "Strict diet reduction. Investigate before breeding — risk of dystocia and toxemia.",
+                     "#c62828")
+    };
+}

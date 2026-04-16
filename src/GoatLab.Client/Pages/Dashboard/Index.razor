@@ -1,0 +1,504 @@
+@page "/dashboard"
+@inject GoatService GoatSvc
+@inject ToolsService ToolsSvc
+@inject MilkService MilkSvc
+@inject GoatService GoatListSvc
+@inject WeatherService Weather
+@inject NotificationService Notifications
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Dashboard — GoatLab</PageTitle>
+
+@if (loading)
+{
+    <MudProgressLinear Indeterminate Color="Color.Primary" Class="mb-4" />
+}
+
+@* --- Welcome Banner with integrated weather --- *@
+<MudPaper Class="welcome-banner pa-5 mb-4" Elevation="0">
+    <div class="d-flex align-center justify-space-between flex-wrap" style="gap:20px;">
+        <div style="flex:1;min-width:200px;">
+            <MudText Typo="Typo.h4" Style="color:#fff;font-weight:700;">@GetGreeting()</MudText>
+            <MudText Typo="Typo.body1" Style="color:rgba(255,255,255,0.85);" Class="mt-1">
+                @if ((stats?.Total ?? 0) > 0)
+                {
+                    <text>You have <strong>@(stats?.Total ?? 0) goats</strong> in your herd.</text>
+                }
+                else
+                {
+                    <text>Welcome to GoatLab. Add your first goat to get started!</text>
+                }
+            </MudText>
+            <div class="d-flex gap-2 mt-3 flex-wrap">
+                @if (notificationPermission == "default")
+                {
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Notifications"
+                               Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                               OnClick="RequestNotifications">Enable alerts</MudButton>
+                }
+                else if (notificationPermission == "granted")
+                {
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                             Icon="@Icons.Material.Filled.NotificationsActive">Notifications on</MudChip>
+                }
+            </div>
+        </div>
+
+        @if (weather?.Current != null)
+        {
+            <div class="dashboard-weather">
+                <div class="d-flex align-center" style="gap:14px;">
+                    <MudIcon Icon="@WeatherIcon" Style="font-size:3.5rem;color:#fff;" />
+                    <div>
+                        <MudText Typo="Typo.h3" Style="color:#fff;font-weight:700;line-height:1;">
+                            @weather.Current.Temperature.ToString("F0")°F
+                        </MudText>
+                        <MudText Typo="Typo.body2" Style="color:rgba(255,255,255,0.9);">
+                            @WeatherService.CodeToDescription(weather.Current.WeatherCode) · Feels @weather.Current.FeelsLike.ToString("F0")°
+                        </MudText>
+                        <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.7);">
+                            💧 @weather.Current.Humidity.ToString("F0")% · 💨 @weather.Current.WindSpeed.ToString("F0") mph
+                        </MudText>
+                    </div>
+                </div>
+                @if (weather.Daily != null && (weather.Daily.Time?.Count ?? 0) >= 3)
+                {
+                    <div class="dashboard-weather-forecast">
+                        @for (int i = 0; i < Math.Min(3, weather.Daily.Time!.Count); i++)
+                        {
+                            var day = i == 0 ? "Today" : DateTime.Parse(weather.Daily.Time[i]).ToString("ddd");
+                            var max = weather.Daily.TempMax?[i] ?? 0;
+                            var min = weather.Daily.TempMin?[i] ?? 0;
+                            var pcp = weather.Daily.PrecipChance?[i] ?? 0;
+                            <div class="forecast-day">
+                                <div class="forecast-day-name">@day</div>
+                                <div class="forecast-day-temp">@max.ToString("F0")° / @min.ToString("F0")°</div>
+                                @if (pcp > 20)
+                                {
+                                    <div class="forecast-day-pcp">💧 @pcp%</div>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else if (weatherLoading)
+        {
+            <MudProgressCircular Size="Size.Small" Indeterminate Style="color:#fff;" />
+        }
+    </div>
+</MudPaper>
+
+<style>
+.dashboard-weather {
+    background: rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 14px 18px;
+    backdrop-filter: blur(4px);
+    min-width: 240px;
+}
+.dashboard-weather-forecast {
+    display: flex;
+    gap: 14px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.2);
+}
+.forecast-day { text-align: center; color: rgba(255,255,255,0.9); }
+.forecast-day-name { font-size: 0.7rem; letter-spacing: 1px; text-transform: uppercase; opacity: 0.8; }
+.forecast-day-temp { font-size: 0.9rem; font-weight: 600; }
+.forecast-day-pcp { font-size: 0.75rem; opacity: 0.9; }
+</style>
+
+@* --- Onboarding checklist (auto-hides when all steps are complete) --- *@
+<GoatLab.Client.Components.Dashboard.OnboardingChecklist />
+
+@* --- Stat Cards (clickable to filtered views) --- *@
+<MudGrid Spacing="3" Class="mb-4">
+    <MudItem xs="6" sm="4" md="2">
+        <MudCard Class="stat-card stat-card-green cursor-pointer" Elevation="0" @onclick='@(() => Nav.NavigateTo("/herd"))'>
+            <MudCardContent Class="pa-3">
+                <MudText Class="stat-value">@(stats?.Total ?? 0)</MudText>
+                <MudText Class="stat-label">Total Goats</MudText>
+                <MudIcon Icon="@GoatLabIcons.Hoof" Class="stat-icon" />
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="6" sm="4" md="2">
+        <MudCard Class="stat-card stat-card-teal cursor-pointer" Elevation="0" @onclick='@(() => Nav.NavigateTo("/herd?gender=Female"))'>
+            <MudCardContent Class="pa-3">
+                <MudText Class="stat-value">@(stats?.Does ?? 0)</MudText>
+                <MudText Class="stat-label">Does</MudText>
+                <MudIcon Icon="@Icons.Material.Filled.Female" Class="stat-icon" />
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="6" sm="4" md="2">
+        <MudCard Class="stat-card stat-card-blue cursor-pointer" Elevation="0" @onclick='@(() => Nav.NavigateTo("/herd?gender=Male"))'>
+            <MudCardContent Class="pa-3">
+                <MudText Class="stat-value">@(stats?.Bucks ?? 0)</MudText>
+                <MudText Class="stat-label">Bucks</MudText>
+                <MudIcon Icon="@Icons.Material.Filled.Male" Class="stat-icon" />
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="6" sm="4" md="2">
+        <MudCard Class="stat-card stat-card-pink cursor-pointer" Elevation="0" @onclick='@(() => Nav.NavigateTo("/breeding"))'>
+            <MudCardContent Class="pa-3">
+                <MudText Class="stat-value">@(stats?.Pregnant ?? 0)</MudText>
+                <MudText Class="stat-label">Pregnant</MudText>
+                <MudIcon Icon="@Icons.Material.Filled.Favorite" Class="stat-icon" />
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="6" sm="4" md="2">
+        <MudCard Class="stat-card stat-card-orange cursor-pointer" Elevation="0" @onclick='@(() => Nav.NavigateTo("/herd?status=Sick"))'>
+            <MudCardContent Class="pa-3">
+                <MudText Class="stat-value">@(stats?.Sick ?? 0)</MudText>
+                <MudText Class="stat-label">Sick</MudText>
+                <MudIcon Icon="@Icons.Material.Filled.LocalHospital" Class="stat-icon" />
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="6" sm="4" md="2">
+        <MudCard Class="stat-card stat-card-purple cursor-pointer" Elevation="0" @onclick='@(() => Nav.NavigateTo("/herd?status=AtVet"))'>
+            <MudCardContent Class="pa-3">
+                <MudText Class="stat-value">@(stats?.AtVet ?? 0)</MudText>
+                <MudText Class="stat-label">At Vet</MudText>
+                <MudIcon Icon="@Icons.Material.Filled.MedicalServices" Class="stat-icon" />
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@* --- Alerts --- *@
+@if (alerts != null && (alerts.OverdueMedications > 0 || alerts.UpcomingDueDates > 0 || alerts.LowFeedStock > 0 || alerts.SickGoats > 0 || alerts.ExpiringMedications > 0))
+{
+    <MudPaper Class="pa-4 mb-4 section-card" Outlined Elevation="0">
+        <div class="d-flex align-center mb-3">
+            <MudIcon Icon="@Icons.Material.Filled.Notifications" Color="Color.Warning" Class="mr-2" />
+            <MudText Typo="Typo.h6" Style="font-weight:600;">Alerts</MudText>
+        </div>
+        @if (alerts.OverdueMedications > 0)
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-2" Dense Variant="Variant.Filled" Icon="@Icons.Material.Filled.Warning">
+                @alerts.OverdueMedications overdue medication(s) — <MudLink Href="/health" Color="Color.Inherit" Underline="Underline.Always" Style="color:inherit;font-weight:600;">view health records</MudLink>
+            </MudAlert>
+        }
+        @if (alerts.SickGoats > 0)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-2" Dense Variant="Variant.Filled" Icon="@Icons.Material.Filled.Sick">
+                @alerts.SickGoats goat(s) sick or at vet
+            </MudAlert>
+        }
+        @if (alerts.UpcomingDueDates > 0)
+        {
+            <MudAlert Severity="Severity.Info" Class="mb-2" Dense Variant="Variant.Filled" Icon="@Icons.Material.Filled.ChildCare">
+                @alerts.UpcomingDueDates kidding due date(s) in next 14 days — <MudLink Href="/breeding" Color="Color.Inherit" Underline="Underline.Always" Style="color:inherit;font-weight:600;">view breeding</MudLink>
+            </MudAlert>
+        }
+        @if (alerts.LowFeedStock > 0)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-2" Dense Variant="Variant.Filled" Icon="@Icons.Material.Filled.Inventory">
+                @alerts.LowFeedStock feed item(s) low on stock — <MudLink Href="/inventory" Color="Color.Inherit" Underline="Underline.Always" Style="color:inherit;font-weight:600;">view inventory</MudLink>
+            </MudAlert>
+        }
+        @if (alerts.ExpiringMedications > 0)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-2" Dense Variant="Variant.Filled" Icon="@Icons.Material.Filled.MedicalServices">
+                @alerts.ExpiringMedications medication(s) expiring within 30 days
+            </MudAlert>
+        }
+    </MudPaper>
+}
+
+@* --- Quick Actions --- *@
+<MudText Typo="Typo.h6" Class="mb-3" Style="font-weight:600;">Quick Actions</MudText>
+<MudGrid Spacing="3" Class="mb-4">
+    <MudItem xs="6" sm="3">
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth Class="quick-action-btn"
+                   StartIcon="@Icons.Material.Filled.Add" Href="/herd/add">
+            Add Goat
+        </MudButton>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudButton Variant="Variant.Outlined" Color="Color.Info" FullWidth Class="quick-action-btn"
+                   StartIcon="@Icons.Material.Filled.WaterDrop" OnClick="() => showMilkForm = !showMilkForm">
+            Log Milk
+        </MudButton>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudButton Variant="Variant.Outlined" Color="Color.Warning" FullWidth Class="quick-action-btn"
+                   StartIcon="@Icons.Material.Filled.LocalHospital" Href="/health">
+            Health Record
+        </MudButton>
+    </MudItem>
+    <MudItem xs="6" sm="3">
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth Class="quick-action-btn"
+                   StartIcon="@Icons.Material.Filled.Favorite" Href="/breeding">
+            Breeding
+        </MudButton>
+    </MudItem>
+</MudGrid>
+
+@* --- Quick Milk Log (collapsible) --- *@
+@if (showMilkForm)
+{
+    <MudPaper Class="pa-4 mb-4 section-card" Outlined Elevation="0">
+        <div class="d-flex justify-space-between align-center mb-3">
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.WaterDrop" Color="Color.Info" Class="mr-2" />
+                <MudText Typo="Typo.h6" Style="font-weight:600;">Quick Milk Log</MudText>
+            </div>
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="() => showMilkForm = false" />
+        </div>
+        <MudGrid>
+            <MudItem xs="12" sm="5">
+                <MudSelect T="int?" @bind-Value="milkGoatId" Label="Select Doe" Variant="Variant.Outlined" Dense AnchorOrigin="Origin.BottomCenter">
+                    @if (goats != null)
+                    {
+                        @foreach (var g in goats.Where(g => g.Gender == Gender.Female))
+                        {
+                            <MudSelectItem Value="@((int?)g.Id)">@g.Name</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudNumericField @bind-Value="milkAmount" Label="Amount (lbs)" Variant="Variant.Outlined" Min="0.0" Step="0.1" />
+            </MudItem>
+            <MudItem xs="12" sm="3" Class="d-flex align-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth OnClick="SubmitMilkLog"
+                           Disabled="@(milkGoatId == null || milkAmount <= 0)"
+                           StartIcon="@Icons.Material.Filled.Check">Log</MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+}
+
+<MudGrid Spacing="3">
+    @* --- Milk Production Trend --- *@
+    <MudItem xs="12" md="7">
+        <MudPaper Class="pa-4 section-card" Outlined Elevation="0" Style="height:100%;">
+            <div class="d-flex align-center mb-3">
+                <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Primary" Class="mr-2" />
+                <MudText Typo="Typo.h6" Style="font-weight:600;">Milk Production (30 days)</MudText>
+            </div>
+            @if (milkTrends != null && milkTrends.Count > 0)
+            {
+                <MudChart ChartType="ChartType.Line"
+                          ChartSeries="@milkChartSeries"
+                          XAxisLabels="@milkChartLabels"
+                          ChartOptions="@milkChartOptions"
+                          Width="100%" Height="250px" />
+            }
+            else
+            {
+                <div class="empty-state">
+                    <MudIcon Icon="@Icons.Material.Filled.WaterDrop" />
+                    <MudText Typo="Typo.body1" Color="Color.Secondary">No milk data yet</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Start logging milk to see production trends</MudText>
+                </div>
+            }
+        </MudPaper>
+    </MudItem>
+
+    @* --- Recent Activity --- *@
+    <MudItem xs="12" md="5">
+        <MudPaper Class="pa-4 section-card" Outlined Elevation="0" Style="height:100%;">
+            <div class="d-flex justify-space-between align-center mb-3">
+                <div class="d-flex align-center">
+                    <MudIcon Icon="@Icons.Material.Filled.History" Color="Color.Primary" Class="mr-2" />
+                    <MudText Typo="Typo.h6" Style="font-weight:600;">Recent Activity</MudText>
+                </div>
+            </div>
+            @if (activity != null && activity.Count > 0)
+            {
+                <MudList T="string" Dense>
+                    @foreach (var item in activity.Take(8))
+                    {
+                        <MudListItem Icon="@GetActivityIcon(item.Type)" IconColor="@GetActivityColor(item.Type)">
+                            <div class="d-flex justify-space-between align-center" style="width:100%;">
+                                <MudText Typo="Typo.body2" Style="line-height:1.4;">@item.Description</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="white-space:nowrap;margin-left:8px;">@FormatRelativeTime(item.Date)</MudText>
+                            </div>
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+            else
+            {
+                <div class="empty-state">
+                    <MudIcon Icon="@Icons.Material.Filled.History" />
+                    <MudText Typo="Typo.body1" Color="Color.Secondary">No activity yet</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Add your first goat to get started!</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-3" Href="/herd/add"
+                               StartIcon="@Icons.Material.Filled.Add">Add Your First Goat</MudButton>
+                </div>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private HerdStats? stats;
+    private AlertsInfo? alerts;
+    private List<ActivityItem>? activity;
+    private List<Goat>? goats;
+    private List<MilkTrend>? milkTrends;
+    private int? milkGoatId;
+    private double milkAmount;
+    private bool loading = true;
+    private bool showMilkForm;
+
+    private WeatherSnapshot? weather;
+    private bool weatherLoading = true;
+    private string WeatherIcon => weather?.Current != null ? MapWeatherIcon(WeatherService.CodeToIcon(weather.Current.WeatherCode)) : Icons.Material.Filled.Cloud;
+
+    private string MapWeatherIcon(string key) => key switch
+    {
+        "wb_sunny" => Icons.Material.Filled.WbSunny,
+        "partly_cloudy_day" => Icons.Material.Filled.WbCloudy,
+        "foggy" => Icons.Material.Filled.Cloud,
+        "rainy_light" => Icons.Material.Filled.Grain,
+        "rainy" => Icons.Material.Filled.Umbrella,
+        "ac_unit" => Icons.Material.Filled.AcUnit,
+        "thunderstorm" => Icons.Material.Filled.Thunderstorm,
+        _ => Icons.Material.Filled.Cloud
+    };
+    private string notificationPermission = "default";
+
+    // Chart data
+    private List<ChartSeries> milkChartSeries = new List<ChartSeries>();
+    private string[] milkChartLabels = new string[0];
+    private ChartOptions milkChartOptions = new ChartOptions();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var statsTask = GoatSvc.GetStatsAsync();
+        var alertsTask = ToolsSvc.GetAlertsAsync();
+        var activityTask = ToolsSvc.GetActivityAsync(10);
+        var goatsTask = GoatListSvc.GetAllAsync();
+        var trendsTask = MilkSvc.GetTrendsAsync(days: 30);
+
+        await Task.WhenAll(statsTask, alertsTask, activityTask, goatsTask, trendsTask);
+
+        stats = statsTask.Result;
+        alerts = alertsTask.Result;
+        activity = activityTask.Result;
+        goats = goatsTask.Result;
+        milkTrends = trendsTask.Result;
+
+        BuildMilkChart();
+        loading = false;
+
+        _ = LoadWeatherAsync();
+        _ = InitNotificationsAsync();
+    }
+
+    private async Task LoadWeatherAsync()
+    {
+        try
+        {
+            var loc = await Weather.GetLocationAsync();
+            if (loc.HasValue)
+            {
+                weather = await Weather.GetCurrentAsync(loc.Value.lat, loc.Value.lng);
+            }
+        }
+        catch { }
+        finally
+        {
+            weatherLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task InitNotificationsAsync()
+    {
+        try
+        {
+            notificationPermission = await Notifications.GetPermissionAsync();
+            if (notificationPermission == "granted")
+                await Notifications.FireAlertDigestAsync();
+            StateHasChanged();
+        }
+        catch { }
+    }
+
+    private async Task RequestNotifications()
+    {
+        notificationPermission = await Notifications.RequestPermissionAsync();
+        if (notificationPermission == "granted")
+        {
+            await Notifications.FireAlertDigestAsync();
+            Snackbar.Add("Notifications enabled", Severity.Success);
+        }
+    }
+
+    private void BuildMilkChart()
+    {
+        if (milkTrends == null || milkTrends.Count == 0) return;
+
+        milkChartLabels = milkTrends.Select(t => t.Date.ToString("M/d")).ToArray();
+        var series = new ChartSeries();
+        series.Name = "Milk (lbs)";
+        series.Data = milkTrends.Select(t => t.TotalLbs).ToArray();
+        milkChartSeries = new List<ChartSeries> { series };
+    }
+
+    private async Task SubmitMilkLog()
+    {
+        if (milkGoatId == null || milkAmount <= 0) return;
+
+        await MilkSvc.CreateAsync(new MilkLog
+        {
+            GoatId = milkGoatId.Value,
+            Date = DateTime.UtcNow,
+            Amount = milkAmount
+        });
+
+        Snackbar.Add("Milk logged!", Severity.Success);
+        milkAmount = 0;
+        activity = await ToolsSvc.GetActivityAsync(10);
+    }
+
+    private string GetGreeting()
+    {
+        var hour = DateTime.Now.Hour;
+        if (hour < 12) return "Good morning!";
+        if (hour < 17) return "Good afternoon!";
+        return "Good evening!";
+    }
+
+    private string FormatRelativeTime(DateTime date)
+    {
+        var diff = DateTime.UtcNow - date;
+        if (diff.TotalMinutes < 1) return "just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d ago";
+        return date.ToLocalTime().ToString("MMM d");
+    }
+
+    private string GetActivityIcon(string type) => type switch
+    {
+        "goat_added" => GoatLabIcons.Hoof,
+        "medical" => Icons.Material.Filled.LocalHospital,
+        "milk" => Icons.Material.Filled.WaterDrop,
+        "sale" => Icons.Material.Filled.AttachMoney,
+        _ => Icons.Material.Filled.Info
+    };
+
+    private Color GetActivityColor(string type) => type switch
+    {
+        "goat_added" => Color.Primary,
+        "medical" => Color.Warning,
+        "milk" => Color.Info,
+        "sale" => Color.Success,
+        _ => Color.Default
+    };
+}

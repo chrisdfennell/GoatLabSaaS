@@ -1,0 +1,339 @@
+@page "/sales"
+@inject SalesService SalesSvc
+@inject GoatService GoatSvc
+@inject ISnackbar Snackbar
+
+<PageTitle>Sales — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-teal">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.Storefront" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Sales &amp; Customers</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Ledger</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">Money in, customers served, and who's waiting for their turn.</MudText>
+        <div class="page-hero-stats">
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">$@TotalRevenue.ToString("N0")</MudText>
+                <MudText Class="page-hero-stat-label">Revenue</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(sales?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Sales</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@(customers?.Count ?? 0)</MudText>
+                <MudText Class="page-hero-stat-label">Customers</MudText>
+            </div>
+            <div class="page-hero-stat">
+                <MudText Typo="Typo.h5" Class="page-hero-stat-value">@WaitingListCount</MudText>
+                <MudText Class="page-hero-stat-label">Waiting</MudText>
+            </div>
+        </div>
+    </div>
+</div>
+
+<MudTabs Elevation="0" Rounded ApplyEffectsToContainer PanelClass="pt-4">
+    <MudTabPanel Text="Sales" Icon="@Icons.Material.Filled.AttachMoney">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" />
+                    <div>
+                        <MudText Typo="Typo.h6">Sales Ledger</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Every sale — animal, milk, meat, or breeding fees.</MudText>
+                    </div>
+                </div>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="() => showSaleForm = !showSaleForm">
+                    @(showSaleForm ? "Close" : "New Sale")
+                </MudButton>
+            </div>
+
+            @if (showSaleForm)
+            {
+                <MudPaper Class="pa-4 mb-4" Outlined Style="border-radius:12px;">
+                    <MudGrid>
+                        <MudItem xs="12">
+                            <MudText Class="field-label">Sale Type</MudText>
+                            <div class="pill-group">
+                                @foreach (var t in Enum.GetValues<SaleType>())
+                                {
+                                    <button type="button"
+                                            class="@($"pill {GetSaleTypePillClass(t)} {(newSale.SaleType == t ? "pill-active" : "")}")"
+                                            @onclick="() => newSale.SaleType = t">
+                                        <MudIcon Icon="@GetSaleTypeIcon(t)" Size="Size.Small" />
+                                        <span>@t</span>
+                                    </button>
+                                }
+                            </div>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="int?" @bind-Value="newSale.CustomerId" Label="Customer" Variant="Variant.Outlined" Clearable AnchorOrigin="Origin.BottomCenter"
+                                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person">
+                                @if (customers != null) { @foreach (var c in customers) { <MudSelectItem Value="@((int?)c.Id)">@c.Name</MudSelectItem> } }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudDatePicker @bind-Date="saleDate" Label="Sale Date" Variant="Variant.Outlined" Editable />
+                        </MudItem>
+                        <MudItem xs="6" sm="4">
+                            <MudNumericField @bind-Value="newSale.Amount" Label="Amount ($)" Variant="Variant.Outlined" Format="F2"
+                                             Adornment="Adornment.Start" AdornmentText="$" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="newSale.Description" Label="Description" Variant="Variant.Outlined" Placeholder="What was sold?" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudText Class="field-label">Payment Status</MudText>
+                            <div class="pill-group">
+                                @foreach (var s in Enum.GetValues<PaymentStatus>())
+                                {
+                                    <button type="button"
+                                            class="@($"pill {GetPaymentPillClass(s)} {(newSale.PaymentStatus == s ? "pill-active" : "")}")"
+                                            @onclick="() => newSale.PaymentStatus = s">
+                                        <MudIcon Icon="@GetPaymentIcon(s)" Size="Size.Small" />
+                                        <span>@FormatPayment(s)</span>
+                                    </button>
+                                }
+                            </div>
+                        </MudItem>
+                    </MudGrid>
+                    <div class="d-flex gap-2 mt-3 justify-end">
+                        <MudButton Variant="Variant.Text" OnClick="() => showSaleForm = false">Cancel</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveSale">Record Sale</MudButton>
+                    </div>
+                </MudPaper>
+            }
+
+            @if (sales == null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (sales.Count == 0)
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.Storefront" />
+                    <MudText Typo="Typo.body1">No sales yet</MudText>
+                    <MudText Typo="Typo.body2">Log your first sale to start tracking revenue.</MudText>
+                </div>
+            }
+            else
+            {
+                <div class="record-list">
+                    @foreach (var s in sales)
+                    {
+                        <div class="record-card">
+                            <div class="record-card-icon @GetSaleTypeIconBg(s.SaleType)">
+                                <MudIcon Icon="@GetSaleTypeIcon(s.SaleType)" />
+                            </div>
+                            <div class="record-card-body">
+                                <div class="record-card-primary">@(string.IsNullOrWhiteSpace(s.Description) ? s.SaleType.ToString() : s.Description)</div>
+                                <div class="record-card-secondary">
+                                    @s.SaleDate.ToString("MMM d, yyyy") · @(s.Customer?.Name ?? "No customer") · @s.SaleType
+                                </div>
+                            </div>
+                            <MudText Class="record-card-amount record-card-amount-income">$@s.Amount.ToString("F2")</MudText>
+                            <MudChip T="string" Size="Size.Small" Color="@GetPaymentColor(s.PaymentStatus)" Variant="Variant.Filled"
+                                     Icon="@GetPaymentIcon(s.PaymentStatus)">
+                                @FormatPayment(s.PaymentStatus)
+                            </MudChip>
+                        </div>
+                    }
+                </div>
+            }
+        </MudPaper>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Customers" Icon="@Icons.Material.Filled.People">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.People" />
+                    <div>
+                        <MudText Typo="Typo.h6">Customers</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Who buys from you, and who's waiting.</MudText>
+                    </div>
+                </div>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+                           OnClick="() => showCustomerForm = !showCustomerForm">
+                    @(showCustomerForm ? "Close" : "Add Customer")
+                </MudButton>
+            </div>
+
+            @if (showCustomerForm)
+            {
+                <MudPaper Class="pa-4 mb-4" Outlined Style="border-radius:12px;">
+                    <MudGrid>
+                        <MudItem xs="12" sm="4"><MudTextField @bind-Value="newCustomer.Name" Label="Name" Variant="Variant.Outlined" Required /></MudItem>
+                        <MudItem xs="12" sm="4"><MudTextField @bind-Value="newCustomer.Email" Label="Email" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Email" /></MudItem>
+                        <MudItem xs="12" sm="4"><MudTextField @bind-Value="newCustomer.Phone" Label="Phone" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Phone" /></MudItem>
+                        <MudItem xs="12"><MudTextField @bind-Value="newCustomer.Notes" Label="Notes" Variant="Variant.Outlined" Lines="2" /></MudItem>
+                        <MudItem xs="12"><MudCheckBox @bind-Value="newCustomer.IsOnWaitingList" Label="On waiting list for a goat" Color="Color.Primary" /></MudItem>
+                    </MudGrid>
+                    <div class="d-flex gap-2 mt-3 justify-end">
+                        <MudButton Variant="Variant.Text" OnClick="() => showCustomerForm = false">Cancel</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveCustomer">Save</MudButton>
+                    </div>
+                </MudPaper>
+            }
+
+            @if (customers == null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (customers.Count == 0)
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.People" />
+                    <MudText Typo="Typo.body1">No customers yet</MudText>
+                    <MudText Typo="Typo.body2">Add customers so you can track who bought what.</MudText>
+                </div>
+            }
+            else
+            {
+                <MudGrid>
+                    @foreach (var c in customers)
+                    {
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudPaper Class="pa-4" Outlined Style="border-radius:12px;height:100%;">
+                                <div class="d-flex align-center mb-2" style="gap:12px;">
+                                    <div class="record-card-icon record-card-icon-teal">
+                                        @GetCustomerInitials(c.Name)
+                                    </div>
+                                    <div style="flex:1;min-width:0;">
+                                        <MudText Typo="Typo.subtitle1" Style="font-weight:600;">@c.Name</MudText>
+                                        @if (c.IsOnWaitingList)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled" Icon="@Icons.Material.Filled.Schedule">Waiting list</MudChip>
+                                        }
+                                    </div>
+                                </div>
+                                @if (!string.IsNullOrEmpty(c.Email))
+                                {
+                                    <MudText Typo="Typo.body2" Class="mb-1"><MudIcon Icon="@Icons.Material.Filled.Email" Size="Size.Small" Style="vertical-align:text-bottom;" /> @c.Email</MudText>
+                                }
+                                @if (!string.IsNullOrEmpty(c.Phone))
+                                {
+                                    <MudText Typo="Typo.body2" Class="mb-1"><MudIcon Icon="@Icons.Material.Filled.Phone" Size="Size.Small" Style="vertical-align:text-bottom;" /> @c.Phone</MudText>
+                                }
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2 d-block">
+                                    @(c.Sales?.Count ?? 0) sale@((c.Sales?.Count ?? 0) == 1 ? "" : "s")
+                                </MudText>
+                            </MudPaper>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private List<Sale>? sales;
+    private List<Customer>? customers;
+    private bool showSaleForm, showCustomerForm;
+    private Sale newSale = new();
+    private Customer newCustomer = new();
+    private DateTime? saleDate = DateTime.Today;
+
+    private decimal TotalRevenue => sales?.Where(s => s.PaymentStatus == PaymentStatus.PaidInFull).Sum(s => s.Amount) ?? 0m;
+    private int WaitingListCount => customers?.Count(c => c.IsOnWaitingList) ?? 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadSales(), LoadCustomers());
+    }
+
+    private async Task LoadSales() => sales = await SalesSvc.GetAllAsync();
+    private async Task LoadCustomers() => customers = await SalesSvc.GetCustomersAsync();
+
+    private async Task SaveSale()
+    {
+        newSale.SaleDate = saleDate ?? DateTime.UtcNow;
+        await SalesSvc.CreateAsync(newSale);
+        Snackbar.Add($"Sale recorded: ${newSale.Amount:F2}", Severity.Success);
+        newSale = new(); showSaleForm = false;
+        await LoadSales();
+    }
+
+    private async Task SaveCustomer()
+    {
+        await SalesSvc.CreateCustomerAsync(newCustomer);
+        Snackbar.Add($"{newCustomer.Name} added", Severity.Success);
+        newCustomer = new(); showCustomerForm = false;
+        await LoadCustomers();
+    }
+
+    private Color GetPaymentColor(PaymentStatus s) => s switch
+    {
+        PaymentStatus.PaidInFull => Color.Success,
+        PaymentStatus.Deposited  => Color.Info,
+        PaymentStatus.Pending    => Color.Warning,
+        PaymentStatus.Refunded   => Color.Error,
+        PaymentStatus.Cancelled  => Color.Dark,
+        _                        => Color.Default
+    };
+
+    private string GetPaymentIcon(PaymentStatus s) => s switch
+    {
+        PaymentStatus.PaidInFull => Icons.Material.Filled.CheckCircle,
+        PaymentStatus.Deposited  => Icons.Material.Filled.Savings,
+        PaymentStatus.Pending    => Icons.Material.Filled.HourglassBottom,
+        PaymentStatus.Refunded   => Icons.Material.Filled.Undo,
+        PaymentStatus.Cancelled  => Icons.Material.Filled.Cancel,
+        _                        => Icons.Material.Filled.HelpOutline
+    };
+
+    private string GetPaymentPillClass(PaymentStatus s) => s switch
+    {
+        PaymentStatus.PaidInFull => "pill-success",
+        PaymentStatus.Deposited  => "pill-info",
+        PaymentStatus.Pending    => "pill-warning",
+        PaymentStatus.Refunded   => "pill-error",
+        PaymentStatus.Cancelled  => "pill-dark",
+        _                        => "pill-neutral"
+    };
+
+    private string FormatPayment(PaymentStatus s) => s switch
+    {
+        PaymentStatus.PaidInFull => "Paid In Full",
+        _                        => s.ToString()
+    };
+
+    private string GetSaleTypeIcon(SaleType t) => t switch
+    {
+        SaleType.LiveAnimal => GoatLabIcons.Hoof,
+        SaleType.Milk       => Icons.Material.Filled.LocalDrink,
+        SaleType.Meat       => Icons.Material.Filled.Restaurant,
+        SaleType.Breeding   => Icons.Material.Filled.Favorite,
+        _                   => Icons.Material.Filled.ShoppingBag
+    };
+
+    private string GetSaleTypeIconBg(SaleType t) => t switch
+    {
+        SaleType.LiveAnimal => "record-card-icon-green",
+        SaleType.Milk       => "record-card-icon-blue",
+        SaleType.Meat       => "record-card-icon-red",
+        SaleType.Breeding   => "record-card-icon-pink",
+        _                   => "record-card-icon-teal"
+    };
+
+    private string GetSaleTypePillClass(SaleType t) => t switch
+    {
+        SaleType.LiveAnimal => "pill-success",
+        SaleType.Milk       => "pill-info",
+        SaleType.Meat       => "pill-error",
+        SaleType.Breeding   => "pill-female",
+        _                   => "pill-neutral"
+    };
+
+    private string GetCustomerInitials(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "?";
+        var parts = name.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 2) return $"{parts[0][0]}{parts[1][0]}".ToUpper();
+        return parts[0].Length >= 2 ? parts[0][..2].ToUpper() : parts[0].ToUpper();
+    }
+}

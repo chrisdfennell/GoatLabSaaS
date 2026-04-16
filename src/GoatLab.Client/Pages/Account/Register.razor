@@ -1,0 +1,76 @@
+@page "/register"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@layout GoatLab.Client.Layout.AuthLayout
+@using GoatLab.Shared.DTOs
+@inject AuthService AuthApi
+@inject CookieAuthStateProvider AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Sign up — GoatLab</PageTitle>
+
+<MudPaper Elevation="4" Class="pa-8" Style="max-width: 480px; margin: 4rem auto;">
+    <MudText Typo="Typo.h5" GutterBottom="true">Start your free GoatLab account</MudText>
+    <MudText Typo="Typo.body2" Class="mb-4" Color="Color.Secondary">
+        Track your herd, milk production, breeding, health — everything in one place.
+    </MudText>
+
+    <EditForm Model="@_model" OnValidSubmit="SubmitAsync">
+        <DataAnnotationsValidator />
+        <MudTextField @bind-Value="_model.FarmName" Label="Farm / homestead name" Variant="Variant.Outlined"
+                      Required="true" Class="mb-3" HelperText="You can rename this later." />
+        <MudTextField @bind-Value="_model.DisplayName" Label="Your name" Variant="Variant.Outlined"
+                      Required="true" Class="mb-3" />
+        <MudTextField @bind-Value="_model.Email" Label="Email" Variant="Variant.Outlined"
+                      InputType="InputType.Email" Required="true" Class="mb-3" />
+        <MudTextField @bind-Value="_model.Password" Label="Password" Variant="Variant.Outlined"
+                      InputType="InputType.Password" Required="true" Class="mb-4"
+                      HelperText="At least 8 characters, one number, one lowercase letter." />
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
+        }
+
+        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled"
+                   Color="Color.Primary" FullWidth="true" Disabled="_busy">
+            @(_busy ? "Creating account…" : "Create account")
+        </MudButton>
+    </EditForm>
+
+    <MudText Typo="Typo.body2" Class="mt-4" Align="Align.Center">
+        Already have an account? <MudLink Href="/login">Sign in</MudLink>
+    </MudText>
+</MudPaper>
+
+@code {
+    private RegisterModel _model = new();
+    private string? _error;
+    private bool _busy;
+
+    private async Task SubmitAsync()
+    {
+        _busy = true;
+        _error = null;
+
+        var (ok, err, user) = await AuthApi.RegisterAsync(new RegisterRequest(
+            _model.Email, _model.Password, _model.DisplayName, _model.FarmName));
+        _busy = false;
+
+        if (!ok)
+        {
+            _error = err?.Length > 200 ? "Couldn't create account. Please check your details." : (err ?? "Registration failed.");
+            return;
+        }
+
+        AuthState.NotifyUserChanged(user);
+        Nav.NavigateTo("/dashboard");
+    }
+
+    private class RegisterModel
+    {
+        public string FarmName { get; set; } = string.Empty;
+        public string DisplayName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+}
