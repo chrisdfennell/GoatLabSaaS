@@ -21,6 +21,9 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<TenantMember> TenantMembers => Set<TenantMember>();
     public DbSet<TenantInvitation> TenantInvitations => Set<TenantInvitation>();
 
+    // User passkeys (WebAuthn / FIDO2)
+    public DbSet<UserCredential> UserCredentials => Set<UserCredential>();
+
     // Billing plans (system-wide, admin-managed)
     public DbSet<Plan> Plans => Set<Plan>();
     public DbSet<PlanFeature> PlanFeatures => Set<PlanFeature>();
@@ -273,6 +276,12 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
         // Tenant filter: hide soft-deleted unless BypassFilter is set.
         modelBuilder.Entity<Tenant>().HasQueryFilter(t =>
             _tenantContext == null || _tenantContext.BypassFilter || t.DeletedAt == null);
+
+        // Passkey credentials — lookup by CredentialId during assertion.
+        modelBuilder.Entity<UserCredential>()
+            .HasIndex(c => c.CredentialId).IsUnique();
+        modelBuilder.Entity<UserCredential>()
+            .HasIndex(c => c.UserId);
 
         // Lookup active invites by token hash + block dup invite per (tenant,email).
         modelBuilder.Entity<TenantInvitation>()

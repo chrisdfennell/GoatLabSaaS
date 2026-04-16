@@ -56,6 +56,7 @@ builder.Services.AddScoped<AdminPlansService>();
 builder.Services.AddScoped<AdminHealthService>();
 builder.Services.AddScoped<TenantSettingsService>();
 builder.Services.AddScoped<TeamService>();
+builder.Services.AddScoped<TwoFactorService>();
 builder.Services.AddScoped<BarnService>();
 builder.Services.AddScoped<VoiceService>();
 builder.Services.AddScoped<NotificationService>();

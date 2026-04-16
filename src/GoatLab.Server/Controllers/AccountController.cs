@@ -3,18 +3,22 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using Fido2NetLib;
+using Fido2NetLib.Objects;
 using GoatLab.Server.Data;
 using GoatLab.Server.Data.Auth;
 using GoatLab.Server.Services;
 using GoatLab.Server.Services.Email;
 using GoatLab.Shared.DTOs;
 using GoatLab.Shared.Models;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 namespace GoatLab.Server.Controllers;
@@ -29,6 +33,8 @@ public class AccountController : ControllerBase
     private readonly ITenantContext _tenantContext;
     private readonly IAppEmailSender _email;
     private readonly IdentityOptions _identityOptions;
+    private readonly IFido2 _fido2;
+    private readonly IMemoryCache _cache;
 
     public AccountController(
         UserManager<ApplicationUser> userManager,
@@ -36,7 +42,9 @@ public class AccountController : ControllerBase
         GoatLabDbContext db,
         ITenantContext tenantContext,
         IAppEmailSender email,
-        IOptions<IdentityOptions> identityOptions)
+        IOptions<IdentityOptions> identityOptions,
+        IFido2 fido2,
+        IMemoryCache cache)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -44,6 +52,8 @@ public class AccountController : ControllerBase
         _tenantContext = tenantContext;
         _email = email;
         _identityOptions = identityOptions.Value;
+        _fido2 = fido2;
+        _cache = cache;
     }
 
     private bool RequiresConfirmedEmail => _identityOptions.SignIn.RequireConfirmedEmail;
@@ -127,34 +137,141 @@ public class AccountController : ControllerBase
         if (user.DeletedAt is not null)
             return Unauthorized(new { error = "Account is disabled. Contact support." });
 
-        var check = await _signInManager.CheckPasswordSignInAsync(user, req.Password, lockoutOnFailure: true);
-        if (check.IsLockedOut)
-            return Unauthorized(new { error = "Account is locked. Try again later or contact support." });
-        if (!check.Succeeded) return Unauthorized(new { error = "Invalid email or password." });
+        // PasswordSignInAsync validates password + lockout + confirmed-email,
+        // and — critically — sets the TwoFactorUserIdScheme cookie when 2FA is on.
+        var result = await _signInManager.PasswordSignInAsync(user, req.Password, req.RememberMe, lockoutOnFailure: true);
 
-        if (RequiresConfirmedEmail && !await _userManager.IsEmailConfirmedAsync(user))
+        if (result.IsLockedOut)
+            return Unauthorized(new { error = "Account is locked. Try again later or contact support." });
+        if (result.IsNotAllowed)
         {
-            return Unauthorized(new
+            if (RequiresConfirmedEmail && !await _userManager.IsEmailConfirmedAsync(user))
             {
-                error = "Confirm your email before signing in. Check your inbox for the confirmation link.",
-                emailUnconfirmed = true,
-                email = user.Email,
-            });
+                return Unauthorized(new
+                {
+                    error = "Confirm your email before signing in. Check your inbox for the confirmation link.",
+                    emailUnconfirmed = true,
+                    email = user.Email,
+                });
+            }
+            return Unauthorized(new { error = "Sign-in is not allowed." });
         }
 
-        // Pick a default tenant: if only one membership, use it. Otherwise, log
-        // the user in with no tenant claim; client will call /select-tenant.
-        // Filter out suspended/deleted tenants — they can't be selected.
+        if (result.RequiresTwoFactor)
+        {
+            var passkeys = await _db.UserCredentials
+                .Where(c => c.UserId == user.Id)
+                .OrderBy(c => c.CreatedAt)
+                .Select(c => new { c.Id, c.Name })
+                .ToListAsync();
+            return Ok(new { requiresTwoFactor = true, passkeys });
+        }
+
+        if (!result.Succeeded)
+            return Unauthorized(new { error = "Invalid email or password." });
+
+        // PasswordSignInAsync signed us in, but without tenant claims. Re-sign
+        // to stamp the tenant_id and super_admin claims.
+        return await FinalizeSignInAsync(user, req.RememberMe);
+    }
+
+    public record VerifyTotpRequest(string Code, bool RememberMe, bool RememberMachine);
+
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    [HttpPost("login/verify-totp")]
+    public async Task<IActionResult> VerifyTotp([FromBody] VerifyTotpRequest req)
+    {
+        var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
+        if (user is null) return Unauthorized(new { error = "Sign-in session expired. Start over." });
+
+        var code = (req.Code ?? "").Replace(" ", "").Replace("-", "");
+        var result = await _signInManager.TwoFactorAuthenticatorSignInAsync(code, req.RememberMe, req.RememberMachine);
+        if (!result.Succeeded)
+        {
+            var recResult = await _signInManager.TwoFactorRecoveryCodeSignInAsync(code);
+            if (!recResult.Succeeded)
+                return Unauthorized(new { error = "Invalid code." });
+        }
+
+        return await FinalizeSignInAsync(user, req.RememberMe);
+    }
+
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    [HttpPost("login/passkey-start")]
+    public async Task<IActionResult> PasskeyStart()
+    {
+        var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
+        if (user is null) return Unauthorized(new { error = "Sign-in session expired." });
+
+        var creds = await _db.UserCredentials
+            .Where(c => c.UserId == user.Id)
+            .Select(c => new PublicKeyCredentialDescriptor(c.CredentialId))
+            .ToListAsync();
+        if (creds.Count == 0) return BadRequest(new { error = "No passkeys registered." });
+
+        var options = _fido2.GetAssertionOptions(new GetAssertionOptionsParams
+        {
+            AllowedCredentials = creds,
+            UserVerification = UserVerificationRequirement.Preferred,
+        });
+        _cache.Set($"webauthn:login:{user.Id}", options.ToJson(), TimeSpan.FromMinutes(5));
+        return Ok(options);
+    }
+
+    public record PasskeyLoginRequest(AuthenticatorAssertionRawResponse Response, bool RememberMe);
+
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    [HttpPost("login/passkey-complete")]
+    public async Task<IActionResult> PasskeyComplete([FromBody] PasskeyLoginRequest req)
+    {
+        var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
+        if (user is null) return Unauthorized(new { error = "Sign-in session expired." });
+
+        if (!_cache.TryGetValue<string>($"webauthn:login:{user.Id}", out var json))
+            return BadRequest(new { error = "Login challenge expired." });
+        var options = AssertionOptions.FromJson(json!);
+
+        // Byte-array comparison in LINQ requires loading candidates and
+        // checking in memory. User credential count is tiny so this is fine.
+        var responseCredId = WebEncoders.Base64UrlDecode(req.Response.Id);
+        var userCreds = await _db.UserCredentials.Where(c => c.UserId == user.Id).ToListAsync();
+        var cred = userCreds.FirstOrDefault(c => c.CredentialId.AsSpan().SequenceEqual(responseCredId));
+        if (cred is null)
+            return BadRequest(new { error = "Credential not recognized." });
+
+        var verified = await _fido2.MakeAssertionAsync(new MakeAssertionParams
+        {
+            AssertionResponse = req.Response,
+            OriginalOptions = options,
+            StoredPublicKey = cred.PublicKey,
+            StoredSignatureCounter = cred.SignCount,
+            IsUserHandleOwnerOfCredentialIdCallback = (_, _) => Task.FromResult(true),
+        });
+
+        cred.SignCount = verified.SignCount;
+        cred.LastUsedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        _cache.Remove($"webauthn:login:{user.Id}");
+
+        await HttpContext.SignOutAsync(IdentityConstants.TwoFactorUserIdScheme);
+        return await FinalizeSignInAsync(user, req.RememberMe);
+    }
+
+    // Shared finalizer: pick a tenant, stamp claims, return full DTO.
+    private async Task<IActionResult> FinalizeSignInAsync(ApplicationUser user, bool persist)
+    {
         _tenantContext.BypassFilter = true;
         var memberships = await _db.TenantMembers
             .Where(m => m.UserId == user.Id)
             .Include(m => m.Tenant)
             .Where(m => m.Tenant!.DeletedAt == null && m.Tenant!.SuspendedAt == null)
             .ToListAsync();
-
         int? tenantId = memberships.Count == 1 ? memberships[0].TenantId : (int?)null;
 
-        await _signInManager.SignInWithClaimsAsync(user, req.RememberMe, BuildClaims(user, tenantId));
+        await _signInManager.SignInWithClaimsAsync(user, persist, BuildClaims(user, tenantId));
         return Ok(await BuildCurrentUserDto(user));
     }
 

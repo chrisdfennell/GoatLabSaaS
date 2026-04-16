@@ -61,6 +61,8 @@ services:
       Backup__Offsite__Bucket: "${BACKUP_OFFSITE_BUCKET:-}"
       Backup__Offsite__Prefix: "${BACKUP_OFFSITE_PREFIX:-goatlab/db/}"
       Backup__Offsite__RetentionDays: "${BACKUP_OFFSITE_RETENTION_DAYS:-30}"
+      WebAuthn__RpId: "${WEBAUTHN_RP_ID:-localhost}"
+      WebAuthn__Origins__0: "${WEBAUTHN_ORIGIN:-http://localhost:8095}"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]

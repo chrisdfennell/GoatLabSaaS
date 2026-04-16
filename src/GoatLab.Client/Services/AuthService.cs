@@ -28,7 +28,9 @@ public class AuthService
         string? Error,
         CurrentUserDto? User,
         bool EmailUnconfirmed,
-        string? Email);
+        string? Email,
+        bool RequiresTwoFactor = false,
+        bool HasPasskeys = false);
 
     public async Task<CurrentUserDto?> GetCurrentUserAsync()
     {
@@ -73,6 +75,15 @@ public class AuthService
                 return new LoginResult(false, error, null, unconfirmed, email);
             }
             catch { return new LoginResult(false, body, null, false, null); }
+        }
+        // 200 + requiresTwoFactor means password was good but 2FA is needed.
+        using var doc2 = JsonDocument.Parse(body);
+        if (doc2.RootElement.TryGetProperty("requiresTwoFactor", out var rtf) && rtf.GetBoolean())
+        {
+            var hasPasskeys = doc2.RootElement.TryGetProperty("passkeys", out var pk)
+                              && pk.ValueKind == JsonValueKind.Array && pk.GetArrayLength() > 0;
+            return new LoginResult(true, null, null, false, null,
+                RequiresTwoFactor: true, HasPasskeys: hasPasskeys);
         }
         var user = JsonSerializer.Deserialize<CurrentUserDto>(body, JsonOpts);
         return new LoginResult(true, null, user, false, user?.Email);

@@ -2,62 +2,111 @@
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @layout GoatLab.Client.Layout.AuthLayout
 @using GoatLab.Shared.DTOs
+@using System.Text.Json
 @inject AuthService AuthApi
+@inject TwoFactorService TfApi
 @inject CookieAuthStateProvider AuthState
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <PageTitle>Sign in — GoatLab</PageTitle>
 
 <MudPaper Elevation="4" Class="pa-8" Style="max-width: 440px; margin: 4rem auto;">
-    <MudText Typo="Typo.h5" GutterBottom="true">Sign in to GoatLab</MudText>
-    <MudText Typo="Typo.body2" Class="mb-4" Color="Color.Secondary">
-        Welcome back. Enter your credentials below.
-    </MudText>
+    @if (_step == LoginStep.Password)
+    {
+        <MudText Typo="Typo.h5" GutterBottom="true">Sign in to GoatLab</MudText>
+        <MudText Typo="Typo.body2" Class="mb-4" Color="Color.Secondary">
+            Welcome back. Enter your credentials below.
+        </MudText>
 
-    <EditForm Model="@_model" OnValidSubmit="SubmitAsync">
-        <DataAnnotationsValidator />
-        <MudTextField @bind-Value="_model.Email" Label="Email" Variant="Variant.Outlined"
-                      InputType="InputType.Email" Required="true" Class="mb-3" />
-        <MudTextField @bind-Value="_model.Password" Label="Password" Variant="Variant.Outlined"
-                      InputType="InputType.Password" Required="true" Class="mb-3" />
-        <MudCheckBox @bind-Value="_model.RememberMe" Label="Keep me signed in" Class="mb-4" />
+        <EditForm Model="@_model" OnValidSubmit="SubmitPasswordAsync">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="_model.Email" Label="Email" Variant="Variant.Outlined"
+                          InputType="InputType.Email" Required="true" Class="mb-3" />
+            <MudTextField @bind-Value="_model.Password" Label="Password" Variant="Variant.Outlined"
+                          InputType="InputType.Password" Required="true" Class="mb-3" />
+            <MudCheckBox @bind-Value="_model.RememberMe" Label="Keep me signed in" Class="mb-4" />
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-3">
+                    @_error
+                    @if (_emailUnconfirmed)
+                    {
+                        <div class="mt-2">
+                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                       OnClick="ResendConfirmationAsync" Disabled="_busy">
+                                Resend confirmation email
+                            </MudButton>
+                        </div>
+                    }
+                </MudAlert>
+            }
+
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled"
+                       Color="Color.Primary" FullWidth="true" Disabled="_busy">
+                @(_busy ? "Signing in…" : "Sign in")
+            </MudButton>
+        </EditForm>
+
+        <div class="d-flex justify-space-between mt-4">
+            <MudLink Href="/forgot-password" Typo="Typo.body2">Forgot your password?</MudLink>
+            <MudLink Href="/register" Typo="Typo.body2">Create an account</MudLink>
+        </div>
+    }
+    else if (_step == LoginStep.TwoFactor)
+    {
+        <MudText Typo="Typo.h5" GutterBottom="true">Two-factor authentication</MudText>
+        <MudText Typo="Typo.body2" Class="mb-4" Color="Color.Secondary">
+            Enter the 6-digit code from your authenticator app, or use a recovery code.
+        </MudText>
+
+        <MudTextField @bind-Value="_totpCode" Label="Code" Variant="Variant.Outlined"
+                      MaxLength="12" Class="mb-3" Immediate="true" />
+        <MudCheckBox @bind-Value="_rememberMachine" Label="Trust this device (skip 2FA next time)" Class="mb-4" />
 
         @if (!string.IsNullOrEmpty(_error))
         {
-            <MudAlert Severity="Severity.Error" Class="mb-3">
-                @_error
-                @if (_emailUnconfirmed)
-                {
-                    <div class="mt-2">
-                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
-                                   OnClick="ResendConfirmationAsync" Disabled="_busy">
-                            Resend confirmation email
-                        </MudButton>
-                    </div>
-                }
-            </MudAlert>
+            <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
         }
 
-        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled"
-                   Color="Color.Primary" FullWidth="true" Disabled="_busy">
-            @(_busy ? "Signing in…" : "Sign in")
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth
+                   OnClick="VerifyTotpAsync" Disabled="_busy || string.IsNullOrWhiteSpace(_totpCode)">
+            @(_busy ? "Verifying…" : "Verify")
         </MudButton>
-    </EditForm>
 
-    <div class="d-flex justify-space-between mt-4">
-        <MudLink Href="/forgot-password" Typo="Typo.body2">Forgot your password?</MudLink>
-        <MudLink Href="/register" Typo="Typo.body2">Create an account</MudLink>
-    </div>
+        @if (_hasPasskeys)
+        {
+            <MudDivider Class="my-4" />
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth
+                       StartIcon="@Icons.Material.Filled.Fingerprint"
+                       OnClick="PasskeyLoginAsync" Disabled="_busy">
+                Use a passkey instead
+            </MudButton>
+        }
+
+        <MudButton Variant="Variant.Text" Color="Color.Default" FullWidth Class="mt-2"
+                   OnClick="@(() => { _step = LoginStep.Password; _error = null; })">
+            Back
+        </MudButton>
+    }
 </MudPaper>
 
 @code {
+    private enum LoginStep { Password, TwoFactor }
+    private LoginStep _step = LoginStep.Password;
     private LoginModel _model = new();
     private string? _error;
     private bool _emailUnconfirmed;
     private bool _busy;
 
-    private async Task SubmitAsync()
+    // 2FA state
+    private string _totpCode = "";
+    private bool _rememberMachine;
+    private bool _hasPasskeys;
+
+    private async Task SubmitPasswordAsync()
     {
         _busy = true;
         _error = null;
@@ -73,11 +122,66 @@
             return;
         }
 
-        AuthState.NotifyUserChanged(result.User);
+        if (result.RequiresTwoFactor)
+        {
+            _hasPasskeys = result.HasPasskeys;
+            _step = LoginStep.TwoFactor;
+            return;
+        }
 
-        if (result.User is null || result.User.Memberships.Count == 0)
+        if (result.User is null) { _error = "Unexpected login response."; return; }
+        CompleteLogin(result.User);
+    }
+
+    private async Task VerifyTotpAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var (ok, err, userJson) = await TfApi.VerifyTotpLoginAsync(_totpCode, _model.RememberMe, _rememberMachine);
+            if (!ok) { _error = err ?? "Invalid code."; return; }
+
+            var user = JsonSerializer.Deserialize<CurrentUserDto>(userJson!,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            if (user is not null) CompleteLogin(user);
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task PasskeyLoginAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var optionsJson = await TfApi.PasskeyLoginStartAsync();
+            if (optionsJson is null) { _error = "Could not start passkey login."; return; }
+
+            string assertionJson;
+            try
+            {
+                assertionJson = await JS.InvokeAsync<string>("JSON.stringify",
+                    await JS.InvokeAsync<object>("webAuthn.authenticate", optionsJson));
+            }
+            catch (Exception ex) { _error = $"Passkey failed: {ex.Message}"; return; }
+
+            var (ok, err, userJson) = await TfApi.PasskeyLoginCompleteAsync(assertionJson, _model.RememberMe);
+            if (!ok) { _error = err ?? "Passkey verification failed."; return; }
+
+            var user = JsonSerializer.Deserialize<CurrentUserDto>(userJson!,
+                new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            if (user is not null) CompleteLogin(user);
+        }
+        finally { _busy = false; }
+    }
+
+    private void CompleteLogin(CurrentUserDto user)
+    {
+        AuthState.NotifyUserChanged(user);
+        if (user.Memberships.Count == 0)
             Nav.NavigateTo("/dashboard");
-        else if (result.User.CurrentTenantId is null)
+        else if (user.CurrentTenantId is null)
             Nav.NavigateTo("/select-farm");
         else
             Nav.NavigateTo("/dashboard");

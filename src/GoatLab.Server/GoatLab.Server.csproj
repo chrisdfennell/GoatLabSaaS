@@ -10,6 +10,8 @@
   <ItemGroup>
     <!-- EF Core + SQL Server -->
     <PackageReference Include="AWSSDK.S3" Version="4.0.21.2" />
+    <PackageReference Include="Fido2" Version="4.0.1" />
+    <PackageReference Include="Fido2.AspNet" Version="4.0.1" />
     <PackageReference Include="Hangfire.AspNetCore" Version="1.8.23" />
     <PackageReference Include="Hangfire.SqlServer" Version="1.8.23" />
     <PackageReference Include="MailKit" Version="4.16.0" />

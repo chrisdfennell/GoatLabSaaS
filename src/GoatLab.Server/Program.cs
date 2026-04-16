@@ -7,6 +7,7 @@ using GoatLab.Server.Services.Billing;
 using GoatLab.Server.Services.Email;
 using GoatLab.Server.Services.Jobs;
 using GoatLab.Server.Services.Plans;
+using Fido2NetLib;
 using Hangfire;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Authorization;
@@ -99,9 +100,28 @@ builder.Services
         // can't complete login because no email actually lands.
         options.SignIn.RequireConfirmedEmail =
             builder.Configuration.GetValue<bool>("Identity:RequireConfirmedEmail", false);
+        // TOTP authenticator token provider — needed for 2FA QR setup flow.
+        options.Tokens.AuthenticatorTokenProvider = TokenOptions.DefaultAuthenticatorProvider;
     })
     .AddEntityFrameworkStores<GoatLabDbContext>()
     .AddDefaultTokenProviders();
+
+// IMemoryCache holds the short-lived WebAuthn challenge between register-start
+// and register-complete (and between login-start and login-complete).
+builder.Services.AddMemoryCache();
+
+// WebAuthn / FIDO2. RP ID is the registrable domain (e.g. "localhost" for dev,
+// "goatlab.example" in prod). Origins must be the full scheme+host+port of the
+// Blazor client. Configure via WebAuthn:RpId / WebAuthn:Origins (array).
+builder.Services.AddFido2(options =>
+{
+    options.ServerDomain = builder.Configuration.GetValue<string>("WebAuthn:RpId") ?? "localhost";
+    options.ServerName = "GoatLab";
+    options.Origins = new HashSet<string>(
+        builder.Configuration.GetSection("WebAuthn:Origins").Get<string[]>()
+        ?? new[] { "http://localhost:8080", "http://localhost:8095", "https://localhost:5001" });
+    options.TimestampDriftTolerance = 300000;
+});
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -183,6 +203,9 @@ builder.Services.AddScoped<IFeatureGate, FeatureGate>();
 // Offsite database backup. No-op when Backup:Offsite:Enabled is false.
 builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.SectionName));
 builder.Services.AddScoped<IBackupService, BackupService>();
+
+// ADGA/AGS registry CSV import.
+builder.Services.AddScoped<RegistryImportService>();
 
 // Hangfire. Recurring jobs live in Services/Jobs; registration happens after
 // the host is built so DI is available. SQL Server storage reuses the app's

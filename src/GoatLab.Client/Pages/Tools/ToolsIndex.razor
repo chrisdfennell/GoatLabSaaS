@@ -1,5 +1,7 @@
 @page "/tools"
+@using System.Net.Http.Json
 @inject ToolsService ToolsSvc
+@inject HttpClient Http
 @inject PwaService Pwa
 @inject IJSRuntime JS
 @inject IDialogService Dialog
@@ -235,6 +237,53 @@
             </MudGrid>
         </MudPaper>
     </MudItem>
+
+    @* Registry Import (ADGA/AGS) *@
+    <MudItem xs="12" md="6">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.UploadFile" />
+                    <div>
+                        <MudText Typo="Typo.h6">Registry Import</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">Import your ADGA or AGS herd CSV — pedigree linking included.</MudText>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex flex-column" style="gap:10px;">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Download"
+                           Href="/api/tools/import/registry/template" FullWidth>
+                    Download template CSV
+                </MudButton>
+                <MudFileUpload T="IBrowserFile" Accept=".csv" FilesChanged="RegistryFileSelected" MaximumFileCount="1">
+                    <ActivatorContent>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.CloudUpload" FullWidth
+                                   Disabled="@_registryBusy">
+                            @(_registryBusy ? "Importing…" : "Upload registry CSV")
+                        </MudButton>
+                    </ActivatorContent>
+                </MudFileUpload>
+                @if (_registryResult is not null)
+                {
+                    <MudAlert Severity="@(_registryResult.Errors.Count > 0 ? Severity.Warning : Severity.Success)" Class="mt-2">
+                        <b>@_registryResult.Created</b> created, <b>@_registryResult.Updated</b> updated, <b>@_registryResult.Skipped</b> skipped.
+                        @if (_registryResult.Errors.Count > 0)
+                        {
+                            <span> @_registryResult.Errors.Count error(s).</span>
+                        }
+                    </MudAlert>
+                    @if (_registryResult.Errors.Count > 0)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Error" Style="white-space:pre-wrap;">
+                            @string.Join("\n", _registryResult.Errors.Select(e => $"Row {e.Row}: {e.Message}"))
+                        </MudText>
+                    }
+                }
+            </div>
+        </MudPaper>
+    </MudItem>
 </MudGrid>
 
 @code {
@@ -356,4 +405,37 @@
         var base64 = Convert.ToBase64String(bytes);
         await JS.InvokeVoidAsync("goatLab.downloadFile", fileName, contentType, base64);
     }
+
+    // --- Registry import ---
+    private bool _registryBusy;
+    private RegistryImportResult? _registryResult;
+
+    private async Task RegistryFileSelected(IBrowserFile? file)
+    {
+        if (file is null) return;
+        _registryBusy = true;
+        _registryResult = null;
+        try
+        {
+            using var content = new MultipartFormDataContent();
+            using var stream = file.OpenReadStream(maxAllowedSize: 10_000_000);
+            content.Add(new StreamContent(stream), "file", file.Name);
+            var resp = await Http.PostAsync("api/tools/import/registry", content);
+            if (resp.IsSuccessStatusCode)
+            {
+                _registryResult = await resp.Content.ReadFromJsonAsync<RegistryImportResult>();
+                Snackbar.Add($"Import done — {_registryResult?.Created ?? 0} created, {_registryResult?.Updated ?? 0} updated.", Severity.Success);
+            }
+            else
+            {
+                var err = await resp.Content.ReadAsStringAsync();
+                Snackbar.Add(err.Length > 200 ? "Import failed." : err, Severity.Error);
+            }
+        }
+        catch (Exception ex) { Snackbar.Add($"Upload failed: {ex.Message}", Severity.Error); }
+        finally { _registryBusy = false; }
+    }
+
+    private record RegistryImportResult(int Created, int Updated, int Skipped, List<RegistryImportError> Errors);
+    private record RegistryImportError(int Row, string Message);
 }

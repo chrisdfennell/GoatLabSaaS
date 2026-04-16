@@ -223,6 +223,47 @@ public class ToolsController : ControllerBase
         "Status", "Bio", "RegistrationNumber"
     };
 
+    // ----- ADGA/AGS Registry Import -----
+
+    private static readonly string[] RegistryColumns = new[]
+    {
+        "RegistrationNumber", "Name", "Breed", "Sex", "DateOfBirth",
+        "TattooLeft", "TattooRight", "Color", "Registry",
+        "SireRegistration", "SireName", "DamRegistration", "DamName",
+        "BreederName", "Status"
+    };
+
+    [HttpGet("import/registry/template")]
+    public IActionResult GetRegistryImportTemplate()
+    {
+        var header = string.Join(",", RegistryColumns);
+        var example = "D1234567,SG Rosasharn's Tiger Lily 3*M,Nubian,Doe,2021-03-15,RS12,RS12,Bay w/white ears,ADGA,D9876543,Rosasharn's Atlas,D5555555,Rosasharn's Luna,Rosasharn Farm,Active";
+        var csv = header + "\n" + example + "\n";
+        return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", "adga-registry-import-template.csv");
+    }
+
+    [HttpPost("import/registry")]
+    [RequestSizeLimit(10_000_000)]
+    public async Task<ActionResult<RegistryImportService.ImportResult>> ImportRegistry(
+        IFormFile file,
+        [FromServices] RegistryImportService importer,
+        CancellationToken ct)
+    {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "No file uploaded." });
+
+        var tenantId = _db.Entry(_db.Goats.Local.FirstOrDefault() ?? new GoatLab.Shared.Models.Goat())
+            .Property("TenantId").CurrentValue;
+
+        // Read tenant from ITenantContext since we need the scoped tenant id.
+        var tenantCtx = HttpContext.RequestServices.GetRequiredService<ITenantContext>();
+        if (tenantCtx.TenantId is not int tid)
+            return BadRequest(new { error = "No tenant selected." });
+
+        await using var stream = file.OpenReadStream();
+        return await importer.ImportAsync(stream, tid, ct);
+    }
+
     [HttpPost("import/goats")]
     [RequestSizeLimit(5_000_000)]
     public async Task<ActionResult<GoatImportResult>> ImportGoats(IFormFile file)
