@@ -10,6 +10,7 @@ services:
       - "1433:1433"
     volumes:
       - goatlab-mssql:/var/opt/mssql
+      - goatlab-backups:/var/opt/mssql/backup
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
@@ -30,12 +31,45 @@ services:
       - "${APP_PORT:-8090}:8080"
     volumes:
       - goatlab-media:/app/media
+      - goatlab-backups:/app/backups
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=GoatLab;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;Encrypt=True;"
       GoogleMaps__ApiKey: "${GOOGLE_MAPS_API_KEY:-}"
+      Backup__AppPath: "/app/backups"
+      Backup__SqlServerPath: "/var/opt/mssql/backup"
+      Smtp__Host: "${SMTP_HOST:-}"
+      Smtp__Port: "${SMTP_PORT:-587}"
+      Smtp__Username: "${SMTP_USERNAME:-}"
+      Smtp__Password: "${SMTP_PASSWORD:-}"
+      Smtp__FromAddress: "${SMTP_FROM_ADDRESS:-}"
+      Smtp__FromName: "${SMTP_FROM_NAME:-GoatLab}"
+      Smtp__UseSsl: "${SMTP_USE_SSL:-true}"
+      Stripe__SecretKey: "${STRIPE_SECRET_KEY:-}"
+      Stripe__PublishableKey: "${STRIPE_PUBLISHABLE_KEY:-}"
+      Stripe__WebhookSecret: "${STRIPE_WEBHOOK_SECRET:-}"
+      Stripe__FarmPriceId: "${STRIPE_FARM_PRICE_ID:-}"
+      Stripe__DairyPriceId: "${STRIPE_DAIRY_PRICE_ID:-}"
+      Stripe__TrialDays: "${STRIPE_TRIAL_DAYS:-14}"
+      Sentry__Dsn: "${SENTRY_DSN:-}"
+      Sentry__TracesSampleRate: "${SENTRY_TRACES_SAMPLE_RATE:-0.0}"
+      Backup__Offsite__Enabled: "${BACKUP_OFFSITE_ENABLED:-false}"
+      Backup__Offsite__Endpoint: "${BACKUP_OFFSITE_ENDPOINT:-}"
+      Backup__Offsite__Region: "${BACKUP_OFFSITE_REGION:-us-east-1}"
+      Backup__Offsite__AccessKey: "${BACKUP_OFFSITE_ACCESS_KEY:-}"
+      Backup__Offsite__SecretKey: "${BACKUP_OFFSITE_SECRET_KEY:-}"
+      Backup__Offsite__Bucket: "${BACKUP_OFFSITE_BUCKET:-}"
+      Backup__Offsite__Prefix: "${BACKUP_OFFSITE_PREFIX:-goatlab/db/}"
+      Backup__Offsite__RetentionDays: "${BACKUP_OFFSITE_RETENTION_DAYS:-30}"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
 volumes:
   goatlab-mssql:
   goatlab-media:
+  goatlab-backups:

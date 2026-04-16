@@ -1,0 +1,122 @@
+@page "/admin/plans"
+@using GoatLab.Shared.Models
+@inject AdminPlansService PlansApi
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Plans — Admin — GoatLab</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+    <div class="d-flex align-center mb-4">
+        <MudText Typo="Typo.h4">Plans</MudText>
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add" OnClick="CreateAsync">
+            New plan
+        </MudButton>
+    </div>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+        Manage subscription packages — pricing, per-plan feature toggles, goat/user limits. Public
+        plans appear on the landing page and in-app billing picker. Changes are live immediately.
+    </MudText>
+
+    @if (_plans is null)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else
+    {
+        <MudTable Items="_plans" Dense="true" Hover="true">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Slug</MudTh>
+                <MudTh>Price / mo</MudTh>
+                <MudTh>Trial</MudTh>
+                <MudTh>Max goats</MudTh>
+                <MudTh>Max users</MudTh>
+                <MudTh>Features</MudTh>
+                <MudTh>Tenants</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Name</MudTd>
+                <MudTd><code>@context.Slug</code></MudTd>
+                <MudTd>@FormatPrice(context.PriceMonthlyCents)</MudTd>
+                <MudTd>@(context.TrialDays == 0 ? "—" : $"{context.TrialDays} days")</MudTd>
+                <MudTd>@(context.MaxGoats?.ToString() ?? "∞")</MudTd>
+                <MudTd>@(context.MaxUsers?.ToString() ?? "∞")</MudTd>
+                <MudTd>@context.Features.Count(f => f.Enabled)/@context.Features.Count</MudTd>
+                <MudTd>@context.TenantCount</MudTd>
+                <MudTd>
+                    @if (!context.IsActive) { <MudChip T="string" Size="Size.Small" Color="Color.Default">Inactive</MudChip> }
+                    else if (!context.IsPublic) { <MudChip T="string" Size="Size.Small" Color="Color.Warning">Hidden</MudChip> }
+                    else { <MudChip T="string" Size="Size.Small" Color="Color.Success">Live</MudChip> }
+                </MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="@(() => EditAsync(context))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                   Color="Color.Error"
+                                   OnClick="@(() => DeleteAsync(context))"
+                                   Disabled="context.TenantCount > 0" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudContainer>
+
+@code {
+    private List<AdminPlansService.AdminPlan>? _plans;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _plans = await PlansApi.GetAllAsync();
+
+    private static string FormatPrice(int cents)
+        => cents == 0 ? "Free" : $"${cents / 100m:0.00}";
+
+    private async Task CreateAsync()
+    {
+        var parameters = new DialogParameters
+        {
+            ["Plan"] = (AdminPlansService.AdminPlan?)null,
+        };
+        var dialog = await DialogService.ShowAsync<PlanEditorDialog>("New plan", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            Snackbar.Add("Plan created.", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task EditAsync(AdminPlansService.AdminPlan plan)
+    {
+        var parameters = new DialogParameters { ["Plan"] = plan };
+        var dialog = await DialogService.ShowAsync<PlanEditorDialog>($"Edit {plan.Name}", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            Snackbar.Add("Plan updated.", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteAsync(AdminPlansService.AdminPlan plan)
+    {
+        var confirm = await DialogService.ShowMessageBox(
+            "Delete plan?",
+            $"Remove the plan '{plan.Name}'? It has {plan.TenantCount} tenant(s) on it.",
+            yesText: "Delete",
+            cancelText: "Cancel");
+        if (confirm != true) return;
+
+        var (ok, err) = await PlansApi.DeleteAsync(plan.Id);
+        if (!ok) { Snackbar.Add(err ?? "Delete failed.", Severity.Error); return; }
+        Snackbar.Add("Plan deleted.", Severity.Info);
+        await LoadAsync();
+    }
+}

@@ -1,0 +1,183 @@
+@page "/billing"
+@using GoatLab.Client.Services
+@inject BillingService BillingApi
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Billing — GoatLab</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+    <MudText Typo="Typo.h4" GutterBottom="true">Billing</MudText>
+
+    @if (_status is null || _plans is null)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else
+    {
+        <MudPaper Class="pa-6 mb-6">
+            <MudText Typo="Typo.overline" Color="Color.Secondary">Current plan</MudText>
+            <MudText Typo="Typo.h5" GutterBottom="true">@_status.PlanName</MudText>
+
+            @if (!string.IsNullOrEmpty(_status.Status))
+            {
+                <MudChip T="string" Size="Size.Small" Color="@StatusColor(_status.Status)">@_status.Status</MudChip>
+            }
+
+            @if (_status.TrialEndsAt.HasValue)
+            {
+                <MudText Typo="Typo.body2" Class="mt-2" Color="Color.Secondary">
+                    Trial ends @_status.TrialEndsAt.Value.ToLocalTime().ToString("MMM d, yyyy")
+                </MudText>
+            }
+            @if (_status.CurrentPeriodEnd.HasValue)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Renews @_status.CurrentPeriodEnd.Value.ToLocalTime().ToString("MMM d, yyyy")
+                </MudText>
+            }
+
+            @if (_status.HasStripeCustomer)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4"
+                           OnClick="OpenPortalAsync" Disabled="_busy">
+                    Manage billing
+                </MudButton>
+            }
+        </MudPaper>
+
+        <MudText Typo="Typo.h6" GutterBottom="true">Change plan</MudText>
+        <div class="plan-grid">
+            @foreach (var plan in _plans)
+            {
+                var isCurrent = plan.Id == _status.PlanId;
+                <MudPaper Class="pa-5 plan-card">
+                    <MudText Typo="Typo.overline" Color="Color.Primary">@plan.Name</MudText>
+                    <MudText Typo="Typo.h5">
+                        @FormatPrice(plan.PriceMonthlyCents)<span class="plan-per"> @(plan.PriceMonthlyCents == 0 ? "forever" : "/ month")</span>
+                    </MudText>
+                    @if (!string.IsNullOrEmpty(plan.Description))
+                    {
+                        <MudText Typo="Typo.body2" Class="mb-2">@plan.Description</MudText>
+                    }
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">
+                        @(plan.MaxGoats?.ToString() ?? "Unlimited") goats · @(plan.MaxUsers?.ToString() ?? "Unlimited") users
+                    </MudText>
+
+                    <ul class="plan-features">
+                        @foreach (var f in plan.Features.Where(f => f.Enabled))
+                        {
+                            <li><MudIcon Icon="@Icons.Material.Filled.Check" Size="Size.Small" /> @FeatureLabel(f.Feature)</li>
+                        }
+                    </ul>
+
+                    @if (isCurrent)
+                    {
+                        <MudChip T="string" Color="Color.Success" Size="Size.Small">Current</MudChip>
+                    }
+                    else if (plan.PriceMonthlyCents == 0)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Downgrade via Manage billing</MudText>
+                    }
+                    else
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth
+                                   OnClick="@(() => CheckoutAsync(plan.Id))" Disabled="_busy">
+                            @(plan.TrialDays > 0 ? $"Start {plan.TrialDays}-day trial" : $"Upgrade to {plan.Name}")
+                        </MudButton>
+                    }
+                </MudPaper>
+            }
+        </div>
+    }
+</MudContainer>
+
+<style>
+    .plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+    .plan-card { display: flex; flex-direction: column; }
+    .plan-per { font-size: 14px; font-weight: 400; color: var(--mud-palette-text-secondary); }
+    .plan-features { list-style: none; padding: 0; margin: 0 0 16px; flex: 1; }
+    .plan-features li { display: flex; align-items: center; gap: 6px; padding: 4px 0; font-size: 0.9rem; }
+    .plan-features li .mud-icon-root { color: #2e7d32; }
+</style>
+
+@code {
+    private BillingService.BillingStatus? _status;
+    private List<BillingService.PublicPlan>? _plans;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        HandleReturnStatus();
+        var statusTask = BillingApi.GetStatusAsync();
+        var plansTask = BillingApi.GetPublicPlansAsync();
+        _status = await statusTask;
+        _plans = await plansTask;
+    }
+
+    private void HandleReturnStatus()
+    {
+        var uri = new Uri(Nav.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var s = query["status"];
+        if (s == "success")
+            Snackbar.Add("Subscription started. Welcome aboard!", Severity.Success);
+        else if (s == "cancel")
+            Snackbar.Add("Checkout canceled.", Severity.Info);
+    }
+
+    private async Task CheckoutAsync(int planId)
+    {
+        _busy = true;
+        try
+        {
+            var url = await BillingApi.StartCheckoutAsync(planId);
+            if (string.IsNullOrEmpty(url))
+            {
+                Snackbar.Add("Could not start checkout. Try again.", Severity.Error);
+                return;
+            }
+            Nav.NavigateTo(url, forceLoad: true);
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task OpenPortalAsync()
+    {
+        _busy = true;
+        try
+        {
+            var url = await BillingApi.OpenPortalAsync();
+            if (string.IsNullOrEmpty(url))
+            {
+                Snackbar.Add("Could not open billing portal.", Severity.Error);
+                return;
+            }
+            Nav.NavigateTo(url, forceLoad: true);
+        }
+        finally { _busy = false; }
+    }
+
+    private static string FormatPrice(int cents) => cents == 0 ? "Free" : $"${cents / 100m:0.00}";
+
+    // Convert a feature name ("ShowRecords") to a friendly label ("Show records").
+    private static string FeatureLabel(string feature)
+    {
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < feature.Length; i++)
+        {
+            if (i > 0 && char.IsUpper(feature[i])) sb.Append(' ');
+            sb.Append(i == 0 ? feature[i] : char.ToLower(feature[i]));
+        }
+        return sb.ToString();
+    }
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "active" => Color.Success,
+        "trialing" => Color.Info,
+        "past_due" => Color.Warning,
+        "canceled" or "unpaid" or "incomplete_expired" => Color.Error,
+        _ => Color.Default,
+    };
+}

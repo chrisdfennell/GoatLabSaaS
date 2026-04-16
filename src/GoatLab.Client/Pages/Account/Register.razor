@@ -9,60 +9,84 @@
 <PageTitle>Sign up — GoatLab</PageTitle>
 
 <MudPaper Elevation="4" Class="pa-8" Style="max-width: 480px; margin: 4rem auto;">
-    <MudText Typo="Typo.h5" GutterBottom="true">Start your free GoatLab account</MudText>
-    <MudText Typo="Typo.body2" Class="mb-4" Color="Color.Secondary">
-        Track your herd, milk production, breeding, health — everything in one place.
-    </MudText>
+    @if (_pendingConfirmEmail is not null)
+    {
+        <div class="text-center">
+            <MudIcon Icon="@Icons.Material.Filled.MarkEmailRead" Size="Size.Large" Color="Color.Primary" />
+            <MudText Typo="Typo.h5" Class="mt-2 mb-2">Check your inbox</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                We sent a confirmation link to <strong>@_pendingConfirmEmail</strong>.
+                Click it to finish setting up your account, then sign in.
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth Href="/login">
+                Go to sign in
+            </MudButton>
+        </div>
+    }
+    else
+    {
+        <MudText Typo="Typo.h5" GutterBottom="true">Start your free GoatLab account</MudText>
+        <MudText Typo="Typo.body2" Class="mb-4" Color="Color.Secondary">
+            Track your herd, milk production, breeding, health — everything in one place.
+        </MudText>
 
-    <EditForm Model="@_model" OnValidSubmit="SubmitAsync">
-        <DataAnnotationsValidator />
-        <MudTextField @bind-Value="_model.FarmName" Label="Farm / homestead name" Variant="Variant.Outlined"
-                      Required="true" Class="mb-3" HelperText="You can rename this later." />
-        <MudTextField @bind-Value="_model.DisplayName" Label="Your name" Variant="Variant.Outlined"
-                      Required="true" Class="mb-3" />
-        <MudTextField @bind-Value="_model.Email" Label="Email" Variant="Variant.Outlined"
-                      InputType="InputType.Email" Required="true" Class="mb-3" />
-        <MudTextField @bind-Value="_model.Password" Label="Password" Variant="Variant.Outlined"
-                      InputType="InputType.Password" Required="true" Class="mb-4"
-                      HelperText="At least 8 characters, one number, one lowercase letter." />
+        <EditForm Model="@_model" OnValidSubmit="SubmitAsync">
+            <DataAnnotationsValidator />
+            <MudTextField @bind-Value="_model.FarmName" Label="Farm / homestead name" Variant="Variant.Outlined"
+                          Required="true" Class="mb-3" HelperText="You can rename this later." />
+            <MudTextField @bind-Value="_model.DisplayName" Label="Your name" Variant="Variant.Outlined"
+                          Required="true" Class="mb-3" />
+            <MudTextField @bind-Value="_model.Email" Label="Email" Variant="Variant.Outlined"
+                          InputType="InputType.Email" Required="true" Class="mb-3" />
+            <MudTextField @bind-Value="_model.Password" Label="Password" Variant="Variant.Outlined"
+                          InputType="InputType.Password" Required="true" Class="mb-4"
+                          HelperText="At least 8 characters with upper, lower, digit, and symbol." />
 
-        @if (!string.IsNullOrEmpty(_error))
-        {
-            <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
-        }
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
+            }
 
-        <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled"
-                   Color="Color.Primary" FullWidth="true" Disabled="_busy">
-            @(_busy ? "Creating account…" : "Create account")
-        </MudButton>
-    </EditForm>
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled"
+                       Color="Color.Primary" FullWidth="true" Disabled="_busy">
+                @(_busy ? "Creating account…" : "Create account")
+            </MudButton>
+        </EditForm>
 
-    <MudText Typo="Typo.body2" Class="mt-4" Align="Align.Center">
-        Already have an account? <MudLink Href="/login">Sign in</MudLink>
-    </MudText>
+        <MudText Typo="Typo.body2" Class="mt-4" Align="Align.Center">
+            Already have an account? <MudLink Href="/login">Sign in</MudLink>
+        </MudText>
+    }
 </MudPaper>
 
 @code {
     private RegisterModel _model = new();
     private string? _error;
     private bool _busy;
+    private string? _pendingConfirmEmail;
 
     private async Task SubmitAsync()
     {
         _busy = true;
         _error = null;
 
-        var (ok, err, user) = await AuthApi.RegisterAsync(new RegisterRequest(
+        var result = await AuthApi.RegisterAsync(new RegisterRequest(
             _model.Email, _model.Password, _model.DisplayName, _model.FarmName));
         _busy = false;
 
-        if (!ok)
+        if (!result.Ok)
         {
-            _error = err?.Length > 200 ? "Couldn't create account. Please check your details." : (err ?? "Registration failed.");
+            _error = result.Error?.Length > 200 ? "Couldn't create account. Please check your details." : (result.Error ?? "Registration failed.");
             return;
         }
 
-        AuthState.NotifyUserChanged(user);
+        if (result.RequiresConfirmation)
+        {
+            _pendingConfirmEmail = result.Email ?? _model.Email;
+            return;
+        }
+
+        AuthState.NotifyUserChanged(result.User);
         Nav.NavigateTo("/dashboard");
     }
 

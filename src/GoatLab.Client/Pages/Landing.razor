@@ -2,6 +2,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @layout GoatLab.Client.Layout.LandingLayout
 @inject NavigationManager Nav
+@inject BillingService BillingApi
 
 <PageTitle>GoatLab — Herd management for modern goat farmers</PageTitle>
 
@@ -203,51 +204,48 @@
         </div>
 
         <div class="plan-grid">
-            <div class="plan">
-                <div class="plan-name">Homestead</div>
-                <div class="plan-price">Free<span>forever</span></div>
-                <div class="plan-line">For small herds just getting organized.</div>
-                <ul>
-                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Up to 10 goats</li>
-                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Health, breeding, milk logs</li>
-                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Mobile + offline</li>
-                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> 1 user</li>
-                </ul>
-                <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth Href="/register">
-                    Start free
-                </MudButton>
-            </div>
-
-            <div class="plan featured">
-                <div class="plan-badge">Most popular</div>
-                <div class="plan-name">Farm</div>
-                <div class="plan-price">$19<span>/ month</span></div>
-                <div class="plan-line">For working farms tracking production.</div>
-                <ul>
-                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Unlimited goats</li>
-                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Sales, finances, inventory</li>
-                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Farm map &amp; calendar</li>
-                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Up to 3 users</li>
-                </ul>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth Href="/register">
-                    Start 14-day trial
-                </MudButton>
-            </div>
-
-            <div class="plan">
-                <div class="plan-name">Dairy</div>
-                <div class="plan-price">$49<span>/ month</span></div>
-                <div class="plan-line">For commercial dairies and breeders.</div>
-                <ul>
-                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Everything in Farm</li>
-                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Advanced reports &amp; exports</li>
-                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Show records &amp; lineage</li>
-                    <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Unlimited users</li>
-                </ul>
-                <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth Href="/register">
-                    Contact sales
-                </MudButton>
-            </div>
+            @if (_plans is null)
+            {
+                <MudProgressCircular Indeterminate="true" />
+            }
+            else
+            {
+                @for (var i = 0; i < _plans.Count; i++)
+                {
+                    var plan = _plans[i];
+                    var featured = IsFeaturedPlan(i, _plans.Count);
+                    <div class="plan @(featured ? "featured" : "")">
+                        @if (featured) { <div class="plan-badge">Most popular</div> }
+                        <div class="plan-name">@plan.Name</div>
+                        <div class="plan-price">
+                            @(plan.PriceMonthlyCents == 0 ? "Free" : $"${plan.PriceMonthlyCents / 100m:0}")
+                            <span>@(plan.PriceMonthlyCents == 0 ? "forever" : "/ month")</span>
+                        </div>
+                        @if (!string.IsNullOrEmpty(plan.Description))
+                        {
+                            <div class="plan-line">@plan.Description</div>
+                        }
+                        <ul>
+                            <li>
+                                <MudIcon Icon="@Icons.Material.Filled.Check" />
+                                @(plan.MaxGoats?.ToString() ?? "Unlimited") goats
+                            </li>
+                            <li>
+                                <MudIcon Icon="@Icons.Material.Filled.Check" />
+                                @(plan.MaxUsers?.ToString() ?? "Unlimited") users
+                            </li>
+                            @foreach (var f in plan.Features.Where(f => f.Enabled))
+                            {
+                                <li><MudIcon Icon="@Icons.Material.Filled.Check" /> @FeatureLabel(f.Feature)</li>
+                            }
+                        </ul>
+                        <MudButton Variant="@(featured ? Variant.Filled : Variant.Outlined)"
+                                   Color="Color.Primary" FullWidth Href="/register">
+                            @CtaLabel(plan)
+                        </MudButton>
+                    </div>
+                }
+            }
         </div>
     </div>
 </section>
@@ -390,6 +388,8 @@
             <a href="#self-host">Self-host</a>
             <a href="#faq">FAQ</a>
             <a href="@RepoUrl" target="_blank" rel="noopener">GitHub</a>
+            <a href="/terms">Terms</a>
+            <a href="/privacy">Privacy</a>
             <a href="/login">Sign in</a>
             <a href="/register">Start free</a>
         </div>
@@ -739,6 +739,38 @@
 @code {
     // TODO: update this to the real repo URL once public.
     private const string RepoUrl = "https://github.com/goatlab/goatlab";
+
+    private List<BillingService.PublicPlan>? _plans;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _plans = await BillingApi.GetPublicPlansAsync(); }
+        catch { _plans = new(); /* if the API is unreachable, show empty */ }
+    }
+
+    // Middle plan in an odd-count list gets the "Most popular" badge.
+    // For even counts, plan index floor(count/2)-1 is used — tweak if you want.
+    private static bool IsFeaturedPlan(int index, int total)
+        => total > 1 && index == total / 2;
+
+    private static string CtaLabel(BillingService.PublicPlan plan)
+    {
+        if (plan.PriceMonthlyCents == 0) return "Start free";
+        if (plan.TrialDays > 0) return $"Start {plan.TrialDays}-day trial";
+        return $"Get {plan.Name}";
+    }
+
+    // "ShowRecords" → "Show records"
+    private static string FeatureLabel(string feature)
+    {
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < feature.Length; i++)
+        {
+            if (i > 0 && char.IsUpper(feature[i])) sb.Append(' ');
+            sb.Append(i == 0 ? feature[i] : char.ToLower(feature[i]));
+        }
+        return sb.ToString();
+    }
 
     private record Feature(string Title, string Body, string Icon, string Bg, string Fg);
 

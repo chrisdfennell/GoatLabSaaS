@@ -1,0 +1,66 @@
+@page "/confirm-email"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@layout GoatLab.Client.Layout.AuthLayout
+@inject AuthService AuthApi
+@inject NavigationManager Nav
+
+<PageTitle>Confirm email — GoatLab</PageTitle>
+
+<MudPaper Elevation="4" Class="pa-8" Style="max-width: 440px; margin: 4rem auto;">
+    @if (_state == State.Working)
+    {
+        <div class="text-center">
+            <MudProgressCircular Indeterminate="true" />
+            <MudText Typo="Typo.body2" Class="mt-3" Color="Color.Secondary">Confirming your email…</MudText>
+        </div>
+    }
+    else if (_state == State.Success)
+    {
+        <div class="text-center">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large" Color="Color.Success" />
+            <MudText Typo="Typo.h5" Class="mt-2 mb-2">Email confirmed</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                You can sign in now.
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth Href="/login">
+                Sign in
+            </MudButton>
+        </div>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-3">
+            @(_error ?? "Couldn't confirm your email. The link may have expired.")
+        </MudAlert>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth Href="/login">
+            Back to sign in
+        </MudButton>
+    }
+</MudPaper>
+
+@code {
+    private enum State { Working, Success, Failed }
+    private State _state = State.Working;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var query = System.Web.HttpUtility.ParseQueryString(new Uri(Nav.Uri).Query);
+        var userId = query["userId"];
+        var token = query["token"];
+        if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(token))
+        {
+            _error = "Confirmation link is incomplete.";
+            _state = State.Failed;
+            return;
+        }
+
+        var (ok, err) = await AuthApi.ConfirmEmailAsync(userId, token);
+        if (ok) { _state = State.Success; }
+        else
+        {
+            _error = err?.Length > 300 ? "Couldn't confirm your email. The link may have expired." : err;
+            _state = State.Failed;
+        }
+    }
+}

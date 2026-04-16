@@ -19,6 +19,11 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
     // Tenancy
     public DbSet<Tenant> Tenants => Set<Tenant>();
     public DbSet<TenantMember> TenantMembers => Set<TenantMember>();
+    public DbSet<TenantInvitation> TenantInvitations => Set<TenantInvitation>();
+
+    // Billing plans (system-wide, admin-managed)
+    public DbSet<Plan> Plans => Set<Plan>();
+    public DbSet<PlanFeature> PlanFeatures => Set<PlanFeature>();
 
     // Herd
     public DbSet<Goat> Goats => Set<Goat>();
@@ -268,6 +273,29 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
         // Tenant filter: hide soft-deleted unless BypassFilter is set.
         modelBuilder.Entity<Tenant>().HasQueryFilter(t =>
             _tenantContext == null || _tenantContext.BypassFilter || t.DeletedAt == null);
+
+        // Lookup active invites by token hash + block dup invite per (tenant,email).
+        modelBuilder.Entity<TenantInvitation>()
+            .HasIndex(i => i.TokenHash).IsUnique();
+        modelBuilder.Entity<TenantInvitation>()
+            .HasIndex(i => new { i.TenantId, i.Email });
+
+        // Plans
+        modelBuilder.Entity<Plan>().HasIndex(p => p.Slug).IsUnique();
+        modelBuilder.Entity<PlanFeature>()
+            .HasKey(pf => new { pf.PlanId, pf.Feature });
+        modelBuilder.Entity<PlanFeature>()
+            .HasOne(pf => pf.Plan)
+            .WithMany(p => p.Features)
+            .HasForeignKey(pf => pf.PlanId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Tenant -> Plan (restrict delete so a plan with active tenants can't be orphaned)
+        modelBuilder.Entity<Tenant>()
+            .HasOne(t => t.Plan)
+            .WithMany()
+            .HasForeignKey(t => t.PlanId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // Indexes for common queries
         modelBuilder.Entity<Goat>().HasIndex(g => g.Status);

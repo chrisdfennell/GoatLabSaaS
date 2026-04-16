@@ -1,0 +1,96 @@
+@page "/accept-invite"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@layout GoatLab.Client.Layout.AuthLayout
+@inject TeamService TeamApi
+@inject AuthService AuthApi
+@inject CookieAuthStateProvider AuthState
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Accept invite — GoatLab</PageTitle>
+
+<MudPaper Elevation="4" Class="pa-8" Style="max-width: 460px; margin: 4rem auto;">
+    @if (_state == State.Working)
+    {
+        <div class="text-center">
+            <MudProgressCircular Indeterminate="true" />
+            <MudText Typo="Typo.body2" Class="mt-3" Color="Color.Secondary">Accepting invite…</MudText>
+        </div>
+    }
+    else if (_state == State.NeedsAuth)
+    {
+        <MudIcon Icon="@Icons.Material.Filled.GroupAdd" Size="Size.Large" Color="Color.Primary" />
+        <MudText Typo="Typo.h5" Class="mt-2 mb-2">Sign in to accept</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            You need a GoatLab account with the invited email address. Sign in, then come back to this link.
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth Href="@LoginReturnUrl()">
+            Sign in
+        </MudButton>
+        <MudButton Variant="Variant.Text" Color="Color.Primary" FullWidth Class="mt-2" Href="/register">
+            Create an account
+        </MudButton>
+    }
+    else if (_state == State.Success)
+    {
+        <div class="text-center">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Large" Color="Color.Success" />
+            <MudText Typo="Typo.h5" Class="mt-2 mb-2">You're in</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+                Welcome to the team. Switch to the farm from the account menu to get started.
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth Href="/select-farm">
+                Choose farm
+            </MudButton>
+        </div>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-3">@(_error ?? "Couldn't accept this invite.")</MudAlert>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth Href="/dashboard">
+            Back to dashboard
+        </MudButton>
+    }
+</MudPaper>
+
+@code {
+    private enum State { Working, NeedsAuth, Success, Failed }
+    private State _state = State.Working;
+    private string? _token;
+    private string? _error;
+
+    private string LoginReturnUrl() =>
+        $"/login?returnUrl={Uri.EscapeDataString($"/accept-invite?token={_token}")}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var query = System.Web.HttpUtility.ParseQueryString(new Uri(Nav.Uri).Query);
+        _token = query["token"];
+        if (string.IsNullOrEmpty(_token))
+        {
+            _error = "This link is missing the invite token.";
+            _state = State.Failed;
+            return;
+        }
+
+        var user = await AuthApi.GetCurrentUserAsync();
+        if (user is null)
+        {
+            _state = State.NeedsAuth;
+            return;
+        }
+
+        var (ok, err, tenantId) = await TeamApi.AcceptInviteAsync(_token);
+        if (!ok)
+        {
+            _error = err?.Length > 300 ? "Could not accept invite." : err;
+            _state = State.Failed;
+            return;
+        }
+
+        // Refresh auth state so the new membership shows up in the farm switcher.
+        var refreshed = await AuthApi.GetCurrentUserAsync();
+        AuthState.NotifyUserChanged(refreshed);
+        _state = State.Success;
+    }
+}

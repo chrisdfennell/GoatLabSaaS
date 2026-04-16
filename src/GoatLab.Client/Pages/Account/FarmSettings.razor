@@ -1,0 +1,97 @@
+@page "/farm-settings"
+@using GoatLab.Shared.Models
+@inject TenantSettingsService SettingsApi
+@inject ISnackbar Snackbar
+
+<PageTitle>Farm settings — GoatLab</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="py-6">
+    <MudText Typo="Typo.h4" GutterBottom="true">Farm settings</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+        Update your farm's display name, location, and unit system. Only farm owners can make changes.
+    </MudText>
+
+    @if (_settings is null)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else
+    {
+        <MudPaper Class="pa-6">
+            <MudTextField @bind-Value="_name" Label="Farm name" Required="true"
+                          HelperText="How the farm appears in the app and on emails." Class="mb-3" />
+
+            <MudTextField Value="_settings.Slug" Label="URL slug" ReadOnly="true"
+                          HelperText="Immutable. Used in URLs and Stripe customer records." Class="mb-3" />
+
+            <MudTextField @bind-Value="_location" Label="Location"
+                          HelperText="City, state or any description — shown on reports." Class="mb-3" />
+
+            <MudSelect T="TenantUnits" @bind-Value="_units" Label="Units" Class="mb-4">
+                <MudSelectItem Value="TenantUnits.Imperial">Imperial (lb, ft, °F)</MudSelectItem>
+                <MudSelectItem Value="TenantUnits.Metric">Metric (kg, m, °C)</MudSelectItem>
+            </MudSelect>
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
+            }
+
+            <div class="d-flex">
+                <MudSpacer />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           OnClick="SaveAsync" Disabled="_busy || !HasChanges">
+                    @(_busy ? "Saving…" : "Save")
+                </MudButton>
+            </div>
+
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-4 d-block">
+                Farm created @_settings.CreatedAt.ToLocalTime().ToString("MMM d, yyyy").
+            </MudText>
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    private TenantSettingsService.Settings? _settings;
+    private string _name = "";
+    private string? _location;
+    private TenantUnits _units;
+    private string? _error;
+    private bool _busy;
+
+    private bool HasChanges =>
+        _settings is not null &&
+        (_name != _settings.Name
+         || (_location ?? "") != (_settings.Location ?? "")
+         || _units != _settings.Units);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _settings = await SettingsApi.GetAsync();
+        if (_settings is null) return;
+        _name = _settings.Name;
+        _location = _settings.Location;
+        _units = _settings.Units;
+    }
+
+    private async Task SaveAsync()
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var (ok, err, updated) = await SettingsApi.UpdateAsync(new TenantSettingsService.UpdateInput(_name.Trim(), _location?.Trim(), _units));
+            if (!ok)
+            {
+                _error = err?.Length > 200 ? "Couldn't save. Check your inputs." : (err ?? "Save failed.");
+                return;
+            }
+            _settings = updated;
+            Snackbar.Add("Farm settings saved.", Severity.Success);
+        }
+        finally { _busy = false; }
+    }
+}

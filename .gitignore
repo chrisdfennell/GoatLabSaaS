@@ -19,7 +19,11 @@ obj/
 [Dd]ebug/
 [Rr]elease/
 publish/
+publish-out/
 out/
+
+## Local tooling
+.claude/
 
 ## NuGet
 **/packages/*

@@ -46,6 +46,37 @@ public class Tenant
     [MaxLength(2000)]
     public string? FeatureFlagsJson { get; set; }
 
+    // --- Billing ---
+
+    // FK to Plan. Seeded plans: homestead (free), farm, dairy. Admin can add more.
+    public int PlanId { get; set; }
+    public Plan? Plan { get; set; }
+
+    /// <summary>Stripe customer id (cus_...). Null until first Checkout session.</summary>
+    [MaxLength(64)]
+    public string? StripeCustomerId { get; set; }
+
+    /// <summary>Stripe subscription id (sub_...). Null while on a free plan.</summary>
+    [MaxLength(64)]
+    public string? StripeSubscriptionId { get; set; }
+
+    /// <summary>
+    /// Mirrors Stripe subscription.status: trialing, active, past_due, canceled, etc.
+    /// Null on free plans.
+    /// </summary>
+    [MaxLength(32)]
+    public string? SubscriptionStatus { get; set; }
+
+    /// <summary>UTC end of the current billing period; drives trial countdown + dunning banners.</summary>
+    public DateTime? CurrentPeriodEnd { get; set; }
+
+    public DateTime? TrialEndsAt { get; set; }
+
+    // Set by TrialReminderJob when the reminder email for the current trial has
+    // been sent. Cleared on TrialEndsAt change by the Stripe webhook so a
+    // resubscription triggers a fresh reminder.
+    public DateTime? TrialReminderSentAt { get; set; }
+
     public ICollection<TenantMember> Members { get; set; } = new List<TenantMember>();
 }
 

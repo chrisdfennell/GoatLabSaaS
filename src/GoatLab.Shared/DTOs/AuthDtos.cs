@@ -24,8 +24,22 @@ public record CurrentUserDto(
     string DisplayName,
     int? CurrentTenantId,
     IReadOnlyList<TenantMembershipDto> Memberships,
-    bool IsSuperAdmin = false
+    bool IsSuperAdmin = false,
+    // Feature keys (AppFeature enum names) enabled on the current tenant's plan.
+    // Empty when no tenant is selected. Super admins still receive the real list;
+    // the UI can bypass to show everything if IsSuperAdmin.
+    IReadOnlyList<string>? EnabledFeatures = null,
+    // Current tenant's billing snapshot — lets the UI render trial countdowns
+    // and past-due banners without a second request.
+    BillingSnapshotDto? Billing = null
 );
+
+public record BillingSnapshotDto(
+    string PlanName,
+    string PlanSlug,
+    string? SubscriptionStatus,
+    DateTime? TrialEndsAt,
+    DateTime? CurrentPeriodEnd);
 
 public record TenantMembershipDto(
     int TenantId,

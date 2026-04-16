@@ -71,6 +71,17 @@
     </MudDrawer>
 
     <MudMainContent Class="px-4 pb-4" Style="min-height:100vh;">
+        @if (TrialBanner() is { } trial)
+        {
+            <div class="trial-banner @trial.Css">
+                <MudIcon Icon="@trial.Icon" Size="Size.Small" />
+                <span>@((MarkupString)trial.Html)</span>
+                <MudSpacer />
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Href="/billing">
+                    @trial.Cta
+                </MudButton>
+            </div>
+        }
         @if (_maintenance?.Enabled == true)
         {
             <div class="maintenance-banner">
@@ -137,8 +148,17 @@
             </div>
         }
         @Body
+
+        <footer class="app-footer">
+            <span>© @DateTime.Now.Year GoatLab</span>
+            <a href="/terms">Terms</a>
+            <a href="/privacy">Privacy</a>
+            <a href="/billing">Billing</a>
+        </footer>
     </MudMainContent>
 </MudLayout>
+
+<CookieConsent />
 
 <style>
 .offline-banner {
@@ -208,6 +228,34 @@
     margin: 8px 0 12px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
+.app-footer {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 24px 4px 8px;
+    font-size: 0.85rem;
+    color: var(--mud-palette-text-secondary);
+}
+.app-footer a {
+    color: var(--mud-palette-text-secondary);
+    text-decoration: none;
+}
+.app-footer a:hover { color: var(--mud-palette-primary); text-decoration: underline; }
+.trial-banner {
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    margin: 8px 0 12px;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+.trial-banner.info { background: #1565c0; }
+.trial-banner.warning { background: #ef6c00; }
+.trial-banner.error { background: #c62828; }
+.trial-banner .mud-button { color: #1a2421; background: #fff; }
 </style>
 
 @code {
@@ -256,6 +304,41 @@
 
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
     private void ToggleDarkMode() => _isDarkMode = !_isDarkMode;
+
+    // Trial / past-due banner logic. Returns null when nothing to show.
+    // Banner escalates as the trial draws closer: info > warning > error.
+    private sealed record TrialBannerModel(string Css, string Icon, string Html, string Cta);
+
+    private TrialBannerModel? TrialBanner()
+    {
+        var billing = _user?.Billing;
+        if (billing is null) return null;
+
+        // Past due / canceled trumps trial countdowns.
+        if (billing.SubscriptionStatus == "past_due")
+            return new TrialBannerModel("error", Icons.Material.Filled.CreditCardOff,
+                "Your payment failed. Update your card to keep access.",
+                "Update billing");
+        if (billing.SubscriptionStatus == "unpaid" || billing.SubscriptionStatus == "incomplete_expired")
+            return new TrialBannerModel("error", Icons.Material.Filled.Block,
+                "Your subscription is inactive. Re-subscribe to restore access.",
+                "Re-subscribe");
+
+        // Trial countdown within 7 days.
+        if (billing.TrialEndsAt is DateTime ends && ends > DateTime.UtcNow)
+        {
+            var daysLeft = (int)Math.Ceiling((ends - DateTime.UtcNow).TotalDays);
+            if (daysLeft <= 7)
+            {
+                var css = daysLeft <= 1 ? "error" : daysLeft <= 3 ? "warning" : "info";
+                var noun = daysLeft == 1 ? "day" : "days";
+                return new TrialBannerModel(css, Icons.Material.Filled.Schedule,
+                    $"Your <b>{System.Net.WebUtility.HtmlEncode(billing.PlanName)}</b> trial ends in <b>{daysLeft} {noun}</b>.",
+                    "Add billing");
+            }
+        }
+        return null;
+    }
 
     protected override async Task OnInitializedAsync()
     {

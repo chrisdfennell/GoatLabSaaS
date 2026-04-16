@@ -3,9 +3,12 @@ using System.IO.Compression;
 using CsvHelper;
 using CsvHelper.Configuration;
 using GoatLab.Server.Data;
+using GoatLab.Server.Services;
 using GoatLab.Shared.DTOs;
 using GoatLab.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace GoatLab.Server.Controllers;
@@ -26,49 +29,147 @@ public class ToolsController : ControllerBase
     }
 
     // --- Database Backup ---
+    //
+    // SQL Server backup/restore requires a directory that is visible to BOTH the
+    // app process and the SQL Server process. In Docker Compose that means a
+    // named volume mounted into both containers. The paths may differ between
+    // the two containers; configure:
+    //   Backup:AppPath       — where the app sees the shared volume
+    //   Backup:SqlServerPath — where SQL Server sees the same volume
+    // Both default to {ContentRoot}/backups, which works when app + SQL Server
+    // run on the same host (local dev against a local SQL Server instance).
 
     [HttpPost("backup/database")]
-    public IActionResult BackupDatabase()
+    [Authorize(Policy = SuperAdminPolicy.Name)]
+    public async Task<IActionResult> BackupDatabase()
     {
-        var dbPath = _config.GetValue<string>("DatabasePath") ?? "goatlab.db";
-        if (!System.IO.File.Exists(dbPath))
-            return NotFound("Database file not found");
+        var (appDir, sqlDir) = ResolveBackupDirs();
+        Directory.CreateDirectory(appDir);
 
-        var backupDir = Path.Combine(_env.ContentRootPath, "backups");
-        Directory.CreateDirectory(backupDir);
+        var connStr = _config.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(connStr))
+            return Problem("No DefaultConnection configured.");
+
+        var databaseName = new SqlConnectionStringBuilder(connStr).InitialCatalog;
+        if (string.IsNullOrWhiteSpace(databaseName))
+            return Problem("Could not determine database name from connection string.");
 
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-        var backupPath = Path.Combine(backupDir, $"goatlab-backup-{timestamp}.db");
-        System.IO.File.Copy(dbPath, backupPath, overwrite: true);
+        var fileName = $"{databaseName}-{timestamp}.bak";
+        var sqlFile = Path.Combine(sqlDir, fileName);
+        var appFile = Path.Combine(appDir, fileName);
 
-        var bytes = System.IO.File.ReadAllBytes(backupPath);
-        return File(bytes, "application/octet-stream", Path.GetFileName(backupPath));
+        var quotedDb = QuoteIdentifier(databaseName);
+
+        await using var conn = new SqlConnection(connStr);
+        await conn.OpenAsync();
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandTimeout = 600;
+            cmd.CommandText = $"BACKUP DATABASE {quotedDb} TO DISK = @path WITH INIT, FORMAT, COMPRESSION;";
+            cmd.Parameters.AddWithValue("@path", sqlFile);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        if (!System.IO.File.Exists(appFile))
+            return Problem(
+                $"BACKUP succeeded at SQL Server path '{sqlFile}' but the file is not visible " +
+                $"to the app at '{appFile}'. Backup:AppPath and Backup:SqlServerPath must " +
+                $"point to the same shared volume.");
+
+        var bytes = await System.IO.File.ReadAllBytesAsync(appFile);
+        return File(bytes, "application/octet-stream", fileName);
     }
 
     [HttpPost("restore/database")]
+    [Authorize(Policy = SuperAdminPolicy.Name)]
     public async Task<IActionResult> RestoreDatabase(IFormFile file)
     {
-        var dbPath = _config.GetValue<string>("DatabasePath") ?? "goatlab.db";
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "No file uploaded." });
 
-        // Save backup of current DB first
-        if (System.IO.File.Exists(dbPath))
+        var (appDir, sqlDir) = ResolveBackupDirs();
+        Directory.CreateDirectory(appDir);
+
+        var connStr = _config.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(connStr))
+            return Problem("No DefaultConnection configured.");
+
+        var builder = new SqlConnectionStringBuilder(connStr);
+        var databaseName = builder.InitialCatalog;
+        if (string.IsNullOrWhiteSpace(databaseName))
+            return Problem("Could not determine database name from connection string.");
+
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+        var uploadName = $"restore-{timestamp}.bak";
+        var preRestoreName = $"{databaseName}-pre-restore-{timestamp}.bak";
+
+        var appUpload = Path.Combine(appDir, uploadName);
+        var sqlUpload = Path.Combine(sqlDir, uploadName);
+        var sqlPreRestore = Path.Combine(sqlDir, preRestoreName);
+
+        await using (var fs = new FileStream(appUpload, FileMode.Create))
         {
-            var backupDir = Path.Combine(_env.ContentRootPath, "backups");
-            Directory.CreateDirectory(backupDir);
-            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
-            System.IO.File.Copy(dbPath, Path.Combine(backupDir, $"goatlab-pre-restore-{timestamp}.db"), overwrite: true);
+            await file.CopyToAsync(fs);
         }
 
-        // Write uploaded file as new DB
-        await using var stream = new FileStream(dbPath, FileMode.Create);
-        await file.CopyToAsync(stream);
+        var quotedDb = QuoteIdentifier(databaseName);
 
-        return Ok(new { message = "Database restored. Restart the application to apply changes." });
+        // Restore must run from master — we can't drop a database we're currently connected to.
+        builder.InitialCatalog = "master";
+        await using var master = new SqlConnection(builder.ToString());
+        await master.OpenAsync();
+
+        await using (var cmd = master.CreateCommand())
+        {
+            cmd.CommandTimeout = 600;
+            cmd.CommandText = $"BACKUP DATABASE {quotedDb} TO DISK = @path WITH INIT, FORMAT, COMPRESSION;";
+            cmd.Parameters.AddWithValue("@path", sqlPreRestore);
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        await using (var cmd = master.CreateCommand())
+        {
+            cmd.CommandText = $"ALTER DATABASE {quotedDb} SET SINGLE_USER WITH ROLLBACK IMMEDIATE;";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        try
+        {
+            await using var cmd = master.CreateCommand();
+            cmd.CommandTimeout = 600;
+            cmd.CommandText = $"RESTORE DATABASE {quotedDb} FROM DISK = @path WITH REPLACE;";
+            cmd.Parameters.AddWithValue("@path", sqlUpload);
+            await cmd.ExecuteNonQueryAsync();
+        }
+        finally
+        {
+            await using var cmd = master.CreateCommand();
+            cmd.CommandText = $"ALTER DATABASE {quotedDb} SET MULTI_USER;";
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        try { System.IO.File.Delete(appUpload); } catch { /* non-fatal */ }
+
+        return Ok(new { message = "Database restored. A pre-restore snapshot was saved alongside." });
     }
+
+    private (string appDir, string sqlDir) ResolveBackupDirs()
+    {
+        var appDir = _config.GetValue<string>("Backup:AppPath")
+                     ?? Path.Combine(_env.ContentRootPath, "backups");
+        var sqlDir = _config.GetValue<string>("Backup:SqlServerPath")
+                     ?? appDir;
+        return (appDir, sqlDir);
+    }
+
+    private static string QuoteIdentifier(string identifier) =>
+        $"[{identifier.Replace("]", "]]")}]";
 
     // --- Media Backup ---
 
     [HttpPost("backup/media")]
+    [Authorize(Policy = SuperAdminPolicy.Name)]
     public IActionResult BackupMedia()
     {
         var mediaDir = Path.Combine(_env.ContentRootPath, "media");

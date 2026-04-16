@@ -1,26 +1,48 @@
+@inject AuthService AuthApi
+@inject CookieAuthStateProvider AuthState
+@implements IDisposable
+
 <MudNavMenu>
     <AuthorizeView Policy="HasTenant">
         <div class="nav-section-header">Overview</div>
         <MudNavLink Href="/dashboard" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
 
-        <div class="nav-section-header">Herd</div>
-        <MudNavLink Href="/herd" Icon="@GoatLabIcons.Hoof">My Goats</MudNavLink>
-        <MudNavLink Href="/health" Icon="@Icons.Material.Filled.LocalHospital">Health</MudNavLink>
-        <MudNavLink Href="/breeding" Icon="@Icons.Material.Filled.Favorite">Breeding</MudNavLink>
+        @if (AnyEnabled("Goats", "Health", "Breeding"))
+        {
+            <div class="nav-section-header">Herd</div>
+            @if (IsEnabled("Goats")) { <MudNavLink Href="/herd" Icon="@GoatLabIcons.Hoof">My Goats</MudNavLink> }
+            @if (IsEnabled("Health")) { <MudNavLink Href="/health" Icon="@Icons.Material.Filled.LocalHospital">Health</MudNavLink> }
+            @if (IsEnabled("Breeding")) { <MudNavLink Href="/breeding" Icon="@Icons.Material.Filled.Favorite">Breeding</MudNavLink> }
+        }
 
-        <div class="nav-section-header">Production</div>
-        <MudNavLink Href="/production" Icon="@Icons.Material.Filled.WaterDrop">Milk</MudNavLink>
-        <MudNavLink Href="/sales" Icon="@Icons.Material.Filled.Storefront">Sales</MudNavLink>
-        <MudNavLink Href="/finance" Icon="@Icons.Material.Filled.AccountBalance">Finances</MudNavLink>
-        <MudNavLink Href="/inventory" Icon="@Icons.Material.Filled.Inventory">Inventory</MudNavLink>
+        @if (AnyEnabled("Milk", "Sales", "Finance", "Inventory"))
+        {
+            <div class="nav-section-header">Production</div>
+            @if (IsEnabled("Milk")) { <MudNavLink Href="/production" Icon="@Icons.Material.Filled.WaterDrop">Milk</MudNavLink> }
+            @if (IsEnabled("Sales")) { <MudNavLink Href="/sales" Icon="@Icons.Material.Filled.Storefront">Sales</MudNavLink> }
+            @if (IsEnabled("Finance")) { <MudNavLink Href="/finance" Icon="@Icons.Material.Filled.AccountBalance">Finances</MudNavLink> }
+            @if (IsEnabled("Inventory")) { <MudNavLink Href="/inventory" Icon="@Icons.Material.Filled.Inventory">Inventory</MudNavLink> }
+        }
 
-        <div class="nav-section-header">Farm</div>
-        <MudNavLink Href="/map" Icon="@Icons.Material.Filled.Map">Farm Map</MudNavLink>
-        <MudNavLink Href="/calendar" Icon="@Icons.Material.Filled.CalendarMonth">Calendar</MudNavLink>
+        @if (AnyEnabled("Map", "Calendar"))
+        {
+            <div class="nav-section-header">Farm</div>
+            @if (IsEnabled("Map")) { <MudNavLink Href="/map" Icon="@Icons.Material.Filled.Map">Farm Map</MudNavLink> }
+            @if (IsEnabled("Calendar")) { <MudNavLink Href="/calendar" Icon="@Icons.Material.Filled.CalendarMonth">Calendar</MudNavLink> }
+        }
 
-        <div class="nav-section-header">Reference</div>
-        <MudNavLink Href="/care-guide" Icon="@Icons.Material.Filled.MenuBook">Care Guide</MudNavLink>
-        <MudNavLink Href="/tools" Icon="@Icons.Material.Filled.Build">Tools</MudNavLink>
+        @if (IsEnabled("CareGuide"))
+        {
+            <div class="nav-section-header">Reference</div>
+            <MudNavLink Href="/care-guide" Icon="@Icons.Material.Filled.MenuBook">Care Guide</MudNavLink>
+            <MudNavLink Href="/tools" Icon="@Icons.Material.Filled.Build">Tools</MudNavLink>
+        }
+
+        <div class="nav-section-header">Account</div>
+        <MudNavLink Href="/billing" Icon="@Icons.Material.Filled.CreditCard">Billing</MudNavLink>
+        <MudNavLink Href="/farm-settings" Icon="@Icons.Material.Filled.Agriculture">Farm settings</MudNavLink>
+        <MudNavLink Href="/team" Icon="@Icons.Material.Filled.Group">Team</MudNavLink>
+        <MudNavLink Href="/account/settings" Icon="@Icons.Material.Filled.Settings">My account</MudNavLink>
     </AuthorizeView>
 
     <AuthorizeView Policy="SuperAdmin">
@@ -28,7 +50,51 @@
         <MudNavLink Href="/admin" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Shield">Console</MudNavLink>
         <MudNavLink Href="/admin/tenants" Icon="@Icons.Material.Filled.Business">Tenants</MudNavLink>
         <MudNavLink Href="/admin/users" Icon="@Icons.Material.Filled.Person">Users</MudNavLink>
+        <MudNavLink Href="/admin/plans" Icon="@Icons.Material.Filled.Tune">Plans</MudNavLink>
         <MudNavLink Href="/admin/announcements" Icon="@Icons.Material.Filled.Campaign">Announcements</MudNavLink>
+        <MudNavLink Href="/admin/health" Icon="@Icons.Material.Filled.MonitorHeart">Health</MudNavLink>
         <MudNavLink Href="/admin/audit" Icon="@Icons.Material.Filled.History">Audit log</MudNavLink>
+        <MudNavLink Href="/admin/jobs" Icon="@Icons.Material.Filled.Schedule" Target="_blank">Jobs</MudNavLink>
     </AuthorizeView>
 </MudNavMenu>
+
+@code {
+    private HashSet<string> _enabledFeatures = new(StringComparer.OrdinalIgnoreCase);
+    private bool _isSuperAdmin;
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthState.AuthenticationStateChanged += HandleAuthChanged;
+        // Seed cache via the state provider (it calls /api/account/me on first read).
+        _ = await AuthState.GetAuthenticationStateAsync();
+        ApplyUser(AuthState.CurrentUser);
+    }
+
+    private void HandleAuthChanged(Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState> _)
+    {
+        ApplyUser(AuthState.CurrentUser);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void ApplyUser(GoatLab.Shared.DTOs.CurrentUserDto? user)
+    {
+        _isSuperAdmin = user?.IsSuperAdmin ?? false;
+        _enabledFeatures = new HashSet<string>(
+            user?.EnabledFeatures ?? Array.Empty<string>(),
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    // Strict plan filtering for everyone, including super admins.
+    // Super admins who need to exercise a paid-tier flow can use the tenant
+    // impersonation flow (/admin/tenants → Impersonate) or change the plan on
+    // their own tenant at /admin/plans.
+    private bool IsEnabled(string feature) => _enabledFeatures.Contains(feature);
+
+    private bool AnyEnabled(params string[] features)
+        => features.Any(IsEnabled);
+
+    public void Dispose()
+    {
+        AuthState.AuthenticationStateChanged -= HandleAuthChanged;
+    }
+}

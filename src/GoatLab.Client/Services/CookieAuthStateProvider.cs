@@ -14,8 +14,17 @@ public class CookieAuthStateProvider : AuthenticationStateProvider
 {
     private readonly AuthService _auth;
     private AuthenticationState? _cached;
+    private CurrentUserDto? _cachedUser;
 
     public CookieAuthStateProvider(AuthService auth) => _auth = auth;
+
+    /// <summary>
+    /// The last known CurrentUserDto (includes plan features, memberships, etc.)
+    /// Null while loading or if unauthenticated. Components wanting DTO-level
+    /// state should subscribe to <see cref="AuthenticationStateProvider.AuthenticationStateChanged"/>
+    /// and re-read this on each notification.
+    /// </summary>
+    public CurrentUserDto? CurrentUser => _cachedUser;
 
     public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
@@ -25,12 +34,14 @@ public class CookieAuthStateProvider : AuthenticationStateProvider
         try { user = await _auth.GetCurrentUserAsync(); }
         catch { /* network blips / server cold start — treat as unauthenticated */ }
 
+        _cachedUser = user;
         _cached = BuildState(user);
         return _cached;
     }
 
     public void NotifyUserChanged(CurrentUserDto? user)
     {
+        _cachedUser = user;
         _cached = BuildState(user);
         NotifyAuthenticationStateChanged(Task.FromResult(_cached));
     }

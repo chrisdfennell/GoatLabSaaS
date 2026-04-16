@@ -1,0 +1,159 @@
+@using GoatLab.Shared.Models
+@inject AdminPlansService PlansApi
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_name" Label="Name" Required="true" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_slug" Label="Slug" Required="true"
+                              HelperText="Lowercase, URL-safe. Used in public URLs." />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_description" Label="Description" Lines="2" />
+            </MudItem>
+
+            <MudItem xs="12" sm="4">
+                <MudNumericField @bind-Value="_priceMonthlyCents" Label="Price / mo (cents)"
+                                 Min="0" HelperText="1900 = $19.00" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudTextField @bind-Value="_stripePriceId" Label="Stripe price id"
+                              HelperText="price_... from Stripe dashboard" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudNumericField @bind-Value="_trialDays" Label="Trial days" Min="0" />
+            </MudItem>
+
+            <MudItem xs="12" sm="4">
+                <MudNumericField T="int?" @bind-Value="_maxGoats" Label="Max goats (blank = unlimited)" Min="0" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudNumericField T="int?" @bind-Value="_maxUsers" Label="Max users (blank = unlimited)" Min="0" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudNumericField @bind-Value="_displayOrder" Label="Display order" />
+            </MudItem>
+
+            <MudItem xs="6">
+                <MudSwitch @bind-Value="_isPublic" Label="Public (shown on pricing page)" Color="Color.Primary" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudSwitch @bind-Value="_isActive" Label="Active (accepts new subscriptions)" Color="Color.Primary" />
+            </MudItem>
+
+            <MudItem xs="12">
+                <MudText Typo="Typo.h6" Class="mt-2">Features</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">
+                    Toggle what this plan includes. Users on this plan can only access endpoints
+                    whose feature is enabled here.
+                </MudText>
+                <MudGrid Spacing="1">
+                    @foreach (var feat in _allFeatures)
+                    {
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudCheckBox T="bool" Value="@_featureEnabled[feat]"
+                                         ValueChanged="@((bool v) => _featureEnabled[feat] = v)"
+                                         Label="@feat.ToString()" Color="Color.Primary" />
+                        </MudItem>
+                    }
+                </MudGrid>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="SaveAsync" Disabled="_saving">
+            @(_saving ? "Saving…" : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public AdminPlansService.AdminPlan? Plan { get; set; }
+
+    private readonly AppFeature[] _allFeatures = Enum.GetValues<AppFeature>();
+    private Dictionary<AppFeature, bool> _featureEnabled = new();
+
+    private string _name = "";
+    private string _slug = "";
+    private string? _description;
+    private int _priceMonthlyCents;
+    private string? _stripePriceId;
+    private int _trialDays;
+    private int? _maxGoats;
+    private int? _maxUsers;
+    private int _displayOrder;
+    private bool _isPublic = true;
+    private bool _isActive = true;
+    private bool _saving;
+
+    protected override void OnInitialized()
+    {
+        _featureEnabled = _allFeatures.ToDictionary(f => f, _ => false);
+
+        if (Plan is not null)
+        {
+            _name = Plan.Name;
+            _slug = Plan.Slug;
+            _description = Plan.Description;
+            _priceMonthlyCents = Plan.PriceMonthlyCents;
+            _stripePriceId = Plan.StripePriceId;
+            _trialDays = Plan.TrialDays;
+            _maxGoats = Plan.MaxGoats;
+            _maxUsers = Plan.MaxUsers;
+            _displayOrder = Plan.DisplayOrder;
+            _isPublic = Plan.IsPublic;
+            _isActive = Plan.IsActive;
+            foreach (var f in Plan.Features)
+                _featureEnabled[f.Feature] = f.Enabled;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_name) || string.IsNullOrWhiteSpace(_slug))
+        {
+            Snackbar.Add("Name and slug are required.", Severity.Warning);
+            return;
+        }
+
+        _saving = true;
+        try
+        {
+            var input = new AdminPlansService.PlanInput(
+                _name.Trim(),
+                _slug.Trim().ToLowerInvariant(),
+                string.IsNullOrWhiteSpace(_description) ? null : _description.Trim(),
+                _priceMonthlyCents,
+                string.IsNullOrWhiteSpace(_stripePriceId) ? null : _stripePriceId.Trim(),
+                _trialDays,
+                _maxGoats,
+                _maxUsers,
+                _isPublic,
+                _isActive,
+                _displayOrder,
+                _featureEnabled.Select(kvp => new AdminPlansService.PlanFeatureDto(kvp.Key, kvp.Value)).ToList());
+
+            var saved = Plan is null
+                ? await PlansApi.CreateAsync(input)
+                : await PlansApi.UpdateAsync(Plan.Id, input);
+
+            if (saved is null)
+            {
+                Snackbar.Add("Save failed. Check the slug is unique.", Severity.Error);
+                return;
+            }
+
+            MudDialog.Close(DialogResult.Ok(saved));
+        }
+        finally { _saving = false; }
+    }
+}

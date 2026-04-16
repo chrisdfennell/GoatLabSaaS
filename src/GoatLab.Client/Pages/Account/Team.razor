@@ -1,0 +1,169 @@
+@page "/team"
+@using GoatLab.Shared.Models
+@inject TeamService TeamApi
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Team — GoatLab</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="py-6">
+    <div class="d-flex align-center mb-4">
+        <MudText Typo="Typo.h4">Team</MudText>
+        <MudSpacer />
+        @if (_team is not null)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mr-3">
+                @_team.Members.Count / @(_team.MaxUsers?.ToString() ?? "∞") seats used
+            </MudText>
+        }
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.PersonAdd"
+                   OnClick="OpenInviteDialogAsync">
+            Invite member
+        </MudButton>
+    </div>
+
+    @if (_team is null)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else
+    {
+        <MudPaper Class="pa-2 mb-4">
+            <MudText Typo="Typo.h6" Class="pa-3">Members</MudText>
+            <MudTable Items="_team.Members" Dense="true">
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Email</MudTh>
+                    <MudTh>Role</MudTh>
+                    <MudTh>Joined</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.DisplayName</MudTd>
+                    <MudTd>@context.Email</MudTd>
+                    <MudTd>
+                        <MudSelect T="TenantRole" Value="@context.Role"
+                                   ValueChanged="@((TenantRole role) => ChangeRoleAsync(context, role))"
+                                   Dense="true" Variant="Variant.Text" Disabled="_busy">
+                            @foreach (var role in Enum.GetValues<TenantRole>())
+                            {
+                                <MudSelectItem Value="@role">@role</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudTd>
+                    <MudTd>@context.JoinedAt.ToLocalTime().ToString("MMM d, yyyy")</MudTd>
+                    <MudTd>
+                        <MudIconButton Icon="@Icons.Material.Filled.PersonRemove"
+                                       Color="Color.Error" Size="Size.Small"
+                                       OnClick="@(() => RemoveMemberAsync(context))" Disabled="_busy" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudPaper>
+
+        @if (_team.PendingInvites.Count > 0)
+        {
+            <MudPaper Class="pa-2">
+                <MudText Typo="Typo.h6" Class="pa-3">Pending invites</MudText>
+                <MudTable Items="_team.PendingInvites" Dense="true">
+                    <HeaderContent>
+                        <MudTh>Email</MudTh>
+                        <MudTh>Role</MudTh>
+                        <MudTh>Sent</MudTh>
+                        <MudTh>Expires</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Email</MudTd>
+                        <MudTd>@context.Role</MudTd>
+                        <MudTd>@context.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")</MudTd>
+                        <MudTd>@context.ExpiresAt.ToLocalTime().ToString("MMM d, yyyy")</MudTd>
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.Cancel"
+                                           Color="Color.Warning" Size="Size.Small"
+                                           OnClick="@(() => RevokeInviteAsync(context.Id))" Disabled="_busy" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        }
+    }
+</MudContainer>
+
+@code {
+    private TeamService.TeamSnapshot? _team;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _team = await TeamApi.GetAsync();
+    }
+
+    private async Task OpenInviteDialogAsync()
+    {
+        var dialog = await DialogService.ShowAsync<InviteDialog>("Invite member",
+            new DialogParameters(),
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task ChangeRoleAsync(TeamService.Member member, TenantRole role)
+    {
+        if (member.Role == role) return;
+        _busy = true;
+        try
+        {
+            var (ok, err) = await TeamApi.ChangeRoleAsync(member.UserId, role);
+            if (!ok)
+            {
+                Snackbar.Add(err ?? "Role change failed.", Severity.Error);
+                return;
+            }
+            Snackbar.Add("Role updated.", Severity.Success);
+            await LoadAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task RemoveMemberAsync(TeamService.Member member)
+    {
+        var confirm = await DialogService.ShowMessageBox(
+            "Remove member?",
+            $"Remove {member.DisplayName} ({member.Email}) from the farm? They'll lose access immediately.",
+            yesText: "Remove", cancelText: "Cancel");
+        if (confirm != true) return;
+
+        _busy = true;
+        try
+        {
+            if (await TeamApi.RemoveMemberAsync(member.UserId))
+            {
+                Snackbar.Add("Member removed.", Severity.Info);
+                await LoadAsync();
+            }
+            else { Snackbar.Add("Could not remove member.", Severity.Error); }
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task RevokeInviteAsync(int id)
+    {
+        _busy = true;
+        try
+        {
+            if (await TeamApi.RevokeInviteAsync(id))
+            {
+                Snackbar.Add("Invite revoked.", Severity.Info);
+                await LoadAsync();
+            }
+        }
+        finally { _busy = false; }
+    }
+}

@@ -1,0 +1,117 @@
+@page "/admin/health"
+@inject AdminHealthService HealthApi
+
+<PageTitle>System health — Admin — GoatLab</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+    <div class="d-flex align-center mb-4">
+        <MudText Typo="Typo.h4">System health</MudText>
+        <MudSpacer />
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync" Disabled="_busy">
+            Refresh
+        </MudButton>
+    </div>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+        Live diagnostics — database reachability, dependency configuration, and scheduled-job state.
+        For unit test results, see the CI pipeline.
+    </MudText>
+
+    @if (_report is null)
+    {
+        <MudProgressCircular Indeterminate="true" />
+    }
+    else
+    {
+        <MudGrid Spacing="2">
+            @foreach (var check in _report.Checks)
+            {
+                <MudItem xs="12" sm="6" md="4">
+                    <MudPaper Class="pa-4 check-card">
+                        <div class="d-flex align-center">
+                            <MudIcon Icon="@Icon(check.Status)" Color="@StatusColor(check.Status)" Class="mr-2" />
+                            <MudText Typo="Typo.h6">@check.Name</MudText>
+                            <MudSpacer />
+                            <MudChip T="string" Size="Size.Small" Color="@StatusColor(check.Status)">@check.Status</MudChip>
+                        </div>
+                        @if (!string.IsNullOrEmpty(check.Detail))
+                        {
+                            <MudText Typo="Typo.caption" Color="MudBlazor.Color.Secondary" Class="mt-2 d-block" Style="word-break:break-word;">
+                                @check.Detail
+                            </MudText>
+                        }
+                    </MudPaper>
+                </MudItem>
+            }
+        </MudGrid>
+
+        <MudText Typo="Typo.h5" Class="mt-6 mb-2">Recurring jobs</MudText>
+        @if (_report.Jobs.Count == 0)
+        {
+            <MudAlert Severity="Severity.Info">No recurring jobs registered.</MudAlert>
+        }
+        else
+        {
+            <MudTable Items="_report.Jobs" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Job</MudTh>
+                    <MudTh>Schedule</MudTh>
+                    <MudTh>Last run</MudTh>
+                    <MudTh>Next run</MudTh>
+                    <MudTh>State</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd><code>@context.Id</code></MudTd>
+                    <MudTd><code>@context.Cron</code></MudTd>
+                    <MudTd>@FormatTime(context.LastExecution)</MudTd>
+                    <MudTd>@FormatTime(context.NextExecution)</MudTd>
+                    <MudTd>@(context.LastJobState ?? "—")</MudTd>
+                </RowTemplate>
+            </MudTable>
+            <MudText Typo="Typo.caption" Color="MudBlazor.Color.Secondary" Class="mt-2 d-block">
+                Manage / trigger jobs in the <MudLink Href="/admin/jobs" Target="_blank">Hangfire dashboard</MudLink>.
+            </MudText>
+        }
+
+        <MudText Typo="Typo.caption" Color="MudBlazor.Color.Secondary" Class="mt-4 d-block">
+            Report generated at @_report.GeneratedAtUtc.ToLocalTime().ToString("MMM d, yyyy h:mm:ss tt").
+        </MudText>
+    }
+</MudContainer>
+
+<style>
+    .check-card { min-height: 88px; }
+</style>
+
+@code {
+    private AdminHealthService.Report? _report;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _busy = true;
+        try { _report = await HealthApi.GetAsync(); }
+        finally { _busy = false; }
+    }
+
+    private static string Icon(string status) => status switch
+    {
+        "ok" => Icons.Material.Filled.CheckCircle,
+        "warn" => Icons.Material.Filled.Warning,
+        "error" => Icons.Material.Filled.Error,
+        _ => Icons.Material.Filled.HelpOutline,
+    };
+
+    private static MudBlazor.Color StatusColor(string status) => status switch
+    {
+        "ok" => MudBlazor.Color.Success,
+        "warn" => MudBlazor.Color.Warning,
+        "error" => MudBlazor.Color.Error,
+        _ => MudBlazor.Color.Default,
+    };
+
+    private static string FormatTime(DateTime? dt) =>
+        dt.HasValue ? dt.Value.ToLocalTime().ToString("MMM d, h:mm tt") : "—";
+}

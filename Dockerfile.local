@@ -1,0 +1,15 @@
+# Local-network-constrained build: overlay today's publish output on yesterday's
+# cached image. Used only when MCR is unreachable for a clean multi-stage build.
+# Delete this file once the real Dockerfile can build again.
+
+FROM goatlabsaas-goatlab:latest
+USER root
+
+# Wipe yesterday's app binaries + wwwroot, keep volume mount dirs (media, backups).
+RUN find /app -maxdepth 1 -type f -delete && rm -rf /app/wwwroot
+
+COPY publish-out/ /app/
+
+WORKDIR /app
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "GoatLab.Server.dll"]

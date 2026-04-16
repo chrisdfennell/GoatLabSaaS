@@ -1,0 +1,93 @@
+@page "/privacy"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@layout GoatLab.Client.Layout.LandingLayout
+
+<PageTitle>Privacy Policy — GoatLab</PageTitle>
+
+<section class="legal-page">
+    <div class="container">
+        <MudAlert Severity="Severity.Warning" Class="mb-6">
+            <strong>Placeholder copy.</strong> Replace this page with a privacy policy reviewed by a
+            qualified attorney covering the jurisdictions you sell into (at minimum GDPR and CCPA).
+            This scaffold is not legal advice.
+        </MudAlert>
+
+        <h1>Privacy Policy</h1>
+        <p class="effective">Last updated: @DateTime.UtcNow.ToString("MMMM yyyy")</p>
+
+        <h2>1. What we collect</h2>
+        <ul>
+            <li><strong>Account data:</strong> name, email, hashed password.</li>
+            <li><strong>Farm data:</strong> records you enter about your animals, production, and finances.</li>
+            <li><strong>Billing data:</strong> handled by Stripe; we store only a customer ID and subscription metadata.</li>
+            <li><strong>Operational logs:</strong> request logs, error traces, and timestamps for debugging and abuse prevention.</li>
+        </ul>
+
+        <h2>2. How we use it</h2>
+        <p>
+            To run the Service you've signed up for, to bill you, to prevent abuse, and to improve the
+            product. We do not sell your data.
+        </p>
+
+        <h2>3. Sub-processors</h2>
+        <p>
+            We share limited data with service providers necessary to operate the Service, including
+            Stripe (payments) and our email delivery provider. A current list is available on request.
+        </p>
+
+        <h2>4. Retention</h2>
+        <p>
+            Account data is retained while your subscription is active. If you delete your account,
+            we soft-delete immediately and hard-delete after 30 days. Billing records are retained
+            for 7 years for tax and audit purposes.
+        </p>
+
+        <h2>5. Your rights</h2>
+        <p>
+            You can access, export, or delete your data at any time from account settings. Residents
+            of the EU/UK (GDPR), California (CCPA), and similar jurisdictions have additional rights
+            including objection, restriction, and non-discrimination. Contact us to exercise them.
+        </p>
+
+        <h2>6. Security</h2>
+        <p>
+            We encrypt data in transit (TLS) and at rest. Passwords are hashed with ASP.NET Identity's
+            default algorithm. No system is perfectly secure; report vulnerabilities to
+            <a href="mailto:security@example.com">security@example.com</a>.
+        </p>
+
+        <h2>7. Cookies</h2>
+        <p>
+            We use a single session cookie for authentication. We do not use third-party advertising
+            or analytics cookies. A banner asks for consent on first visit.
+        </p>
+
+        <h2>8. Children</h2>
+        <p>
+            The Service is not directed to children under 13 (or 16 in the EU). Do not create an
+            account if you are below that age in your jurisdiction.
+        </p>
+
+        <h2>9. Changes</h2>
+        <p>
+            Material changes are announced via in-app notice or email at least 30 days before taking
+            effect.
+        </p>
+
+        <h2>10. Contact</h2>
+        <p>
+            Privacy questions: <a href="mailto:privacy@example.com">privacy@example.com</a>
+        </p>
+    </div>
+</section>
+
+<style>
+    .legal-page { padding: 80px 0; background: #fff; color: #1a2421; }
+    .legal-page .container { max-width: 760px; margin: 0 auto; padding: 0 24px; line-height: 1.6; }
+    .legal-page h1 { font-size: 32px; margin-bottom: 8px; }
+    .legal-page h2 { font-size: 20px; margin-top: 32px; margin-bottom: 8px; }
+    .legal-page p, .legal-page li { margin-bottom: 8px; }
+    .legal-page .effective { color: #6b7a70; font-size: 14px; margin-bottom: 32px; }
+    .legal-page a { color: #2e7d32; }
+    .legal-page ul { margin-bottom: 16px; padding-left: 22px; }
+</style>

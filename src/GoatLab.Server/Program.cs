@@ -1,10 +1,29 @@
+using System.Threading.RateLimiting;
 using GoatLab.Server.Data;
 using GoatLab.Server.Data.Auth;
 using GoatLab.Server.Services;
+using GoatLab.Server.Services.Backup;
+using GoatLab.Server.Services.Billing;
+using GoatLab.Server.Services.Email;
+using GoatLab.Server.Services.Jobs;
+using GoatLab.Server.Services.Plans;
+using Hangfire;
+using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Serilog;
+
+// Bootstrap logger — captures failures during host build before Serilog's
+// configured pipeline is live. Replaced once the host is up.
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
+
+try
+{
 
 // Load repo-root .env (if present) into process env so local `dotnet run` picks
 // up secrets the same way docker-compose does in production. No-op when running
@@ -12,6 +31,38 @@ using Microsoft.EntityFrameworkCore;
 DotEnvLoader.Load(Directory.GetCurrentDirectory());
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Sentry. Only active when Sentry:Dsn is configured (env SENTRY_DSN).
+// Captures uncaught exceptions via middleware + Error-level Serilog events.
+var sentryDsn = builder.Configuration.GetValue<string>("Sentry:Dsn");
+if (!string.IsNullOrWhiteSpace(sentryDsn))
+{
+    builder.WebHost.UseSentry(o =>
+    {
+        o.Dsn = sentryDsn;
+        o.Environment = builder.Environment.EnvironmentName;
+        o.TracesSampleRate = builder.Configuration.GetValue<double?>("Sentry:TracesSampleRate") ?? 0.0;
+        o.SendDefaultPii = false;
+    });
+}
+
+builder.Host.UseSerilog((ctx, services, cfg) =>
+{
+    cfg.ReadFrom.Configuration(ctx.Configuration)
+       .ReadFrom.Services(services)
+       .Enrich.FromLogContext();
+
+    // Feed Error+ Serilog events into Sentry for unified error tracking.
+    if (!string.IsNullOrWhiteSpace(sentryDsn))
+    {
+        cfg.WriteTo.Sentry(s =>
+        {
+            s.Dsn = sentryDsn;
+            s.MinimumEventLevel = Serilog.Events.LogEventLevel.Error;
+            s.MinimumBreadcrumbLevel = Serilog.Events.LogEventLevel.Information;
+        });
+    }
+});
 
 // Map GOOGLE_MAPS_API_KEY env var into the IConfiguration tree. Docker-compose
 // sets GoogleMaps__ApiKey directly, so this only handles the dev path where
@@ -39,11 +90,15 @@ builder.Services
     {
         options.Password.RequireDigit = true;
         options.Password.RequireLowercase = true;
-        options.Password.RequireUppercase = false;
-        options.Password.RequireNonAlphanumeric = false;
+        options.Password.RequireUppercase = true;
+        options.Password.RequireNonAlphanumeric = true;
         options.Password.RequiredLength = 8;
         options.User.RequireUniqueEmail = true;
-        options.SignIn.RequireConfirmedEmail = false; // enable later when we wire email
+        // Config-driven. Flip to true in production via Identity:RequireConfirmedEmail
+        // env var / user-secret once Smtp:Host is configured; otherwise signups
+        // can't complete login because no email actually lands.
+        options.SignIn.RequireConfirmedEmail =
+            builder.Configuration.GetValue<bool>("Identity:RequireConfirmedEmail", false);
     })
     .AddEntityFrameworkStores<GoatLabDbContext>()
     .AddDefaultTokenProviders();
@@ -96,8 +151,88 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new() { Title = "GoatLab API", Version = "v1" });
 });
 
-// CORS for development
+// CORS. The Blazor WASM client is served by this same server, so in production
+// everything is same-origin and CORS is a no-op. Only applied in Development
+// (where the client may run on a different port) or when Cors:AllowedOrigins
+// is explicitly configured for cross-origin deployments.
 builder.Services.AddCors();
+
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<GoatLabDbContext>("database");
+
+// Email. Real SMTP sender when Smtp:Host is configured, otherwise a no-op that
+// logs each attempt. Lets features like password reset ship before the mail
+// server exists; flip on by setting Smtp:Host (via env or user-secrets).
+builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
+var smtpHost = builder.Configuration.GetValue<string>($"{SmtpOptions.SectionName}:Host");
+if (!string.IsNullOrWhiteSpace(smtpHost))
+    builder.Services.AddSingleton<IAppEmailSender, SmtpEmailSender>();
+else
+    builder.Services.AddSingleton<IAppEmailSender, NullEmailSender>();
+
+// Billing. StripeBillingService reads Stripe:SecretKey/WebhookSecret at
+// startup. Missing keys don't fail startup — endpoints error at call time so
+// the rest of the app stays usable while Stripe credentials are configured.
+builder.Services.Configure<StripeOptions>(builder.Configuration.GetSection(StripeOptions.SectionName));
+builder.Services.AddScoped<IBillingService, StripeBillingService>();
+
+// Plan-based feature gating. Scoped so FeatureGate caches the plan lookup
+// within a single request.
+builder.Services.AddScoped<IFeatureGate, FeatureGate>();
+
+// Offsite database backup. No-op when Backup:Offsite:Enabled is false.
+builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.SectionName));
+builder.Services.AddScoped<IBackupService, BackupService>();
+
+// Hangfire. Recurring jobs live in Services/Jobs; registration happens after
+// the host is built so DI is available. SQL Server storage reuses the app's
+// connection string; Hangfire creates its own [HangFire] schema on first run.
+// Disabled when running under the Testing environment (integration tests use
+// SQLite / swap services and don't want Hangfire's SQL Server requirement).
+var hangfireEnabled = !builder.Environment.IsEnvironment("Testing");
+if (hangfireEnabled)
+{
+    builder.Services.AddHangfire(cfg => cfg
+        .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
+        .UseSimpleAssemblyNameTypeSerializer()
+        .UseRecommendedSerializerSettings()
+        .UseSqlServerStorage(connectionString, new SqlServerStorageOptions
+        {
+            PrepareSchemaIfNecessary = true,
+            QueuePollInterval = TimeSpan.FromSeconds(15),
+        }));
+    builder.Services.AddHangfireServer();
+}
+
+// Rate limiting. Two policies: "auth" for login/2FA/confirm/reset (20 req/min/IP),
+// "register" for account creation (5 req/hour/IP — signup spam is slow but persistent).
+// Excess requests get 429; no queueing.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("auth", ctx =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }));
+
+    options.AddPolicy("register", ctx =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromHours(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }));
+});
 
 var app = builder.Build();
 
@@ -111,14 +246,20 @@ using (var scope = app.Services.CreateScope())
     await SuperAdminSeeder.SeedAsync(scope.ServiceProvider, app.Configuration, logger);
 }
 
+app.UseSerilogRequestLogging();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
     app.UseWebAssemblyDebugging();
+    // In dev we may have a self-signed cert and want to enforce HTTPS during
+    // testing. In production the app runs behind a reverse proxy (QNAP /
+    // Container Station) that terminates TLS — forcing another redirect here
+    // would loop or break upstream routing.
+    app.UseHttpsRedirection();
 }
 
-app.UseHttpsRedirection();
 app.UseBlazorFrameworkFiles();
 app.UseStaticFiles();
 
@@ -131,7 +272,25 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/media"
 });
 
-app.UseCors(p => p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors(p => p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+}
+else
+{
+    var allowedOrigins = app.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+    if (allowedOrigins is { Length: > 0 })
+    {
+        app.UseCors(p => p
+            .WithOrigins(allowedOrigins)
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials());
+    }
+    // Else: same-origin only (WASM client served by this server). No CORS middleware.
+}
+
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseMiddleware<TenantContextMiddleware>(); // must run after UseAuthentication
@@ -140,7 +299,46 @@ app.UseAuthorization();
 // caller's super_admin claim and let admins through.
 app.UseMiddleware<MaintenanceModeMiddleware>();
 
+app.MapHealthChecks("/health");
+if (hangfireEnabled)
+{
+    app.MapHangfireDashboard("/admin/jobs", new DashboardOptions
+    {
+        Authorization = new[] { new HangfireSuperAdminFilter() },
+        DisplayStorageConnectionString = false,
+    });
+
+    // Register recurring jobs (daily). Cron expressions are UTC.
+    RecurringJob.AddOrUpdate<TrialReminderJob>(
+        "trial-reminder-daily",
+        job => job.RunAsync(CancellationToken.None),
+        "0 9 * * *"); // 09:00 UTC daily
+
+    RecurringJob.AddOrUpdate<HardDeleteSweepJob>(
+        "hard-delete-sweep-daily",
+        job => job.RunAsync(CancellationToken.None),
+        "0 3 * * *"); // 03:00 UTC daily
+
+    // Offsite backup. Registered regardless of Enabled so the admin can see
+    // it on the health page and toggle it via env without redeploying the
+    // recurring-jobs set. The job itself checks Enabled and exits early.
+    RecurringJob.AddOrUpdate<DatabaseBackupJob>(
+        "offsite-backup-daily",
+        job => job.RunAsync(CancellationToken.None),
+        "0 4 * * *"); // 04:00 UTC daily
+}
+
 app.MapControllers();
 app.MapFallbackToFile("index.html");
 
 app.Run();
+
+}
+catch (Exception ex) when (ex is not HostAbortedException)
+{
+    Log.Fatal(ex, "GoatLab host terminated unexpectedly");
+}
+finally
+{
+    await Log.CloseAndFlushAsync();
+}

@@ -1,0 +1,77 @@
+@page "/account/settings"
+@inject HttpClient Http
+@inject AuthService AuthApi
+@inject CookieAuthStateProvider AuthState
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Account settings — GoatLab</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="py-6">
+    <MudText Typo="Typo.h4" GutterBottom="true">Account settings</MudText>
+
+    <MudPaper Class="pa-6 mb-6">
+        <MudText Typo="Typo.h6" GutterBottom="true">Download your data</MudText>
+        <MudText Typo="Typo.body2" Class="mb-4" Color="Color.Secondary">
+            Get a ZIP of your profile, memberships, and all records from farms you own
+            (JSON format). Satisfies GDPR / CCPA data-portability requests.
+        </MudText>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Download"
+                   Href="/api/account/export-data">
+            Export my data
+        </MudButton>
+    </MudPaper>
+
+    <MudPaper Class="pa-6 danger-zone">
+        <MudText Typo="Typo.h6" Color="Color.Error" GutterBottom="true">Delete account</MudText>
+        <MudText Typo="Typo.body2" Class="mb-4" Color="Color.Secondary">
+            Marks your account as deleted immediately. If you're the only owner of a farm,
+            that farm is also deleted. Hard delete happens 30 days later; until then, your
+            data can be recovered by emailing support.
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Error"
+                   StartIcon="@Icons.Material.Filled.DeleteForever"
+                   OnClick="DeleteAsync" Disabled="_busy">
+            Delete my account
+        </MudButton>
+    </MudPaper>
+</MudContainer>
+
+<style>
+    .danger-zone { border: 1px solid var(--mud-palette-error); }
+</style>
+
+@code {
+    private bool _busy;
+
+    private async Task DeleteAsync()
+    {
+        var result = await DialogService.ShowMessageBox(
+            title: "Delete account?",
+            markupMessage: new MarkupString(
+                "This marks your account as deleted immediately and signs you out.<br/>" +
+                "<strong>Farms where you are the sole owner will also be deleted.</strong><br/>" +
+                "Hard delete happens in 30 days. This cannot be undone from the app."),
+            yesText: "Delete account",
+            cancelText: "Cancel");
+
+        if (result != true) return;
+
+        _busy = true;
+        try
+        {
+            var res = await Http.PostAsync("api/account/delete-my-account", content: null);
+            if (!res.IsSuccessStatusCode)
+            {
+                Snackbar.Add("Could not delete account. Try again or contact support.", Severity.Error);
+                return;
+            }
+            Snackbar.Add("Account deleted. Goodbye!", Severity.Info);
+            AuthState.NotifyUserChanged(null);
+            Nav.NavigateTo("/", forceLoad: true);
+        }
+        finally { _busy = false; }
+    }
+}

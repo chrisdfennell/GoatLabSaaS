@@ -1,4 +1,5 @@
 using GoatLab.Server.Data;
+using GoatLab.Server.Services.Plans;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +8,7 @@ namespace GoatLab.Server.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[RequiresFeature(AppFeature.Map)]
 public class PasturesController : ControllerBase
 {
     private readonly GoatLabDbContext _db;

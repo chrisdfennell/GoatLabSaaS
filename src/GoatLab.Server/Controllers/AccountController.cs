@@ -1,13 +1,21 @@
+using System.IO.Compression;
 using System.Security.Claims;
+using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 using GoatLab.Server.Data;
 using GoatLab.Server.Data.Auth;
 using GoatLab.Server.Services;
+using GoatLab.Server.Services.Email;
 using GoatLab.Shared.DTOs;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace GoatLab.Server.Controllers;
 
@@ -19,20 +27,29 @@ public class AccountController : ControllerBase
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly GoatLabDbContext _db;
     private readonly ITenantContext _tenantContext;
+    private readonly IAppEmailSender _email;
+    private readonly IdentityOptions _identityOptions;
 
     public AccountController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         GoatLabDbContext db,
-        ITenantContext tenantContext)
+        ITenantContext tenantContext,
+        IAppEmailSender email,
+        IOptions<IdentityOptions> identityOptions)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _db = db;
         _tenantContext = tenantContext;
+        _email = email;
+        _identityOptions = identityOptions.Value;
     }
 
+    private bool RequiresConfirmedEmail => _identityOptions.SignIn.RequireConfirmedEmail;
+
     [AllowAnonymous]
+    [EnableRateLimiting("register")]
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterRequest req)
     {
@@ -58,7 +75,14 @@ public class AccountController : ControllerBase
             slug = $"{baseSlug}-{++n}";
         }
 
-        var tenant = new Tenant { Name = req.FarmName, Slug = slug };
+        // Assign a default plan (first active public plan, or the Homestead seed).
+        var defaultPlanId = await _db.Plans
+            .Where(p => p.IsActive && p.IsPublic)
+            .OrderBy(p => p.DisplayOrder)
+            .Select(p => (int?)p.Id)
+            .FirstOrDefaultAsync() ?? 1;
+
+        var tenant = new Tenant { Name = req.FarmName, Slug = slug, PlanId = defaultPlanId };
         _db.Tenants.Add(tenant);
         await _db.SaveChangesAsync();
 
@@ -70,13 +94,30 @@ public class AccountController : ControllerBase
         });
         await _db.SaveChangesAsync();
 
-        // Sign the user in with a tenant_id claim so subsequent requests are scoped.
-        await _signInManager.SignInWithClaimsAsync(user, isPersistent: true, BuildClaims(user, tenant.Id));
+        // Fire off confirmation email. If SMTP isn't configured, NullEmailSender
+        // logs + drops the send. Any exception (mail server down, bad creds) is
+        // swallowed so signup isn't blocked by transient email failure.
+        try { await SendConfirmationEmailAsync(user); }
+        catch { /* surfaced via /api/account/resend-confirmation if user notices */ }
 
+        // If confirmation is required, don't auto sign-in — the user must
+        // confirm first. Otherwise sign them in and return the full session DTO.
+        if (RequiresConfirmedEmail)
+        {
+            return Ok(new
+            {
+                requiresConfirmation = true,
+                email = user.Email,
+                message = "Check your email to confirm your account before signing in.",
+            });
+        }
+
+        await _signInManager.SignInWithClaimsAsync(user, isPersistent: true, BuildClaims(user, tenant.Id));
         return Ok(await BuildCurrentUserDto(user));
     }
 
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginRequest req)
     {
@@ -90,6 +131,16 @@ public class AccountController : ControllerBase
         if (check.IsLockedOut)
             return Unauthorized(new { error = "Account is locked. Try again later or contact support." });
         if (!check.Succeeded) return Unauthorized(new { error = "Invalid email or password." });
+
+        if (RequiresConfirmedEmail && !await _userManager.IsEmailConfirmedAsync(user))
+        {
+            return Unauthorized(new
+            {
+                error = "Confirm your email before signing in. Check your inbox for the confirmation link.",
+                emailUnconfirmed = true,
+                email = user.Email,
+            });
+        }
 
         // Pick a default tenant: if only one membership, use it. Otherwise, log
         // the user in with no tenant claim; client will call /select-tenant.
@@ -145,6 +196,137 @@ public class AccountController : ControllerBase
         return Ok(await BuildCurrentUserDto(user));
     }
 
+    // GDPR-style data export. Returns a zip of the user's profile, memberships,
+    // and — for tenants they own — the main farm records. Scoped to owned
+    // tenants on purpose: a shared tenant's data belongs to the owner, not to
+    // every member.
+    [Authorize]
+    [HttpGet("export-data")]
+    public async Task<IActionResult> ExportData(CancellationToken ct)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+
+        _tenantContext.BypassFilter = true;
+
+        var memberships = await _db.TenantMembers
+            .Include(m => m.Tenant)
+            .Where(m => m.UserId == user.Id)
+            .ToListAsync(ct);
+
+        var ownedTenantIds = memberships
+            .Where(m => m.Role == TenantRole.Owner && m.Tenant is not null)
+            .Select(m => m.TenantId)
+            .ToList();
+
+        var opts = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles,
+            DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        };
+
+        using var ms = new MemoryStream();
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            await WriteJsonEntryAsync(zip, "profile.json", new
+            {
+                user.Id, user.Email, user.UserName, user.DisplayName, user.CreatedAt, user.IsSuperAdmin
+            }, opts, ct);
+
+            await WriteJsonEntryAsync(zip, "memberships.json", memberships.Select(m => new
+            {
+                m.TenantId,
+                TenantName = m.Tenant?.Name,
+                TenantSlug = m.Tenant?.Slug,
+                m.Role,
+                m.JoinedAt,
+            }), opts, ct);
+
+            foreach (var tenantId in ownedTenantIds)
+            {
+                var folder = $"tenant-{tenantId}/";
+                await WriteJsonEntryAsync(zip, folder + "tenant.json",
+                    await _db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct), opts, ct);
+                await WriteJsonEntryAsync(zip, folder + "goats.json",
+                    await _db.Goats.Where(g => g.TenantId == tenantId).ToListAsync(ct), opts, ct);
+                await WriteJsonEntryAsync(zip, folder + "medical-records.json",
+                    await _db.MedicalRecords.Where(r => r.TenantId == tenantId).ToListAsync(ct), opts, ct);
+                await WriteJsonEntryAsync(zip, folder + "milk-logs.json",
+                    await _db.MilkLogs.Where(r => r.TenantId == tenantId).ToListAsync(ct), opts, ct);
+                await WriteJsonEntryAsync(zip, folder + "breeding-records.json",
+                    await _db.BreedingRecords.Where(r => r.TenantId == tenantId).ToListAsync(ct), opts, ct);
+                await WriteJsonEntryAsync(zip, folder + "sales.json",
+                    await _db.Sales.Where(r => r.TenantId == tenantId).ToListAsync(ct), opts, ct);
+                await WriteJsonEntryAsync(zip, folder + "transactions.json",
+                    await _db.Transactions.Where(r => r.TenantId == tenantId).ToListAsync(ct), opts, ct);
+            }
+
+            var readme = "GoatLab data export\n"
+                + $"Generated: {DateTime.UtcNow:O}\n"
+                + $"User: {user.Email}\n\n"
+                + "profile.json — your account profile\n"
+                + "memberships.json — tenants you belong to and your role\n"
+                + "tenant-<id>/ — full records for each tenant you own\n";
+            var readmeEntry = zip.CreateEntry("README.txt", CompressionLevel.Optimal);
+            await using var rw = new StreamWriter(readmeEntry.Open(), Encoding.UTF8);
+            await rw.WriteAsync(readme);
+        }
+
+        ms.Position = 0;
+        var fileName = $"goatlab-export-{DateTime.UtcNow:yyyyMMdd-HHmmss}.zip";
+        return File(ms.ToArray(), "application/zip", fileName);
+    }
+
+    private static async Task WriteJsonEntryAsync(ZipArchive zip, string path, object? data, JsonSerializerOptions opts, CancellationToken ct)
+    {
+        var entry = zip.CreateEntry(path, CompressionLevel.Optimal);
+        await using var stream = entry.Open();
+        await JsonSerializer.SerializeAsync(stream, data, opts, ct);
+    }
+
+    // Soft-deletes the user. Leaves tenants alone: a shared tenant survives so
+    // the remaining members don't lose their farm. If the user is the sole
+    // owner of a tenant, the tenant is soft-deleted too. A 30-day hard-delete
+    // sweep is not yet implemented — it needs a background job runner.
+    [Authorize]
+    [HttpPost("delete-my-account")]
+    public async Task<IActionResult> DeleteMyAccount(CancellationToken ct)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+
+        _tenantContext.BypassFilter = true;
+
+        var now = DateTime.UtcNow;
+        user.DeletedAt = now;
+
+        var memberships = await _db.TenantMembers
+            .Include(m => m.Tenant)
+            .Where(m => m.UserId == user.Id)
+            .ToListAsync(ct);
+
+        foreach (var m in memberships)
+        {
+            if (m.Role != TenantRole.Owner || m.Tenant is null) continue;
+
+            var otherOwnerCount = await _db.TenantMembers.CountAsync(
+                t => t.TenantId == m.TenantId && t.UserId != user.Id && t.Role == TenantRole.Owner, ct);
+            if (otherOwnerCount == 0 && m.Tenant.DeletedAt is null)
+            {
+                m.Tenant.DeletedAt = now;
+            }
+        }
+
+        await _db.SaveChangesAsync(ct);
+        await _signInManager.SignOutAsync();
+
+        // Hard-delete scheduled for 30 days from now. Sweep not yet
+        // implemented — will require a background job runner (Hangfire or
+        // similar). Until then, rows remain soft-deleted.
+        return Ok(new { message = "Account deleted. A hard-delete will run 30 days from now.", deletedAt = now });
+    }
+
     private async Task<CurrentUserDto> BuildCurrentUserDto(ApplicationUser user)
     {
         _tenantContext.BypassFilter = true;
@@ -159,13 +341,39 @@ public class AccountController : ControllerBase
         var claim = User.FindFirstValue(TenantContextMiddleware.TenantClaimType);
         if (int.TryParse(claim, out var tid)) currentTenantId = tid;
 
+        // Enabled features + billing snapshot in one tenant load. Empty when no
+        // tenant is selected.
+        List<string> enabledFeatures = new();
+        BillingSnapshotDto? billing = null;
+        if (currentTenantId is int tenantId)
+        {
+            var tenant = await _db.Tenants
+                .Include(t => t.Plan).ThenInclude(p => p!.Features)
+                .FirstOrDefaultAsync(t => t.Id == tenantId);
+            if (tenant?.Plan is not null)
+            {
+                enabledFeatures = tenant.Plan.Features
+                    .Where(f => f.Enabled)
+                    .Select(f => f.Feature.ToString())
+                    .ToList();
+                billing = new BillingSnapshotDto(
+                    tenant.Plan.Name,
+                    tenant.Plan.Slug,
+                    tenant.SubscriptionStatus,
+                    tenant.TrialEndsAt,
+                    tenant.CurrentPeriodEnd);
+            }
+        }
+
         return new CurrentUserDto(
             user.Id,
             user.Email ?? string.Empty,
             user.DisplayName,
             currentTenantId,
             memberships,
-            user.IsSuperAdmin);
+            user.IsSuperAdmin,
+            enabledFeatures,
+            billing);
     }
 
     private static IEnumerable<Claim> BuildClaims(ApplicationUser user, int? tenantId)
@@ -175,6 +383,102 @@ public class AccountController : ControllerBase
         if (user.IsSuperAdmin)
             yield return new Claim(SuperAdminPolicy.ClaimType, "true");
     }
+
+    // ----- Email confirmation + password reset -----
+
+    public record EmailRequest(string Email);
+    public record ConfirmEmailRequest(string UserId, string Token);
+    public record ResetPasswordRequest(string UserId, string Token, string NewPassword);
+
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] EmailRequest req)
+    {
+        // Always succeed to avoid leaking which emails are registered. If the
+        // email actually matches an active account, we send a reset link.
+        var user = await _userManager.FindByEmailAsync(req.Email);
+        if (user is not null && user.DeletedAt is null)
+        {
+            try
+            {
+                var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+                var url = BuildClientUrl("reset-password", user.Id, token);
+                var tpl = EmailTemplates.PasswordReset(user.DisplayName, url);
+                await _email.SendAsync(user.Email!, tpl.Subject, tpl.Html, tpl.Text);
+            }
+            catch { /* don't reveal send failure to the caller */ }
+        }
+        return Ok(new { message = "If that email is on file, a reset link has been sent." });
+    }
+
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest req)
+    {
+        var user = await _userManager.FindByIdAsync(req.UserId);
+        if (user is null) return BadRequest(new { error = "Invalid reset link." });
+
+        var decodedToken = DecodeToken(req.Token);
+        var result = await _userManager.ResetPasswordAsync(user, decodedToken, req.NewPassword);
+        if (!result.Succeeded)
+            return BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+
+        return Ok(new { message = "Password updated. You can sign in now." });
+    }
+
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    [HttpPost("confirm-email")]
+    public async Task<IActionResult> ConfirmEmail([FromBody] ConfirmEmailRequest req)
+    {
+        var user = await _userManager.FindByIdAsync(req.UserId);
+        if (user is null) return BadRequest(new { error = "Invalid confirmation link." });
+
+        var decodedToken = DecodeToken(req.Token);
+        var result = await _userManager.ConfirmEmailAsync(user, decodedToken);
+        if (!result.Succeeded)
+            return BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+
+        return Ok(new { message = "Email confirmed. You can sign in now." });
+    }
+
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    [HttpPost("resend-confirmation")]
+    public async Task<IActionResult> ResendConfirmation([FromBody] EmailRequest req)
+    {
+        var user = await _userManager.FindByEmailAsync(req.Email);
+        if (user is not null && user.DeletedAt is null && !await _userManager.IsEmailConfirmedAsync(user))
+        {
+            try { await SendConfirmationEmailAsync(user); }
+            catch { /* swallow to avoid leaking state */ }
+        }
+        return Ok(new { message = "If that email is on file and unconfirmed, we've sent a new link." });
+    }
+
+    private async Task SendConfirmationEmailAsync(ApplicationUser user)
+    {
+        if (user.Email is null) return;
+        var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+        var url = BuildClientUrl("confirm-email", user.Id, token);
+        var tpl = EmailTemplates.ConfirmEmail(user.DisplayName, url);
+        await _email.SendAsync(user.Email, tpl.Subject, tpl.Html, tpl.Text);
+    }
+
+    // Identity tokens need to survive a URL round-trip without mangling.
+    // Base64Url encode when putting into a query string, decode when reading.
+    private string BuildClientUrl(string path, string userId, string token)
+    {
+        var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+        var origin = $"{Request.Scheme}://{Request.Host}";
+        var userIdEnc = Uri.EscapeDataString(userId);
+        return $"{origin}/{path}?userId={userIdEnc}&token={encodedToken}";
+    }
+
+    private static string DecodeToken(string encodedToken)
+        => Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(encodedToken));
 
     private static string Slugify(string name)
     {

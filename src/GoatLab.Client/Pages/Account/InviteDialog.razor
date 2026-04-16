@@ -1,0 +1,65 @@
+@using GoatLab.Shared.Models
+@inject TeamService TeamApi
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="_email" Label="Email" Required="true"
+                      InputType="InputType.Email" Class="mb-3" />
+        <MudSelect T="TenantRole" @bind-Value="_role" Label="Role" Class="mb-2">
+            <MudSelectItem Value="TenantRole.Manager">Manager — can manage farm data + invite others</MudSelectItem>
+            <MudSelectItem Value="TenantRole.Worker">Worker — can enter records</MudSelectItem>
+            <MudSelectItem Value="TenantRole.ReadOnly">Read-only — view only</MudSelectItem>
+        </MudSelect>
+        <MudText Typo="Typo.caption" Color="Color.Secondary">
+            They'll get an email with a link that expires in 7 days. They need an account with this email to accept.
+        </MudText>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="SendAsync" Disabled="_busy">
+            @(_busy ? "Sending…" : "Send invite")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+
+    private string _email = "";
+    private TenantRole _role = TenantRole.Worker;
+    private bool _busy;
+    private string? _error;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task SendAsync()
+    {
+        _error = null;
+        if (string.IsNullOrWhiteSpace(_email) || !_email.Contains('@'))
+        {
+            _error = "Please enter a valid email.";
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var (ok, err) = await TeamApi.CreateInviteAsync(_email.Trim(), _role);
+            if (!ok)
+            {
+                _error = err?.Length > 200 ? "Couldn't send invite. Check the email and your seat count." : err;
+                return;
+            }
+            Snackbar.Add($"Invite sent to {_email}.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        finally { _busy = false; }
+    }
+}

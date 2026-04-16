@@ -1,0 +1,155 @@
+@inject BillingService BillingApi
+@inject NavigationManager Nav
+
+<MudDialog>
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="text-center py-4">
+                <MudProgressCircular Indeterminate="true" />
+            </div>
+        }
+        else
+        {
+            <div class="upgrade-body">
+                <MudIcon Icon="@Icons.Material.Filled.Upgrade" Size="Size.Large" Color="Color.Primary" />
+                <MudText Typo="Typo.h5" Class="mt-2">@HeadlineText()</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">@SubheadText()</MudText>
+
+                @if (_betterPlans.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info">
+                        You're on the highest available plan. Contact support for custom needs.
+                    </MudAlert>
+                }
+                else
+                {
+                    <div class="upgrade-grid">
+                        @foreach (var plan in _betterPlans)
+                        {
+                            <MudPaper Class="pa-4 upgrade-card">
+                                <MudText Typo="Typo.overline" Color="Color.Primary">@plan.Name</MudText>
+                                <MudText Typo="Typo.h5">
+                                    $@(plan.PriceMonthlyCents / 100m)<span class="per">/mo</span>
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-2">
+                                    @(plan.MaxGoats?.ToString() ?? "Unlimited") goats · @(plan.MaxUsers?.ToString() ?? "Unlimited") users
+                                </MudText>
+                                <ul class="feat-list">
+                                    @foreach (var f in plan.Features.Where(f => f.Enabled).Take(6))
+                                    {
+                                        <li>@FeatureLabel(f.Feature)</li>
+                                    }
+                                    @if (plan.Features.Count(f => f.Enabled) > 6)
+                                    {
+                                        <li class="more">+ @(plan.Features.Count(f => f.Enabled) - 6) more</li>
+                                    }
+                                </ul>
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth
+                                           OnClick="@(() => CheckoutAsync(plan.Id))" Disabled="_busy">
+                                    @(plan.TrialDays > 0 ? $"Start {plan.TrialDays}-day trial" : $"Upgrade to {plan.Name}")
+                                </MudButton>
+                            </MudPaper>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Not now</MudButton>
+        <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/billing" OnClick="Close">
+            See all plans
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+<style>
+    .upgrade-body { text-align: center; }
+    .upgrade-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; text-align: left; }
+    .upgrade-card .per { font-size: 14px; font-weight: 400; color: var(--mud-palette-text-secondary); }
+    .feat-list { list-style: none; padding: 0; margin: 0 0 12px; font-size: 0.85rem; color: var(--mud-palette-text-secondary); }
+    .feat-list li { padding: 2px 0; }
+    .feat-list li.more { color: var(--mud-palette-primary); font-weight: 500; }
+</style>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+
+    /// <summary>Feature name the user tried to access (e.g. "Sales"), if known.</summary>
+    [Parameter] public string? Feature { get; set; }
+
+    /// <summary>Limit hit (e.g. "MaxGoats"), if known.</summary>
+    [Parameter] public string? Limit { get; set; }
+
+    private BillingService.BillingStatus? _status;
+    private List<BillingService.PublicPlan> _betterPlans = new();
+    private bool _loading = true;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var statusTask = BillingApi.GetStatusAsync();
+            var plansTask = BillingApi.GetPublicPlansAsync();
+            _status = await statusTask;
+            var plans = await plansTask;
+
+            var currentPrice = _status?.PlanPriceMonthlyCents ?? 0;
+            _betterPlans = plans
+                .Where(p => p.PriceMonthlyCents > currentPrice)
+                .OrderBy(p => p.PriceMonthlyCents)
+                .ToList();
+        }
+        finally { _loading = false; }
+    }
+
+    private string HeadlineText()
+    {
+        if (Limit == "MaxGoats")
+            return $"You've hit your plan's goat limit";
+        if (Limit == "MaxUsers")
+            return $"You've hit your plan's user limit";
+        if (!string.IsNullOrEmpty(Feature))
+            return $"{FeatureLabel(Feature)} is a paid feature";
+        return "Upgrade your plan";
+    }
+
+    private string SubheadText()
+    {
+        var planName = _status?.PlanName ?? "current";
+        if (Limit == "MaxGoats" || Limit == "MaxUsers")
+            return $"Your {planName} plan caps this. Upgrade to keep going.";
+        if (!string.IsNullOrEmpty(Feature))
+            return $"Your {planName} plan doesn't include {FeatureLabel(Feature)}. Upgrade to unlock it.";
+        return $"Unlock more features by upgrading from {planName}.";
+    }
+
+    private async Task CheckoutAsync(int planId)
+    {
+        _busy = true;
+        try
+        {
+            var url = await BillingApi.StartCheckoutAsync(planId);
+            if (!string.IsNullOrEmpty(url))
+            {
+                Nav.NavigateTo(url, forceLoad: true);
+            }
+        }
+        finally { _busy = false; }
+    }
+
+    private void Close() => MudDialog.Close(DialogResult.Cancel());
+
+    private static string FeatureLabel(string feature)
+    {
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < feature.Length; i++)
+        {
+            if (i > 0 && char.IsUpper(feature[i])) sb.Append(' ');
+            sb.Append(i == 0 ? feature[i] : char.ToLower(feature[i]));
+        }
+        return sb.ToString();
+    }
+}

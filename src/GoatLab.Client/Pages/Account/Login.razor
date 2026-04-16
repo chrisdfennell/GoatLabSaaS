@@ -5,6 +5,7 @@
 @inject AuthService AuthApi
 @inject CookieAuthStateProvider AuthState
 @inject NavigationManager Nav
+@inject ISnackbar Snackbar
 
 <PageTitle>Sign in — GoatLab</PageTitle>
 
@@ -24,7 +25,18 @@
 
         @if (!string.IsNullOrEmpty(_error))
         {
-            <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
+            <MudAlert Severity="Severity.Error" Class="mb-3">
+                @_error
+                @if (_emailUnconfirmed)
+                {
+                    <div class="mt-2">
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary"
+                                   OnClick="ResendConfirmationAsync" Disabled="_busy">
+                            Resend confirmation email
+                        </MudButton>
+                    </div>
+                }
+            </MudAlert>
         }
 
         <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled"
@@ -33,38 +45,53 @@
         </MudButton>
     </EditForm>
 
-    <MudText Typo="Typo.body2" Class="mt-4" Align="Align.Center">
-        New to GoatLab? <MudLink Href="/register">Create an account</MudLink>
-    </MudText>
+    <div class="d-flex justify-space-between mt-4">
+        <MudLink Href="/forgot-password" Typo="Typo.body2">Forgot your password?</MudLink>
+        <MudLink Href="/register" Typo="Typo.body2">Create an account</MudLink>
+    </div>
 </MudPaper>
 
 @code {
     private LoginModel _model = new();
     private string? _error;
+    private bool _emailUnconfirmed;
     private bool _busy;
 
     private async Task SubmitAsync()
     {
         _busy = true;
         _error = null;
+        _emailUnconfirmed = false;
 
-        var (ok, err, user) = await AuthApi.LoginAsync(new LoginRequest(_model.Email, _model.Password, _model.RememberMe));
+        var result = await AuthApi.LoginAsync(new LoginRequest(_model.Email, _model.Password, _model.RememberMe));
         _busy = false;
 
-        if (!ok)
+        if (!result.Ok)
         {
-            _error = "Invalid email or password.";
+            _error = result.Error ?? "Invalid email or password.";
+            _emailUnconfirmed = result.EmailUnconfirmed;
             return;
         }
 
-        AuthState.NotifyUserChanged(user);
+        AuthState.NotifyUserChanged(result.User);
 
-        if (user is null || user.Memberships.Count == 0)
+        if (result.User is null || result.User.Memberships.Count == 0)
             Nav.NavigateTo("/dashboard");
-        else if (user.CurrentTenantId is null)
+        else if (result.User.CurrentTenantId is null)
             Nav.NavigateTo("/select-farm");
         else
             Nav.NavigateTo("/dashboard");
+    }
+
+    private async Task ResendConfirmationAsync()
+    {
+        _busy = true;
+        try
+        {
+            await AuthApi.ResendConfirmationAsync(_model.Email);
+            Snackbar.Add("If that email is on file and unconfirmed, we've sent a new link.", Severity.Info);
+        }
+        finally { _busy = false; }
     }
 
     private class LoginModel

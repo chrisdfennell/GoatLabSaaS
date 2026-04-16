@@ -1,4 +1,5 @@
 using GoatLab.Server.Data;
+using GoatLab.Server.Services.Plans;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,15 +8,18 @@ namespace GoatLab.Server.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[RequiresFeature(AppFeature.Goats)]
 public class GoatsController : ControllerBase
 {
     private readonly GoatLabDbContext _db;
     private readonly IWebHostEnvironment _env;
+    private readonly IFeatureGate _featureGate;
 
-    public GoatsController(GoatLabDbContext db, IWebHostEnvironment env)
+    public GoatsController(GoatLabDbContext db, IWebHostEnvironment env, IFeatureGate featureGate)
     {
         _db = db;
         _env = env;
+        _featureGate = featureGate;
     }
 
     [HttpGet]
@@ -85,6 +89,17 @@ public class GoatsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Goat>> Create(Goat goat)
     {
+        if (!await _featureGate.CanAddGoatAsync())
+        {
+            return new ObjectResult(new
+            {
+                error = "You have reached your plan's goat limit.",
+                upgradeRequired = true,
+                limit = "MaxGoats",
+            })
+            { StatusCode = StatusCodes.Status402PaymentRequired };
+        }
+
         goat.CreatedAt = DateTime.UtcNow;
         goat.UpdatedAt = DateTime.UtcNow;
         _db.Goats.Add(goat);

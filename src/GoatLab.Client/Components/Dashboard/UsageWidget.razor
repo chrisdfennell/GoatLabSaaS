@@ -1,0 +1,83 @@
+@inject BillingService BillingApi
+@inject NavigationManager Nav
+
+@if (_usage is null)
+{
+    @* Silent while loading — the widget is dashboard furniture, not a blocker. *@
+}
+else if (_usage.MaxGoats is null && _usage.MaxUsers is null)
+{
+    @* Unlimited on both — no meter needed. *@
+}
+else
+{
+    <MudPaper Class="pa-4 mb-4" Elevation="0" Style="border:1px solid var(--mud-palette-lines-default);">
+        <div class="d-flex align-center mb-3">
+            <MudIcon Icon="@Icons.Material.Filled.Speed" Class="mr-2" Color="Color.Primary" />
+            <MudText Typo="Typo.subtitle1" Style="font-weight:600;">
+                @_usage.PlanName plan usage
+            </MudText>
+            <MudSpacer />
+            @if (Nearing)
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Upgrade" Href="/billing">
+                    Upgrade
+                </MudButton>
+            }
+        </div>
+
+        @if (_usage.MaxGoats is int maxG)
+        {
+            var pct = maxG == 0 ? 100 : Math.Min(100, (double)_usage.GoatCount * 100 / maxG);
+            <div class="usage-row">
+                <div class="usage-label">
+                    <span>Goats</span>
+                    <span class="usage-count">@_usage.GoatCount / @maxG</span>
+                </div>
+                <MudProgressLinear Value="pct" Color="@BarColor(pct)" Class="usage-bar" />
+            </div>
+        }
+        @if (_usage.MaxUsers is int maxU)
+        {
+            var pct = maxU == 0 ? 100 : Math.Min(100, (double)_usage.UserCount * 100 / maxU);
+            <div class="usage-row mt-3">
+                <div class="usage-label">
+                    <span>Users</span>
+                    <span class="usage-count">@_usage.UserCount / @maxU</span>
+                </div>
+                <MudProgressLinear Value="pct" Color="@BarColor(pct)" Class="usage-bar" />
+            </div>
+        }
+    </MudPaper>
+}
+
+<style>
+    .usage-row { font-size: 0.9rem; }
+    .usage-label { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .usage-count { color: var(--mud-palette-text-secondary); font-variant-numeric: tabular-nums; }
+    .usage-bar { height: 8px !important; border-radius: 4px; }
+</style>
+
+@code {
+    private BillingService.UsageDto? _usage;
+
+    private bool Nearing
+    {
+        get
+        {
+            if (_usage is null) return false;
+            bool near(int count, int? max) => max is int m && m > 0 && count >= m * 0.8;
+            return near(_usage.GoatCount, _usage.MaxGoats) || near(_usage.UserCount, _usage.MaxUsers);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { _usage = await BillingApi.GetUsageAsync(); }
+        catch { /* widget stays hidden if the endpoint fails */ }
+    }
+
+    private static Color BarColor(double pct) =>
+        pct >= 100 ? Color.Error : pct >= 80 ? Color.Warning : Color.Primary;
+}
