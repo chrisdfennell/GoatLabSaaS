@@ -52,6 +52,14 @@ public class Goat : ITenantOwned
     [MaxLength(150)]
     public string? BreederName { get; set; }
 
+    // Public listing — gated by Tenant.PublicProfileEnabled. When both are true,
+    // the goat shows up at /pub/{tenantSlug}/{goatId} (anon-readable). Asking
+    // price is in cents to match the rest of the codebase.
+    public bool IsListedForSale { get; set; }
+    public int? AskingPriceCents { get; set; }
+    [MaxLength(2000)]
+    public string? SaleNotes { get; set; }
+
     // Pedigree
     public int? SireId { get; set; }
     public Goat? Sire { get; set; }

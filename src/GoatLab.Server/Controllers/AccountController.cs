@@ -35,6 +35,7 @@ public class AccountController : ControllerBase
     private readonly IdentityOptions _identityOptions;
     private readonly IFido2 _fido2;
     private readonly IMemoryCache _cache;
+    private readonly ILogger<AccountController> _logger;
 
     public AccountController(
         UserManager<ApplicationUser> userManager,
@@ -44,7 +45,8 @@ public class AccountController : ControllerBase
         IAppEmailSender email,
         IOptions<IdentityOptions> identityOptions,
         IFido2 fido2,
-        IMemoryCache cache)
+        IMemoryCache cache,
+        ILogger<AccountController> logger)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -54,6 +56,7 @@ public class AccountController : ControllerBase
         _identityOptions = identityOptions.Value;
         _fido2 = fido2;
         _cache = cache;
+        _logger = logger;
     }
 
     private bool RequiresConfirmedEmail => _identityOptions.SignIn.RequireConfirmedEmail;
@@ -524,7 +527,7 @@ public class AccountController : ControllerBase
                 var tpl = EmailTemplates.PasswordReset(user.DisplayName, url);
                 await _email.SendAsync(user.Email!, tpl.Subject, tpl.Html, tpl.Text);
             }
-            catch { /* don't reveal send failure to the caller */ }
+            catch (Exception ex) { _logger.LogError(ex, "Password reset email send failed for {Email}", req.Email); /* don't reveal to caller */ }
         }
         return Ok(new { message = "If that email is on file, a reset link has been sent." });
     }

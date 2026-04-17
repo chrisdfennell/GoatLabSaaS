@@ -38,6 +38,12 @@ public class SmtpEmailSender : IAppEmailSender
             : SecureSocketOptions.None;
 
         using var client = new SmtpClient();
+        if (_opts.AllowInvalidCertificate)
+        {
+            // Dev-only — see SmtpOptions.AllowInvalidCertificate.
+            client.ServerCertificateValidationCallback = (_, _, _, _) => true;
+            _logger.LogWarning("SMTP cert validation disabled — Smtp:AllowInvalidCertificate=true");
+        }
         await client.ConnectAsync(_opts.Host, _opts.Port, security, cancellationToken);
         if (!string.IsNullOrEmpty(_opts.Username))
             await client.AuthenticateAsync(_opts.Username, _opts.Password ?? string.Empty, cancellationToken);

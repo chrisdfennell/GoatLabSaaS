@@ -16,4 +16,10 @@ public class SmtpOptions
     // STARTTLS on 587 or implicit TLS on 465 when true. Set false only for
     // plain SMTP to a trusted internal relay.
     public bool UseSsl { get; set; } = true;
+
+    // Dev-only escape hatch: when true, accept any TLS cert (skip chain
+    // validation). Use ONLY to work around a TLS-intercepting AV on the dev
+    // machine (Norton/Kaspersky/Zscaler etc) whose root CA isn't in the
+    // container trust store. Must stay false in production.
+    public bool AllowInvalidCertificate { get; set; }
 }

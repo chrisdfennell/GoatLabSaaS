@@ -50,3 +50,6 @@ certs/*.crt
 ## mkcert binary (downloaded per developer)
 tools/mkcert.exe
 
+## Stripe CLI binary (downloaded per developer)
+tools/stripe.exe
+

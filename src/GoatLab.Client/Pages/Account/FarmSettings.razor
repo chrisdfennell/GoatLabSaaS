@@ -1,6 +1,7 @@
 @page "/farm-settings"
 @using GoatLab.Shared.Models
 @inject TenantSettingsService SettingsApi
+@inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
 <PageTitle>Farm settings — GoatLab</PageTitle>
@@ -39,6 +40,20 @@
                 Sent at 07:00 UTC to the farm owner. Only fires when there are new alerts in the last 24 hours.
             </MudText>
 
+            <MudDivider Class="my-4" />
+            <MudText Typo="Typo.h6" Class="mb-2">Public farm page</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                When on, anyone with the link can see goats you've marked "for sale".
+                URL: <MudLink Href="@PublicFarmUrl" Target="_blank">@PublicFarmUrl</MudLink>
+            </MudText>
+            <MudSwitch T="bool" @bind-Value="_publicProfileEnabled" Color="Color.Primary" Class="mb-3"
+                       Label="Enable public farm page"
+                       UncheckedColor="Color.Default" />
+            <MudTextField @bind-Value="_publicContactEmail" Label="Public contact email"
+                          HelperText="Shown on the public page so buyers can reach you. Defaults to nothing — leave blank to hide."
+                          Class="mb-4" />
+
+
             @if (!string.IsNullOrEmpty(_error))
             {
                 <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
@@ -65,15 +80,23 @@
     private string? _location;
     private TenantUnits _units;
     private bool _alertEmailEnabled;
+    private bool _publicProfileEnabled;
+    private string? _publicContactEmail;
     private string? _error;
     private bool _busy;
+
+    private string PublicFarmUrl => _settings is null
+        ? ""
+        : $"{Nav.BaseUri.TrimEnd('/')}/pub/{_settings.Slug}";
 
     private bool HasChanges =>
         _settings is not null &&
         (_name != _settings.Name
          || (_location ?? "") != (_settings.Location ?? "")
          || _units != _settings.Units
-         || _alertEmailEnabled != _settings.AlertEmailEnabled);
+         || _alertEmailEnabled != _settings.AlertEmailEnabled
+         || _publicProfileEnabled != _settings.PublicProfileEnabled
+         || (_publicContactEmail ?? "") != (_settings.PublicContactEmail ?? ""));
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -85,6 +108,8 @@
         _location = _settings.Location;
         _units = _settings.Units;
         _alertEmailEnabled = _settings.AlertEmailEnabled;
+        _publicProfileEnabled = _settings.PublicProfileEnabled;
+        _publicContactEmail = _settings.PublicContactEmail;
     }
 
     private async Task SaveAsync()
@@ -93,7 +118,7 @@
         _error = null;
         try
         {
-            var (ok, err, updated) = await SettingsApi.UpdateAsync(new TenantSettingsService.UpdateInput(_name.Trim(), _location?.Trim(), _units, _alertEmailEnabled));
+            var (ok, err, updated) = await SettingsApi.UpdateAsync(new TenantSettingsService.UpdateInput(_name.Trim(), _location?.Trim(), _units, _alertEmailEnabled, _publicProfileEnabled, _publicContactEmail?.Trim()));
             if (!ok)
             {
                 _error = err?.Length > 200 ? "Couldn't save. Check your inputs." : (err ?? "Save failed.");

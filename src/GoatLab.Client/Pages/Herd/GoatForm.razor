@@ -241,6 +241,35 @@
                           Placeholder="Clover is the friendliest in the herd — comes running for banana peels..."
                           Counter="2000" MaxLength="2000" />
         </MudPaper>
+
+        @* ----- Section: For sale ----- *@
+        <MudPaper Class="goat-form-section" Elevation="0" Outlined="false">
+            <div class="goat-form-section-header">
+                <MudIcon Icon="@Icons.Material.Filled.Sell" Color="Color.Primary" />
+                <div>
+                    <MudText Typo="Typo.h6">For sale</MudText>
+                    <MudText Typo="Typo.body2" Class="section-hint">
+                        List this goat on your public farm page. Requires the public page to be enabled in <MudLink Href="/farm-settings">farm settings</MudLink>.
+                    </MudText>
+                </div>
+            </div>
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <MudSwitch T="bool" @bind-Value="goat.IsListedForSale" Color="Color.Primary"
+                               Label="Listed for sale" UncheckedColor="Color.Default" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudNumericField T="decimal?" Value="@(goat.AskingPriceCents.HasValue ? (decimal?)(goat.AskingPriceCents.Value / 100m) : null)"
+                                     ValueChanged="@((decimal? v) => goat.AskingPriceCents = v.HasValue ? (int)Math.Round(v.Value * 100) : null)"
+                                     Label="Asking price (USD)" Variant="Variant.Outlined" Min="0" Step="50"
+                                     Format="N0" Adornment="Adornment.Start" AdornmentText="$" />
+                </MudItem>
+            </MudGrid>
+            <MudTextField @bind-Value="goat.SaleNotes" Variant="Variant.Outlined" Lines="3"
+                          Label="Sale notes (shown publicly)"
+                          Placeholder="Disease-tested negative for CAE/CL/Johnes. Scrapie-tagged. Will travel for delivery within 200 mi."
+                          Counter="2000" MaxLength="2000" Class="mt-2" />
+        </MudPaper>
     </MudForm>
 
     @* ----- Sticky action footer ----- *@

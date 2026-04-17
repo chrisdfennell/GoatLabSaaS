@@ -1,0 +1,44 @@
+namespace GoatLab.Shared.DTOs;
+
+public record PublicGoatDto(
+    int Id,
+    string Name,
+    string? EarTag,
+    string? Breed,
+    string Gender,
+    DateTime? DateOfBirth,
+    string? Bio,
+    string? Registry,
+    string? RegistrationNumber,
+    string? BreederName,
+    int? AskingPriceCents,
+    string? SaleNotes,
+    string FarmName,
+    string FarmSlug,
+    string? FarmLocation,
+    string? FarmContactEmail,
+    IReadOnlyList<PublicGoatPhotoDto> Photos,
+    PublicPedigreeNodeDto? Pedigree
+);
+
+public record PublicGoatPhotoDto(string Url, string? Caption, bool IsPrimary);
+
+public record PublicPedigreeNodeDto(
+    int? Id,
+    string? Name,
+    string? RegistrationNumber,
+    string? Breed,
+    PublicPedigreeNodeDto? Sire,
+    PublicPedigreeNodeDto? Dam
+);
+
+public record PublicGoatListItemDto(
+    int Id,
+    string Name,
+    string? EarTag,
+    string? Breed,
+    string Gender,
+    DateTime? DateOfBirth,
+    int? AskingPriceCents,
+    string? PrimaryPhotoUrl
+);

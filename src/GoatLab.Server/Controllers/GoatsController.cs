@@ -133,6 +133,9 @@ public class GoatsController : ControllerBase
         existing.SireId = goat.SireId;
         existing.DamId = goat.DamId;
         existing.PenId = goat.PenId;
+        existing.IsListedForSale = goat.IsListedForSale;
+        existing.AskingPriceCents = goat.AskingPriceCents;
+        existing.SaleNotes = goat.SaleNotes;
         existing.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();

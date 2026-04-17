@@ -19,6 +19,14 @@
 }
 else
 {
+    @if (goat.IsListedForSale)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-3" Icon="@Icons.Material.Filled.Share" Variant="Variant.Outlined" Dense>
+            <strong>Listed for sale.</strong>
+            Public link: <MudLink Href="@PublicLink" Target="_blank">@PublicLink</MudLink>
+        </MudAlert>
+    }
+
     @* ===== Hero ===== *@
     <div class="page-hero @HeroVariant">
         <div class="goat-form-hero-avatar @GetAvatarClass(goat.Gender)" style="position:relative;z-index:1;">
@@ -1123,6 +1131,16 @@ else
     };
 
     private static string FormatCoi(double coi) => $"{(coi * 100):F2}%";
+
+    private string PublicLink
+    {
+        get
+        {
+            var user = AuthState.CurrentUser;
+            var slug = user?.Memberships?.FirstOrDefault(m => m.TenantId == user.CurrentTenantId)?.Slug;
+            return $"{Nav.BaseUri.TrimEnd('/')}/pub/{slug}/{Id}";
+        }
+    }
 
     private static string CoiDescription(double coi) => coi switch
     {

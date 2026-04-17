@@ -1,0 +1,216 @@
+@page "/pub/{Slug}/{GoatId:int}"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@layout GoatLab.Client.Layout.LandingLayout
+@using GoatLab.Shared.DTOs
+@inject HttpClient Http
+
+<PageTitle>@(goat?.Name ?? "Goat") for sale — @(goat?.FarmName ?? "GoatLab")</PageTitle>
+
+@if (loading)
+{
+    <div class="container py-12 text-center">
+        <MudProgressCircular Indeterminate Color="Color.Primary" />
+    </div>
+}
+else if (goat is null)
+{
+    <div class="container py-12 text-center">
+        <MudIcon Icon="@Icons.Material.Filled.SearchOff" Style="font-size:4rem;color:#bbb;" />
+        <MudText Typo="Typo.h5" Class="mt-4">This goat isn't listed for sale.</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">
+            The seller may have removed the listing or made their farm private.
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" Href="/">Back to GoatLab</MudButton>
+    </div>
+}
+else
+{
+    <div class="public-goat">
+        <div class="container">
+            <div class="public-goat-header">
+                <div>
+                    <MudText Typo="Typo.overline" Color="Color.Primary" Style="letter-spacing:2px;">For sale</MudText>
+                    <MudText Typo="Typo.h3" Style="font-weight:700;margin:0;">@goat.Name</MudText>
+                    <MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mt-1">
+                        @(goat.Breed ?? "Unknown breed")
+                        @if (goat.DateOfBirth.HasValue) { <span> · @AgeString(goat.DateOfBirth.Value)</span> }
+                        <span> · @goat.Gender</span>
+                        @if (!string.IsNullOrEmpty(goat.EarTag)) { <span> · #@goat.EarTag</span> }
+                    </MudText>
+                </div>
+                @if (goat.AskingPriceCents.HasValue)
+                {
+                    <div class="public-goat-price">
+                        <MudText Typo="Typo.overline" Color="Color.Secondary">Asking</MudText>
+                        <MudText Typo="Typo.h4" Style="font-weight:700;color:#2e7d32;">$@((goat.AskingPriceCents.Value / 100m).ToString("N0"))</MudText>
+                    </div>
+                }
+            </div>
+
+            @if (goat.Photos.Count > 0)
+            {
+                <div class="public-goat-photos">
+                    @foreach (var p in goat.Photos)
+                    {
+                        <a href="@p.Url" target="_blank" class="public-goat-photo">
+                            <img src="@p.Url" alt="@(p.Caption ?? goat.Name)" loading="lazy" />
+                        </a>
+                    }
+                </div>
+            }
+
+            <MudGrid Spacing="3" Class="mt-3">
+                <MudItem xs="12" md="8">
+                    @if (!string.IsNullOrWhiteSpace(goat.Bio))
+                    {
+                        <MudPaper Class="pa-4 mb-3" Outlined Elevation="0">
+                            <MudText Typo="Typo.h6" Class="mb-2">About @goat.Name</MudText>
+                            <MudText Typo="Typo.body1" Style="white-space:pre-wrap;">@goat.Bio</MudText>
+                        </MudPaper>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(goat.SaleNotes))
+                    {
+                        <MudPaper Class="pa-4 mb-3" Outlined Elevation="0">
+                            <MudText Typo="Typo.h6" Class="mb-2">Sale notes</MudText>
+                            <MudText Typo="Typo.body1" Style="white-space:pre-wrap;">@goat.SaleNotes</MudText>
+                        </MudPaper>
+                    }
+                    @if (goat.Pedigree?.Sire is not null || goat.Pedigree?.Dam is not null)
+                    {
+                        <MudPaper Class="pa-4 mb-3" Outlined Elevation="0">
+                            <MudText Typo="Typo.h6" Class="mb-3">Pedigree</MudText>
+                            <div class="pedigree-grid">
+                                @RenderPedigree(goat.Pedigree, depth: 0)
+                            </div>
+                        </MudPaper>
+                    }
+                </MudItem>
+                <MudItem xs="12" md="4">
+                    <MudPaper Class="pa-4 mb-3" Outlined Elevation="0">
+                        <MudText Typo="Typo.h6" Class="mb-2">Seller</MudText>
+                        <MudText Typo="Typo.subtitle1" Style="font-weight:600;">@goat.FarmName</MudText>
+                        @if (!string.IsNullOrEmpty(goat.FarmLocation))
+                        {
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                <MudIcon Icon="@Icons.Material.Filled.Place" Size="Size.Small" /> @goat.FarmLocation
+                            </MudText>
+                        }
+                        @if (!string.IsNullOrEmpty(goat.FarmContactEmail))
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth Class="mt-3"
+                                       StartIcon="@Icons.Material.Filled.Email"
+                                       Href="@($"mailto:{goat.FarmContactEmail}?subject=Inquiry about {goat.Name}")">
+                                Contact seller
+                            </MudButton>
+                        }
+                    </MudPaper>
+
+                    @if (!string.IsNullOrEmpty(goat.Registry) || !string.IsNullOrEmpty(goat.RegistrationNumber))
+                    {
+                        <MudPaper Class="pa-4 mb-3" Outlined Elevation="0">
+                            <MudText Typo="Typo.h6" Class="mb-2">Registration</MudText>
+                            @if (!string.IsNullOrEmpty(goat.Registry))
+                            {
+                                <MudText Typo="Typo.body2"><strong>Registry:</strong> @goat.Registry</MudText>
+                            }
+                            @if (!string.IsNullOrEmpty(goat.RegistrationNumber))
+                            {
+                                <MudText Typo="Typo.body2"><strong>Reg #:</strong> @goat.RegistrationNumber</MudText>
+                            }
+                            @if (!string.IsNullOrEmpty(goat.BreederName))
+                            {
+                                <MudText Typo="Typo.body2"><strong>Breeder:</strong> @goat.BreederName</MudText>
+                            }
+                        </MudPaper>
+                    }
+
+                    <MudPaper Class="pa-3" Outlined Elevation="0" Style="text-align:center;">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Powered by</MudText>
+                        <MudLink Href="/" Style="font-weight:600;">GoatLab</MudLink>
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </div>
+    </div>
+}
+
+<style>
+.public-goat { padding: 32px 0; }
+.public-goat-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.public-goat-price { text-align: right; }
+.public-goat-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 24px; }
+.public-goat-photo img { width: 100%; height: 220px; object-fit: cover; border-radius: 8px; display: block; }
+.pedigree-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.pedigree-cell { padding: 10px 12px; background: rgba(46,125,50,0.05); border-radius: 6px; border: 1px solid rgba(46,125,50,0.15); font-size: 0.85rem; }
+.pedigree-cell-empty { background: rgba(0,0,0,0.02); border-style: dashed; color: #999; }
+</style>
+
+@code {
+    [Parameter] public string Slug { get; set; } = string.Empty;
+    [Parameter] public int GoatId { get; set; }
+
+    private PublicGoatDto? goat;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            goat = await Http.GetFromJsonAsync<PublicGoatDto>($"api/public/farms/{Slug}/goats/{GoatId}");
+        }
+        catch (HttpRequestException)
+        {
+            goat = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private RenderFragment RenderPedigree(PublicPedigreeNodeDto? node, int depth) => __builder =>
+    {
+        if (depth >= 2 || node is null) return;
+        var sire = node.Sire;
+        var dam = node.Dam;
+
+        @* Three columns: focal | parents | grandparents *@
+        if (depth == 0)
+        {
+            <div class="pedigree-cell"><strong>@node.Name</strong></div>
+            <div>
+                <div class="pedigree-cell @(sire is null ? "pedigree-cell-empty" : "")">
+                    <MudText Typo="Typo.caption">Sire</MudText>
+                    @(sire?.Name ?? "Unknown")
+                </div>
+                <div class="pedigree-cell @(dam is null ? "pedigree-cell-empty" : "")" style="margin-top:8px;">
+                    <MudText Typo="Typo.caption">Dam</MudText>
+                    @(dam?.Name ?? "Unknown")
+                </div>
+            </div>
+            <div>
+                <div class="pedigree-cell @(sire?.Sire is null ? "pedigree-cell-empty" : "")">
+                    @(sire?.Sire?.Name ?? "—")
+                </div>
+                <div class="pedigree-cell @(sire?.Dam is null ? "pedigree-cell-empty" : "")" style="margin-top:8px;">
+                    @(sire?.Dam?.Name ?? "—")
+                </div>
+                <div class="pedigree-cell @(dam?.Sire is null ? "pedigree-cell-empty" : "")" style="margin-top:8px;">
+                    @(dam?.Sire?.Name ?? "—")
+                </div>
+                <div class="pedigree-cell @(dam?.Dam is null ? "pedigree-cell-empty" : "")" style="margin-top:8px;">
+                    @(dam?.Dam?.Name ?? "—")
+                </div>
+            </div>
+        }
+    };
+
+    private static string AgeString(DateTime dob)
+    {
+        var months = (int)((DateTime.UtcNow - dob).TotalDays / 30.44);
+        if (months < 12) return months + " mo";
+        var years = months / 12;
+        var remMonths = months % 12;
+        return remMonths == 0 ? years + " yr" : $"{years} yr {remMonths} mo";
+    }
+}

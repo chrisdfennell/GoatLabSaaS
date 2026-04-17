@@ -65,6 +65,7 @@ services:
       Smtp__FromAddress: "${SMTP_FROM_ADDRESS:-}"
       Smtp__FromName: "${SMTP_FROM_NAME:-GoatLab}"
       Smtp__UseSsl: "${SMTP_USE_SSL:-true}"
+      Smtp__AllowInvalidCertificate: "${SMTP_ALLOW_INVALID_CERT:-false}"
       Stripe__SecretKey: "${STRIPE_SECRET_KEY:-}"
       Stripe__PublishableKey: "${STRIPE_PUBLISHABLE_KEY:-}"
       Stripe__WebhookSecret: "${STRIPE_WEBHOOK_SECRET:-}"

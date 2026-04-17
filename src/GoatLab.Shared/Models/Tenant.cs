@@ -86,6 +86,18 @@ public class Tenant
     /// </summary>
     public bool AlertEmailEnabled { get; set; } = true;
 
+    // --- Public profile ---
+
+    /// <summary>
+    /// When true, exposes a public goat-for-sale page per goat that has
+    /// IsListedForSale=true. Owner opts in from /farm-settings. URL shape:
+    /// /pub/{Slug}/{goatId}. Defaults false so existing tenants stay private.
+    /// </summary>
+    public bool PublicProfileEnabled { get; set; }
+
+    [MaxLength(120)]
+    public string? PublicContactEmail { get; set; }
+
     public ICollection<TenantMember> Members { get; set; } = new List<TenantMember>();
 }
 
