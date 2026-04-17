@@ -1,0 +1,47 @@
+# Caddy v2 reverse proxy + auto-TLS via Let's Encrypt for goatlab.app.
+#
+# Caddy obtains + renews certs automatically using ACME HTTP-01 challenge,
+# which requires:
+#   1. DNS A record for goatlab.app and CNAME www → goatlab.app
+#   2. Ports 80 and 443 reachable from the public internet
+#   3. An email address below for LE expiry notifications
+#
+# Update the email if a different address should receive cert expiry notices.
+{
+    email noreply@goatlab.app
+}
+
+goatlab.app, www.goatlab.app {
+    # All requests proxied to the goatlab compose service on its internal port.
+    reverse_proxy goatlab:8080
+
+    encode gzip zstd
+
+    header {
+        # HSTS — opt into preload list once we're confident of stability.
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        # Defensive defaults; tighten further with a real CSP once content is finalized.
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Hide the Caddy server header.
+        -Server
+    }
+
+    # Long cache for hashed/static assets — Blazor framework files have content-hashed names.
+    @static {
+        path /_framework/* /css/* /js/* /images/* /lib/*
+    }
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    # Service worker should never be cached.
+    @sw {
+        path /service-worker.js /service-worker.published.js
+    }
+    header @sw Cache-Control "no-cache, no-store, must-revalidate"
+
+    log {
+        output stdout
+        format console
+    }
+}

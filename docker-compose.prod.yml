@@ -1,0 +1,108 @@
+# Production compose — used on the Hostinger VPS. NOT used in local dev
+# (local dev uses docker-compose.yml + Mailpit + mkcert HTTPS on the host).
+#
+# Differences from dev:
+#   - No Mailpit (real Brevo SMTP)
+#   - No host port mapping for goatlab — Caddy reaches it on the docker network
+#   - sqlserver has no host port mapping either — only goatlab can reach it
+#   - Caddy terminates TLS via Let's Encrypt; auto-renews; redirects 80 → 443
+#   - Kestrel only listens HTTP internally (Caddy handles HTTPS)
+#   - Builds from real Dockerfile (not Dockerfile.local overlay)
+#
+# Bring up:    docker compose -f docker-compose.prod.yml up -d --build
+# Tail logs:   docker compose -f docker-compose.prod.yml logs -f goatlab caddy
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: goatlab-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${SA_PASSWORD:?SA_PASSWORD must be set in .env}"
+      MSSQL_PID: "Developer"
+    volumes:
+      - goatlab-mssql:/var/opt/mssql
+      - goatlab-backups:/var/opt/mssql/backup
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  goatlab:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: goatlab
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    volumes:
+      - goatlab-media:/app/media
+      - goatlab-backups:/app/backups
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=GoatLab;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;Encrypt=True;"
+      GoogleMaps__ApiKey: "${GOOGLE_MAPS_API_KEY:-}"
+      Backup__AppPath: "/app/backups"
+      Backup__SqlServerPath: "/var/opt/mssql/backup"
+      # Brevo SMTP (or whichever transactional provider is configured in .env)
+      Smtp__Host: "${SMTP_HOST}"
+      Smtp__Port: "${SMTP_PORT:-587}"
+      Smtp__Username: "${SMTP_USERNAME}"
+      Smtp__Password: "${SMTP_PASSWORD}"
+      Smtp__FromAddress: "${SMTP_FROM_ADDRESS}"
+      Smtp__FromName: "${SMTP_FROM_NAME:-GoatLab}"
+      Smtp__UseSsl: "${SMTP_USE_SSL:-true}"
+      # AllowInvalidCertificate intentionally hard-coded false in prod — no AV TLS interception expected.
+      Smtp__AllowInvalidCertificate: "false"
+      Stripe__SecretKey: "${STRIPE_SECRET_KEY:-}"
+      Stripe__PublishableKey: "${STRIPE_PUBLISHABLE_KEY:-}"
+      Stripe__WebhookSecret: "${STRIPE_WEBHOOK_SECRET:-}"
+      Sentry__Dsn: "${SENTRY_DSN:-}"
+      Sentry__TracesSampleRate: "${SENTRY_TRACES_SAMPLE_RATE:-0.0}"
+      Backup__Offsite__Enabled: "${BACKUP_OFFSITE_ENABLED:-false}"
+      Backup__Offsite__Endpoint: "${BACKUP_OFFSITE_ENDPOINT:-}"
+      Backup__Offsite__Region: "${BACKUP_OFFSITE_REGION:-us-east-1}"
+      Backup__Offsite__AccessKey: "${BACKUP_OFFSITE_ACCESS_KEY:-}"
+      Backup__Offsite__SecretKey: "${BACKUP_OFFSITE_SECRET_KEY:-}"
+      Backup__Offsite__Bucket: "${BACKUP_OFFSITE_BUCKET:-}"
+      Backup__Offsite__Prefix: "${BACKUP_OFFSITE_PREFIX:-goatlab/db/}"
+      Backup__Offsite__RetentionDays: "${BACKUP_OFFSITE_RETENTION_DAYS:-30}"
+      WebAuthn__RpId: "${WEBAUTHN_RP_ID:-goatlab.app}"
+      WebAuthn__Origins__0: "${WEBAUTHN_ORIGIN:-https://goatlab.app}"
+      Push__VapidPublicKey: "${PUSH_VAPID_PUBLIC_KEY:-}"
+      Push__VapidPrivateKey: "${PUSH_VAPID_PRIVATE_KEY:-}"
+      Push__Subject: "${PUSH_SUBJECT:-mailto:noreply@goatlab.app}"
+      Identity__RequireConfirmedEmail: "${IDENTITY_REQUIRE_CONFIRMED_EMAIL:-true}"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: goatlab-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - goatlab
+
+volumes:
+  goatlab-mssql:
+  goatlab-media:
+  goatlab-backups:
+  caddy_data:
+  caddy_config:
