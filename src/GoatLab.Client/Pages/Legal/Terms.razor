@@ -7,66 +7,362 @@
 <section class="legal-page">
     <div class="container">
         <MudAlert Severity="Severity.Warning" Class="mb-6">
-            <strong>Placeholder copy.</strong> Replace this page with terms reviewed by a qualified attorney
-            before onboarding paying customers. This scaffold is not legal advice.
+            <strong>Draft, not legal advice.</strong> This document is a starting-point draft pending
+            attorney review. Bracketed items <code>[LIKE THIS]</code> are placeholders for the lawyer
+            to finalize. Do not rely on these terms for any binding purpose until the version
+            without bracketed placeholders is published here.
         </MudAlert>
 
         <h1>Terms of Service</h1>
         <p class="effective">Last updated: @DateTime.UtcNow.ToString("MMMM yyyy")</p>
 
-        <h2>1. Acceptance of Terms</h2>
+        <h2>1. About these Terms</h2>
         <p>
-            By creating an account on GoatLab (the "Service"), you agree to be bound by these Terms.
-            If you do not agree, do not use the Service.
+            These Terms of Service (<strong>"Terms"</strong>) are a binding agreement between you
+            (<strong>"you"</strong>, <strong>"your"</strong>, <strong>"Customer"</strong>) and
+            <strong>[LEGAL ENTITY NAME]</strong>, a [STATE] [LLC / corporation / sole proprietor]
+            with its principal place of business at <strong>[BUSINESS ADDRESS]</strong>
+            (<strong>"GoatLab"</strong>, <strong>"we"</strong>, <strong>"us"</strong>,
+            <strong>"our"</strong>). They govern your access to and use of the GoatLab software
+            service, the website at https://goatlab.app, mobile and PWA clients, APIs, and all
+            related products (collectively, the <strong>"Service"</strong>).
+        </p>
+        <p>
+            By creating an account, accessing, or using the Service, you confirm that you have read,
+            understood, and agree to be bound by these Terms and our
+            <a href="/privacy">Privacy Policy</a>, which is incorporated by reference. If you do not
+            agree, do not use the Service.
+        </p>
+        <p>
+            If you are accepting these Terms on behalf of a business, organization, or other legal
+            entity, you represent that you have authority to bind that entity, and "you" refers to
+            that entity.
         </p>
 
-        <h2>2. Accounts and Tenants</h2>
+        <h2>2. Eligibility</h2>
         <p>
-            You are responsible for all activity under your account, including activity by users you
-            invite to your farm (tenant). Keep your credentials confidential.
+            You may use the Service only if you are at least <strong>16 years old</strong> and
+            legally able to form a binding contract under the laws of your jurisdiction. We do not
+            knowingly collect data from individuals under 16 and do not intend the Service for use
+            by minors. If you become aware that a minor has provided us data, contact us at
+            <strong>[CONTACT EMAIL]</strong> so we can delete it.
         </p>
 
-        <h2>3. Plans and Billing</h2>
+        <h2>3. Description of the Service</h2>
         <p>
-            Paid plans are billed in advance on a recurring basis. Trials convert automatically at the
-            end of the trial period unless canceled. Cancelations stop future billing but do not
-            refund the current period unless required by law.
+            GoatLab is a software-as-a-service platform for goat farm management. The Service allows
+            you to record and analyze data about your animals (including medical records, breeding
+            history, milk production, weights, sales, and finances), upload photos and documents,
+            generate reports, share public listings of animals you offer for sale, receive automated
+            alerts and reminders, and collaborate with team members.
+        </p>
+        <p>
+            The Service is provided "as is" and is updated frequently. Features, pricing, plan tiers,
+            and limits may change at our discretion, with reasonable notice for material changes
+            affecting paid plans.
         </p>
 
-        <h2>4. Acceptable Use</h2>
+        <h2>4. Accounts and Tenants</h2>
+        <h3>4.1. Account creation</h3>
         <p>
-            Do not use the Service to violate any law, infringe others' rights, distribute malware,
-            or attempt to disrupt service availability.
+            To use most features you must create an individual user account by providing a valid
+            email address and password. You may also be invited to join an existing
+            <strong>Tenant</strong> (a "Farm") created by another user.
+        </p>
+        <h3>4.2. Tenant ownership</h3>
+        <p>
+            Each Farm is created by a user who becomes its <strong>Owner</strong>. The Owner controls
+            billing, subscription, team membership, public-page visibility, and may delete the Farm.
+            Members and Viewers have reduced permissions as described in the Service.
+        </p>
+        <h3>4.3. Account security</h3>
+        <p>
+            You are responsible for safeguarding your credentials, enabling two-factor authentication
+            where offered, and for all activity occurring under your account. Notify us immediately
+            at <strong>[CONTACT EMAIL]</strong> if you suspect unauthorized access.
+        </p>
+        <h3>4.4. One human per account</h3>
+        <p>
+            Each individual user account must be used by a single natural person. Sharing account
+            credentials is prohibited and may result in suspension.
         </p>
 
-        <h2>5. Your Data</h2>
+        <h2>5. Subscriptions, Trials, and Billing</h2>
+        <h3>5.1. Plans</h3>
         <p>
-            You own the data you enter. We process it to provide the Service and as described in the
-            <a href="/privacy">Privacy Policy</a>. You may export or delete your data at any time from
-            account settings.
+            We offer multiple subscription tiers (currently Homestead [free], Farm, and Dairy).
+            Tier-specific features, animal limits, and team-member limits are displayed on the
+            pricing page and in the application. We may add, remove, rename, or re-price tiers at
+            our discretion with at least <strong>30 days'</strong> notice for changes affecting
+            active paid subscriptions.
+        </p>
+        <h3>5.2. Free trials</h3>
+        <p>
+            New paid subscriptions may include a free trial period (currently 14 days on Farm and
+            Dairy). At the end of the trial, your subscription will automatically convert to paid
+            and your payment method will be charged the then-current price for that tier,
+            <strong>unless you cancel before the trial ends</strong>. We may modify trial duration
+            or eligibility at any time.
+        </p>
+        <h3>5.3. Payment</h3>
+        <p>
+            Paid subscriptions are billed through <strong>Stripe, Inc.</strong>
+            (<strong>"Stripe"</strong>). By providing a payment method, you authorize us (via Stripe)
+            to charge that method on a recurring basis (monthly or annual, depending on the plan you
+            select) until you cancel. You agree to keep your payment method current; we may suspend
+            service for failed payments after a reasonable dunning period.
+        </p>
+        <h3>5.4. Taxes</h3>
+        <p>
+            Prices displayed are exclusive of applicable sales tax, VAT, GST, or similar taxes,
+            which we may add and collect where required by law.
+        </p>
+        <h3>5.5. Cancellation and refunds</h3>
+        <p>
+            You may cancel at any time from <code>/account/billing</code>. Cancellation takes effect
+            at the end of the current billing period; you retain access through that period.
+            <strong>Fees already paid are non-refundable</strong> except where required by law or
+            where service was materially defective due to our fault. To request a refund for a
+            service defect, contact <strong>[CONTACT EMAIL]</strong> within <strong>14 days</strong>
+            of the charge.
+        </p>
+        <h3>5.6. Plan downgrades and overages</h3>
+        <p>
+            If you downgrade to a plan with a lower animal or team-member limit and your current
+            usage exceeds that limit, you must reduce usage to comply within <strong>14 days</strong>.
+            We may restrict creation of new records on the downgraded plan until you comply.
+        </p>
+        <h3>5.7. Account deletion and grace period</h3>
+        <p>
+            You may delete your account from <code>/account/settings</code>. Your account and all
+            Farms where you are the sole Owner will be <strong>soft-deleted</strong> immediately
+            (hidden, billing canceled) and <strong>permanently deleted after 30 days</strong>. During
+            the grace period you may contact us to restore the account. After hard deletion,
+            recovery is not possible.
         </p>
 
-        <h2>6. Availability and Warranty</h2>
+        <h2>6. Acceptable Use</h2>
+        <p>You agree not to:</p>
+        <ul>
+            <li>Use the Service in violation of any applicable law or regulation, including animal
+                welfare, veterinary, agricultural, or import/export laws in your jurisdiction.</li>
+            <li>Upload or transmit content that is unlawful, defamatory, obscene, infringing on
+                others' intellectual property, or that contains malicious code.</li>
+            <li>Probe, scan, or test the vulnerability of the Service except via a
+                responsible-disclosure channel coordinated with us.</li>
+            <li>Attempt to disrupt or overload the Service (denial of service, brute-force
+                authentication, automated scraping at unreasonable rates).</li>
+            <li>Use the Service to send unsolicited bulk email or other spam.</li>
+            <li>Resell, sublicense, or white-label the Service without our written agreement.</li>
+            <li>Reverse-engineer, decompile, or extract source code from the Service.</li>
+            <li>Misrepresent the provenance, registration, health status, or pedigree of any animal
+                in a manner intended to defraud purchasers using our public listings feature.</li>
+        </ul>
         <p>
-            The Service is provided "as is" without warranty of any kind. We aim for high availability
-            but do not guarantee uninterrupted operation.
+            We may suspend or terminate accounts that violate this section, with or without notice
+            depending on severity.
         </p>
 
-        <h2>7. Limitation of Liability</h2>
+        <h2>7. Your Content and Data</h2>
+        <h3>7.1. Ownership</h3>
         <p>
-            To the fullest extent permitted by law, GoatLab's liability for any claim arising from the
-            Service is limited to the fees you paid in the twelve months preceding the claim.
+            You retain all ownership of the data, photos, documents, and other content you upload
+            to the Service (<strong>"Customer Content"</strong>). We claim no ownership in your
+            animal records, breeding data, sales figures, or any other content you create.
+        </p>
+        <h3>7.2. License to operate the Service</h3>
+        <p>
+            You grant us a worldwide, non-exclusive, royalty-free license to host, copy, transmit,
+            display, modify, and process Customer Content <strong>solely</strong> as necessary to
+            operate, maintain, secure, and improve the Service for you, including:
+        </p>
+        <ul>
+            <li>Generating reports, charts, exports, and PDF documents.</li>
+            <li>Storing backups for disaster recovery.</li>
+            <li>Aggregating de-identified usage statistics for product analytics.</li>
+            <li>Displaying Customer Content publicly <strong>only</strong> when you explicitly opt
+                in (e.g., enabling your public Farm page or marking individual goats as listed for
+                sale).</li>
+        </ul>
+        <h3>7.3. Public Farm pages</h3>
+        <p>
+            If you enable a public Farm page, the goats you mark "for sale" will be viewable at
+            <code>https://goatlab.app/pub/{your-slug}/{goat-id}</code> by anyone with the link,
+            including search-engine crawlers. We will display the information you provide (photos,
+            breed, registration, asking price, contact email, pedigree). You are responsible for
+            ensuring you have the right to publish this information and that it is accurate. Do not
+            include personal data of third parties.
+        </p>
+        <h3>7.4. Backups</h3>
+        <p>
+            We perform periodic backups of the database for disaster recovery. We do not guarantee
+            any specific backup retention or recovery-time objective for your individual data; you
+            are responsible for maintaining your own copies of mission-critical records via the
+            <strong>Export my data</strong> function in <code>/account/settings</code>.
+        </p>
+        <h3>7.5. Data export</h3>
+        <p>
+            At any time, you may export a copy of your data in machine-readable (JSON/CSV) format
+            from <code>/account/settings</code>. We will retain the ability to respond to export
+            requests for at least the duration of your active subscription plus the 30-day deletion
+            grace period.
         </p>
 
-        <h2>8. Changes</h2>
+        <h2>8. Intellectual Property</h2>
         <p>
-            We may update these Terms. Material changes will be announced via in-app notice or email
-            at least 30 days before taking effect for existing subscribers.
+            Excluding Customer Content, all rights in the Service — including software, source code,
+            designs, logos, trademarks, documentation, and text — are owned by GoatLab or our
+            licensors. We grant you a limited, non-exclusive, non-transferable, revocable license
+            to use the Service in accordance with these Terms. No other rights are granted by
+            implication.
+        </p>
+        <p>You agree not to remove, obscure, or alter any proprietary notices in or on the Service.</p>
+
+        <h2>9. Third-Party Services</h2>
+        <p>
+            The Service uses third-party services to deliver functionality, including but not
+            limited to:
+        </p>
+        <ul>
+            <li><strong>Stripe, Inc.</strong> — payment processing</li>
+            <li><strong>Sendinblue SAS d/b/a Brevo</strong> — transactional email delivery</li>
+            <li><strong>Hostinger International Ltd.</strong> — server hosting</li>
+            <li><strong>Functional Software, Inc. d/b/a Sentry</strong> — error monitoring</li>
+            <li><strong>Google LLC</strong> — Maps API for the optional farm-map feature</li>
+            <li><strong>American Dairy Goat Association / American Goat Society</strong> — registry
+                data import (no ongoing data sharing)</li>
+        </ul>
+        <p>
+            We use commercially reasonable efforts to vet these processors but are not responsible
+            for their independent acts or omissions. See our <a href="/privacy">Privacy Policy</a>
+            for details on what data is shared with each.
         </p>
 
-        <h2>9. Contact</h2>
+        <h2>10. Disclaimers</h2>
         <p>
-            Questions about these Terms: <a href="mailto:legal@example.com">legal@example.com</a>
+            THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND,
+            WHETHER EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE. TO THE MAXIMUM EXTENT PERMITTED BY
+            LAW, WE EXPRESSLY DISCLAIM ALL WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+            PURPOSE, NON-INFRINGEMENT, AND QUIET ENJOYMENT.
+        </p>
+        <p>
+            We do not warrant that the Service will be uninterrupted, secure, or error-free, or
+            that defects will be corrected. Animal-health alerts, breeding-due-date calculations,
+            COI estimates, and other automated recommendations are <strong>informational only</strong>
+            and do not substitute for the judgment of a licensed veterinarian, certified breeder,
+            or other qualified professional.
+            <strong>Always consult a licensed veterinarian for medical decisions affecting your
+                animals.</strong>
+        </p>
+
+        <h2>11. Limitation of Liability</h2>
+        <p>
+            TO THE MAXIMUM EXTENT PERMITTED BY LAW, IN NO EVENT WILL GOATLAB OR ITS OFFICERS,
+            EMPLOYEES, AGENTS, OR SUPPLIERS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+            CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF
+            PROFITS, REVENUE, GOODWILL, ANIMALS, PROGENY, OR DATA, ARISING OUT OF OR RELATING TO
+            THESE TERMS OR THE SERVICE.
+        </p>
+        <p>
+            OUR TOTAL CUMULATIVE LIABILITY UNDER THESE TERMS WILL NOT EXCEED THE GREATER OF
+            (A) <strong>USD $100</strong> OR (B) THE FEES YOU PAID TO US IN THE
+            <strong>TWELVE (12) MONTHS</strong> IMMEDIATELY PRECEDING THE EVENT GIVING RISE TO THE
+            CLAIM.
+        </p>
+        <p>
+            These limitations apply regardless of the legal theory (contract, tort, strict
+            liability, or otherwise) and even if we have been advised of the possibility of such
+            damages. Some jurisdictions do not allow these limitations; in those jurisdictions, our
+            liability will be limited to the greatest extent permitted by law.
+        </p>
+
+        <h2>12. Indemnification</h2>
+        <p>
+            You agree to defend, indemnify, and hold harmless GoatLab and its officers, directors,
+            employees, and agents from and against any claims, liabilities, damages, losses, and
+            expenses (including reasonable attorneys' fees) arising out of or in any way connected
+            with: (a) your access to or use of the Service; (b) your Customer Content; (c) your
+            violation of these Terms; or (d) your violation of any third-party right, including
+            intellectual property, privacy, or animal-welfare rights.
+        </p>
+
+        <h2>13. Term and Termination</h2>
+        <p>
+            These Terms remain in effect while you use the Service. We may suspend or terminate your
+            access at any time, with or without cause, including for any violation of these Terms.
+            You may terminate at any time by deleting your account.
+        </p>
+        <p>
+            Upon termination, Sections 5.5 (refunds), 7.2 (license to operate), 8 (intellectual
+            property), 10 (disclaimers), 11 (limitation of liability), 12 (indemnification), and 16
+            (governing law / disputes) survive.
+        </p>
+
+        <h2>14. Modifications to the Terms</h2>
+        <p>
+            We may modify these Terms from time to time. The "Last updated" date at the top of this
+            page reflects the most recent revision. For material changes affecting paid
+            subscriptions, we will provide at least <strong>30 days'</strong> notice via email
+            and/or in-app banner before the change takes effect. Your continued use of the Service
+            after the effective date constitutes acceptance of the revised Terms. If you do not
+            agree, you must stop using the Service.
+        </p>
+
+        <h2>15. Notices</h2>
+        <p>
+            Notices to you may be sent via email to the address on file or via in-app banner.
+            Notices to us must be sent in writing to <strong>[BUSINESS ADDRESS]</strong> with a copy
+            to <strong>[CONTACT EMAIL]</strong>.
+        </p>
+
+        <h2>16. Governing Law and Disputes</h2>
+        <p>
+            <em>[LAWYER TO REVIEW THIS WHOLE SECTION — strongly jurisdiction-dependent. Common
+                patterns shown below; pick what applies.]</em>
+        </p>
+        <p>
+            These Terms are governed by the laws of the State of <strong>[STATE]</strong>, USA,
+            without regard to its conflict-of-laws provisions.
+        </p>
+        <p>
+            <strong>[OPTION A — court only]</strong> Any dispute arising under these Terms will be
+            resolved exclusively in the state or federal courts located in
+            <strong>[COUNTY, STATE]</strong>, and the parties consent to personal jurisdiction
+            there.
+        </p>
+        <p>
+            <strong>[OPTION B — arbitration]</strong> Any dispute arising under these Terms will be
+            resolved by binding arbitration administered by the American Arbitration Association
+            under its Commercial Arbitration Rules, in <strong>[CITY, STATE]</strong>. You and we
+            waive any right to a jury trial. Either party may bring a claim in small-claims court
+            for any dispute within that court's jurisdiction. Class actions and class-wide
+            arbitration are waived to the extent permitted by law.
+        </p>
+
+        <h2>17. Miscellaneous</h2>
+        <ul>
+            <li><strong>Entire agreement.</strong> These Terms (with the Privacy Policy) constitute
+                the entire agreement between you and us regarding the Service and supersede all
+                prior agreements.</li>
+            <li><strong>Severability.</strong> If any provision is held unenforceable, the remaining
+                provisions remain in full force.</li>
+            <li><strong>No waiver.</strong> Our failure to enforce any right is not a waiver of that
+                right.</li>
+            <li><strong>Assignment.</strong> You may not assign these Terms without our prior
+                written consent. We may assign these Terms to an affiliate or successor in
+                connection with a merger, acquisition, or sale of assets.</li>
+            <li><strong>Force majeure.</strong> Neither party is liable for failure to perform due
+                to causes beyond reasonable control (acts of God, war, civil disturbance, power or
+                network failures, government action, pandemic).</li>
+            <li><strong>Headings.</strong> Section headings are for reference only and do not
+                affect interpretation.</li>
+        </ul>
+
+        <h2>18. Contact</h2>
+        <p>
+            Questions about these Terms? Contact us at
+            <a href="mailto:[CONTACT EMAIL]">[CONTACT EMAIL]</a> or by mail at
+            <strong>[BUSINESS ADDRESS]</strong>.
         </p>
     </div>
 </section>
@@ -75,8 +371,12 @@
     .legal-page { padding: 80px 0; background: #fff; color: #1a2421; }
     .legal-page .container { max-width: 760px; margin: 0 auto; padding: 0 24px; line-height: 1.6; }
     .legal-page h1 { font-size: 32px; margin-bottom: 8px; }
-    .legal-page h2 { font-size: 20px; margin-top: 32px; margin-bottom: 8px; }
+    .legal-page h2 { font-size: 22px; margin-top: 36px; margin-bottom: 10px; }
+    .legal-page h3 { font-size: 17px; margin-top: 20px; margin-bottom: 6px; color: #1a2421; }
     .legal-page p { margin-bottom: 12px; }
+    .legal-page ul { margin: 8px 0 16px 0; padding-left: 24px; }
+    .legal-page ul li { margin-bottom: 6px; }
+    .legal-page code { background: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 0.92em; }
     .legal-page .effective { color: #6b7a70; font-size: 14px; margin-bottom: 32px; }
     .legal-page a { color: #2e7d32; }
 </style>

@@ -7,76 +7,377 @@
 <section class="legal-page">
     <div class="container">
         <MudAlert Severity="Severity.Warning" Class="mb-6">
-            <strong>Placeholder copy.</strong> Replace this page with a privacy policy reviewed by a
-            qualified attorney covering the jurisdictions you sell into (at minimum GDPR and CCPA).
-            This scaffold is not legal advice.
+            <strong>Draft, not legal advice.</strong> This document is a starting-point draft pending
+            attorney review. Bracketed items <code>[LIKE THIS]</code> are placeholders for the lawyer
+            to finalize. Do not rely on these terms for any binding purpose until the version
+            without bracketed placeholders is published here.
         </MudAlert>
 
         <h1>Privacy Policy</h1>
         <p class="effective">Last updated: @DateTime.UtcNow.ToString("MMMM yyyy")</p>
 
-        <h2>1. What we collect</h2>
+        <h2>1. Who we are and what this policy covers</h2>
+        <p>
+            This Privacy Policy describes how <strong>[LEGAL ENTITY NAME]</strong> (operating as
+            <strong>"GoatLab"</strong>, <strong>"we"</strong>, <strong>"us"</strong>,
+            <strong>"our"</strong>) collects, uses, shares, and protects personal information about
+            you (<strong>"you"</strong>, <strong>"user"</strong>) when you use our software service
+            at https://goatlab.app, our APIs, our mobile and PWA clients, and any related products
+            (the <strong>"Service"</strong>).
+        </p>
+        <p>
+            This policy applies to information we collect through the Service. It does not apply to
+            information collected by third-party websites or services that may be linked from the
+            Service.
+        </p>
+        <p>
+            For a description of what we promise about the Service generally, see our
+            <a href="/terms">Terms of Service</a>.
+        </p>
+
+        <h2>2. Information we collect</h2>
+
+        <h3>2.1. Information you provide directly</h3>
         <ul>
-            <li><strong>Account data:</strong> name, email, hashed password.</li>
-            <li><strong>Farm data:</strong> records you enter about your animals, production, and finances.</li>
-            <li><strong>Billing data:</strong> handled by Stripe; we store only a customer ID and subscription metadata.</li>
-            <li><strong>Operational logs:</strong> request logs, error traces, and timestamps for debugging and abuse prevention.</li>
+            <li><strong>Account information:</strong> name, email address, password (stored as a
+                one-way hash, never plaintext), display name, optional profile photo.</li>
+            <li><strong>Two-factor authentication:</strong> TOTP secrets (encrypted at rest), passkey
+                / WebAuthn credential public keys.</li>
+            <li><strong>Farm information:</strong> farm name, location (city/state/country
+                granularity, not GPS unless you set it), units preference (imperial / metric).</li>
+            <li><strong>Billing information:</strong> name, billing address, last 4 digits of payment
+                card. <strong>We do not store full card numbers, CVV, or bank-account numbers</strong>
+                — those are handled directly by Stripe and never reach our servers.</li>
+            <li><strong>Animal records:</strong> ear tags, breed, gender, dates of birth, registration
+                numbers (ADGA / AGS), pedigree (sire/dam links), medical records, vaccinations,
+                weights, breeding records, kidding records, milk logs, show records, sale records,
+                photos and documents you upload.</li>
+            <li><strong>Inventory and finance:</strong> feed inventory, medicine cabinet items,
+                purchases, sales, transactions you record.</li>
+            <li><strong>Public listings:</strong> information you choose to make publicly viewable
+                via the public Farm page feature, including any contact email you publish.</li>
+            <li><strong>Communications:</strong> messages you send to support; opt-in preferences for
+                marketing or alert emails.</li>
         </ul>
 
-        <h2>2. How we use it</h2>
+        <h3>2.2. Information we collect automatically</h3>
+        <ul>
+            <li><strong>Authentication and session data:</strong> session cookies, IP address, user
+                agent, timestamps of login attempts (used for security and rate limiting).</li>
+            <li><strong>Usage telemetry:</strong> which pages you visit within the application, which
+                features you use, how often. We use this for product analytics and capacity planning.
+                We do <strong>not</strong> use third-party analytics trackers (e.g., Google Analytics)
+                at this time.</li>
+            <li><strong>Error reports:</strong> when the application encounters an unhandled
+                exception, technical details (stack trace, request URL, user ID, timestamp) are sent
+                to our error-monitoring sub-processor (Sentry) so we can fix bugs.</li>
+            <li><strong>Push notification tokens:</strong> if you opt in to push notifications, your
+                browser provides an endpoint URL plus public-key material; we store these to deliver
+                notifications and delete them when you unsubscribe or the browser invalidates them.</li>
+        </ul>
+
+        <h3>2.3. Information from third parties</h3>
+        <ul>
+            <li><strong>Stripe:</strong> subscription status, billing-period dates, last invoice
+                status. We do not receive your full payment-card details.</li>
+            <li><strong>Animal registry imports (ADGA / AGS):</strong> if you upload a registry CSV
+                for import, we extract animal records from the file you provide. We do not pull data
+                directly from registry APIs at this time.</li>
+        </ul>
+
+        <h3>2.4. Cookies and similar technologies</h3>
         <p>
-            To run the Service you've signed up for, to bill you, to prevent abuse, and to improve the
-            product. We do not sell your data.
+            We use a small number of cookies, all classified as <strong>strictly necessary</strong>
+            or <strong>functional</strong>:
+        </p>
+        <table class="legal-table">
+            <thead>
+                <tr><th>Cookie</th><th>Purpose</th><th>Duration</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>.AspNetCore.Identity.Application</code></td>
+                    <td>Authenticated session</td>
+                    <td>Session or "Remember me" duration</td>
+                </tr>
+                <tr>
+                    <td><code>.AspNetCore.Antiforgery.*</code></td>
+                    <td>CSRF protection</td>
+                    <td>Session</td>
+                </tr>
+                <tr>
+                    <td><code>goatlab.cookieConsent</code></td>
+                    <td>Records that you saw the cookie banner</td>
+                    <td>Persistent</td>
+                </tr>
+                <tr>
+                    <td><code>goatlab.pushPromptDismissed</code></td>
+                    <td>Records that you dismissed the push prompt</td>
+                    <td>Persistent</td>
+                </tr>
+            </tbody>
+        </table>
+        <p>
+            We do <strong>not</strong> use third-party advertising or cross-site tracking cookies.
+        </p>
+        <p>
+            In addition to cookies, the Service uses <strong>IndexedDB</strong> (a browser storage
+            mechanism) to maintain an offline write queue so that data you record without an
+            internet connection is preserved and re-synced when you come back online.
         </p>
 
-        <h2>3. Sub-processors</h2>
+        <h2>3. How we use information</h2>
+        <p>We use the information we collect to:</p>
+        <ul>
+            <li>Provide, maintain, secure, and improve the Service.</li>
+            <li>Authenticate you and protect against unauthorized access.</li>
+            <li>Process subscriptions, billing, refunds, and tax compliance.</li>
+            <li>Send transactional emails (account confirmation, password reset, trial ending,
+                billing receipts, alert digests, team invitations).</li>
+            <li>Display alerts and reminders based on your data (e.g., medication overdue, kidding
+                upcoming, feed low).</li>
+            <li>Fulfill product features (PDF generation, CSV export, public listings, COI
+                calculations).</li>
+            <li>Diagnose and fix technical issues.</li>
+            <li>Communicate with you about the Service, updates, and security.</li>
+            <li>Comply with applicable laws and respond to lawful requests.</li>
+        </ul>
+        <p>We <strong>do not</strong>:</p>
+        <ul>
+            <li>Sell your personal information to anyone.</li>
+            <li>Share your animal records with breeders, registries, marketplaces, or any third
+                party except as you direct (e.g., enabling your public Farm page or generating a
+                sales contract PDF).</li>
+            <li>Use your data to train machine-learning models.</li>
+            <li>Send marketing email without your opt-in.</li>
+        </ul>
+
+        <h2>4. Legal basis for processing (GDPR)</h2>
         <p>
-            We share limited data with service providers necessary to operate the Service, including
-            Stripe (payments) and our email delivery provider. A current list is available on request.
+            If you are in the European Economic Area, the United Kingdom, or Switzerland, our legal
+            basis depends on the activity:
+        </p>
+        <ul>
+            <li><strong>Performance of a contract</strong> — to provide the Service you requested.</li>
+            <li><strong>Legitimate interests</strong> — to secure the Service, prevent abuse, fix
+                bugs, and improve the product. We balance these interests against your rights and
+                freedoms.</li>
+            <li><strong>Consent</strong> — for optional features such as push notifications,
+                marketing email, and the public Farm page.</li>
+            <li><strong>Legal obligation</strong> — to comply with tax, accounting, and law
+                enforcement requirements.</li>
+        </ul>
+        <p>
+            You may withdraw consent at any time without affecting the lawfulness of prior
+            processing.
         </p>
 
-        <h2>4. Retention</h2>
+        <h2>5. Sharing and sub-processors</h2>
         <p>
-            Account data is retained while your subscription is active. If you delete your account,
-            we soft-delete immediately and hard-delete after 30 days. Billing records are retained
-            for 7 years for tax and audit purposes.
+            We share personal information only with the following categories of recipients:
         </p>
 
-        <h2>5. Your rights</h2>
+        <h3>5.1. Sub-processors</h3>
+        <table class="legal-table">
+            <thead>
+                <tr>
+                    <th>Sub-processor</th><th>Purpose</th><th>Location</th><th>Data shared</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Stripe, Inc.</strong></td>
+                    <td>Payment processing</td>
+                    <td>USA</td>
+                    <td>Email, name, billing address, payment card (collected by Stripe directly)</td>
+                </tr>
+                <tr>
+                    <td><strong>Sendinblue SAS d/b/a Brevo</strong></td>
+                    <td>Transactional email</td>
+                    <td>France / EU</td>
+                    <td>Email address, name, email content</td>
+                </tr>
+                <tr>
+                    <td><strong>Hostinger International Ltd.</strong></td>
+                    <td>Hosting infrastructure</td>
+                    <td>Lithuania, EU</td>
+                    <td>All data stored on the servers (encrypted at rest)</td>
+                </tr>
+                <tr>
+                    <td><strong>Functional Software, Inc. d/b/a Sentry</strong></td>
+                    <td>Error monitoring</td>
+                    <td>USA</td>
+                    <td>User ID, request URL, stack traces, error context (no Customer Content)</td>
+                </tr>
+                <tr>
+                    <td><strong>Google LLC</strong></td>
+                    <td>Maps API (optional)</td>
+                    <td>USA</td>
+                    <td>Map view geo-coordinates and usage metrics; does not include animal records</td>
+                </tr>
+            </tbody>
+        </table>
         <p>
-            You can access, export, or delete your data at any time from account settings. Residents
-            of the EU/UK (GDPR), California (CCPA), and similar jurisdictions have additional rights
-            including objection, restriction, and non-discrimination. Contact us to exercise them.
+            We have data-processing agreements (DPAs) in place with each sub-processor where
+            required by applicable law.
         </p>
 
-        <h2>6. Security</h2>
+        <h3>5.2. Legal disclosures</h3>
         <p>
-            We encrypt data in transit (TLS) and at rest. Passwords are hashed with ASP.NET Identity's
-            default algorithm. No system is perfectly secure; report vulnerabilities to
-            <a href="mailto:security@example.com">security@example.com</a>.
+            We may disclose information when we believe in good faith that disclosure is necessary
+            to (a) comply with a legal obligation, court order, or government request; (b) enforce
+            these Terms; (c) detect, prevent, or address fraud, security, or technical issues; or
+            (d) protect the rights, property, or safety of GoatLab, our users, or the public.
+        </p>
+        <p>
+            We will give you notice of a government request for your data unless prohibited by law.
         </p>
 
-        <h2>7. Cookies</h2>
+        <h3>5.3. Business transfers</h3>
         <p>
-            We use a single session cookie for authentication. We do not use third-party advertising
-            or analytics cookies. A banner asks for consent on first visit.
+            If we are involved in a merger, acquisition, financing due diligence, reorganization,
+            bankruptcy, or sale of all or part of our assets, your information may be transferred
+            to the successor entity, subject to the terms of this Privacy Policy.
         </p>
 
-        <h2>8. Children</h2>
+        <h3>5.4. With your direction</h3>
         <p>
-            The Service is not directed to children under 13 (or 16 in the EU). Do not create an
-            account if you are below that age in your jurisdiction.
+            We share information when you direct us to — for example, by inviting a team member to
+            your Farm, enabling your public Farm page, or sending a sales contract PDF to a buyer.
         </p>
 
-        <h2>9. Changes</h2>
+        <h2>6. International data transfers</h2>
         <p>
-            Material changes are announced via in-app notice or email at least 30 days before taking
-            effect.
+            GoatLab is operated from the <strong>[OPERATOR LOCATION — likely USA]</strong>. Our
+            primary hosting infrastructure is in the <strong>European Union (Lithuania)</strong>.
+            Some sub-processors (Stripe, Sentry, Google) are headquartered in the United States. By
+            using the Service you consent to the transfer of your data to these jurisdictions.
+        </p>
+        <p>
+            For transfers from the EEA, UK, or Switzerland to countries that have not been deemed
+            adequate, we rely on Standard Contractual Clauses where required.
         </p>
 
-        <h2>10. Contact</h2>
+        <h2>7. Data retention</h2>
         <p>
-            Privacy questions: <a href="mailto:privacy@example.com">privacy@example.com</a>
+            We retain personal information only as long as needed to provide the Service and to
+            comply with our legal obligations:
+        </p>
+        <ul>
+            <li><strong>Active accounts:</strong> for the duration of your subscription.</li>
+            <li><strong>Soft-deleted accounts and Farms:</strong> <strong>30 days</strong> before
+                permanent deletion. Cancellable on request during this window.</li>
+            <li><strong>Billing records:</strong> as required by tax law, typically
+                <strong>7 years</strong>.</li>
+            <li><strong>Server logs and request audit trails:</strong> <strong>14 days</strong>.</li>
+            <li><strong>Backups:</strong> rotation policy of <strong>30 days</strong> for full
+                database backups.</li>
+        </ul>
+        <p>
+            When we delete your data, we delete it from primary databases immediately and from
+            backups as backups age out of the rotation window.
+        </p>
+
+        <h2>8. Your rights</h2>
+        <p>Depending on your jurisdiction you may have the following rights:</p>
+        <ul>
+            <li><strong>Access</strong> — request a copy of the personal information we hold about
+                you. Use the <strong>Export my data</strong> button at <code>/account/settings</code>.</li>
+            <li><strong>Rectification</strong> — correct inaccurate information. Most fields are
+                editable directly in the Service; for others, contact us.</li>
+            <li><strong>Erasure</strong> — request that we delete your account and associated data.
+                Use the <strong>Delete my account</strong> button at <code>/account/settings</code>.
+                Subject to the 30-day grace period.</li>
+            <li><strong>Restriction / objection</strong> — ask us to limit or stop certain processing.</li>
+            <li><strong>Portability</strong> — receive your data in a machine-readable format. The
+                export feature provides this.</li>
+            <li><strong>Withdraw consent</strong> — for any processing based on consent.</li>
+            <li><strong>Lodge a complaint</strong> with your local data-protection authority.</li>
+        </ul>
+        <p>
+            <strong>California residents</strong> have additional rights under the CCPA / CPRA,
+            including the right to know what categories of information we collect, to delete, and
+            to opt out of the "sale" or "sharing" of personal information (we do not sell or share
+            for cross-context behavioral advertising).
+        </p>
+        <p>
+            To exercise any right, email us at <a href="mailto:[CONTACT EMAIL]">[CONTACT EMAIL]</a>.
+            We will respond within <strong>30 days</strong>.
+        </p>
+
+        <h2>9. Children's privacy</h2>
+        <p>
+            The Service is not intended for individuals under <strong>16 years of age</strong>
+            (under 13 in the United States per COPPA). We do not knowingly collect personal
+            information from children. If you believe a child has provided us information, contact
+            us and we will delete it.
+        </p>
+
+        <h2>10. Security</h2>
+        <p>
+            We use commercially reasonable technical and organizational measures to protect your
+            information, including:
+        </p>
+        <ul>
+            <li><strong>TLS 1.2+</strong> encryption in transit for all client and webhook traffic.</li>
+            <li><strong>Encryption at rest</strong> for the database and offsite backups.</li>
+            <li><strong>One-way password hashing</strong> with PBKDF2 / Argon2 (no plaintext
+                passwords stored).</li>
+            <li><strong>Two-factor authentication</strong> (TOTP and WebAuthn / passkeys) available
+                for all accounts.</li>
+            <li><strong>Rate limiting</strong> on authentication endpoints.</li>
+            <li><strong>Audit logging</strong> of administrative actions.</li>
+            <li><strong>Segregation</strong> of customer data via tenant isolation enforced at the
+                database query layer.</li>
+        </ul>
+        <p>
+            No system is perfectly secure. If we discover a breach affecting your personal
+            information, we will notify you and applicable regulators within the timeframes
+            required by law.
+        </p>
+
+        <h2>11. Public information</h2>
+        <p>
+            When you enable your public Farm page or list a goat for sale, the information you
+            choose to publish (farm name, location, animal photos, breed, registration, asking
+            price, contact email, pedigree to depth 2) becomes accessible to anyone with the URL,
+            including search engines and caching services. <strong>Do not publish information you
+            would not want publicly indexed.</strong> You can disable the public page at any time
+            from <code>/farm-settings</code>, but cached copies may persist on third-party services
+            beyond our control.
+        </p>
+
+        <h2>12. Marketing communications</h2>
+        <p>
+            Transactional emails (account confirmation, password reset, billing, trial reminders,
+            alert digests) are part of the Service and cannot be disabled while you have an active
+            account, except for the alert digest which you can opt out of at
+            <code>/farm-settings</code>.
+        </p>
+        <p>
+            We do not currently send promotional or marketing email. If we add marketing
+            communications in the future, we will obtain your opt-in consent first, and every such
+            message will include an unsubscribe link.
+        </p>
+
+        <h2>13. Changes to this policy</h2>
+        <p>
+            We may update this Privacy Policy from time to time. The "Last updated" date at the top
+            reflects the most recent revision. For material changes that affect how we process your
+            information, we will provide reasonable notice via email and/or in-app banner before
+            the change takes effect. Your continued use of the Service after the effective date
+            constitutes acceptance.
+        </p>
+
+        <h2>14. Contact</h2>
+        <p>For privacy questions, requests, or complaints, email us at:</p>
+        <p><strong><a href="mailto:[CONTACT EMAIL]">[CONTACT EMAIL]</a></strong></p>
+        <p>Or by mail at:</p>
+        <p><strong>[BUSINESS ADDRESS]</strong></p>
+        <p>
+            If you are in the EEA, UK, or Switzerland and believe your local data-protection
+            authority would be the appropriate venue for a complaint, you may also contact them
+            directly.
         </p>
     </div>
 </section>
@@ -85,9 +386,15 @@
     .legal-page { padding: 80px 0; background: #fff; color: #1a2421; }
     .legal-page .container { max-width: 760px; margin: 0 auto; padding: 0 24px; line-height: 1.6; }
     .legal-page h1 { font-size: 32px; margin-bottom: 8px; }
-    .legal-page h2 { font-size: 20px; margin-top: 32px; margin-bottom: 8px; }
-    .legal-page p, .legal-page li { margin-bottom: 8px; }
+    .legal-page h2 { font-size: 22px; margin-top: 36px; margin-bottom: 10px; }
+    .legal-page h3 { font-size: 17px; margin-top: 20px; margin-bottom: 6px; color: #1a2421; }
+    .legal-page p { margin-bottom: 12px; }
+    .legal-page ul { margin: 8px 0 16px 0; padding-left: 24px; }
+    .legal-page ul li { margin-bottom: 6px; }
+    .legal-page code { background: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 0.92em; }
     .legal-page .effective { color: #6b7a70; font-size: 14px; margin-bottom: 32px; }
     .legal-page a { color: #2e7d32; }
-    .legal-page ul { margin-bottom: 16px; padding-left: 22px; }
+    .legal-table { width: 100%; border-collapse: collapse; margin: 12px 0 20px 0; font-size: 14px; }
+    .legal-table th, .legal-table td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; vertical-align: top; }
+    .legal-table th { background: #f7f7f7; font-weight: 600; }
 </style>
