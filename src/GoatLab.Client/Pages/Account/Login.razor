@@ -179,12 +179,23 @@
     private void CompleteLogin(CurrentUserDto user)
     {
         AuthState.NotifyUserChanged(user);
-        if (user.Memberships.Count == 0)
+        if (user.CurrentTenantId is not null)
+        {
             Nav.NavigateTo("/dashboard");
-        else if (user.CurrentTenantId is null)
-            Nav.NavigateTo("/select-farm");
+        }
+        else if (user.IsSuperAdmin)
+        {
+            // Super-admins without an active tenant land on the admin console
+            // instead of /dashboard (which would 402 every tenant-scoped widget).
+            Nav.NavigateTo("/admin/tenants");
+        }
         else
-            Nav.NavigateTo("/dashboard");
+        {
+            // Regular user with memberships but no selected tenant -> picker.
+            // Regular user with zero memberships shouldn't normally happen
+            // (registration auto-creates one), but the picker handles it gracefully.
+            Nav.NavigateTo("/select-farm");
+        }
     }
 
     private async Task ResendConfirmationAsync()

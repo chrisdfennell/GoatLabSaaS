@@ -10,6 +10,7 @@
 @inject NotificationService Notifications
 @inject ISnackbar Snackbar
 @inject NavigationManager Nav
+@inject CookieAuthStateProvider AuthState
 
 <PageTitle>Dashboard — GoatLab</PageTitle>
 
@@ -371,6 +372,16 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // No active tenant -> dashboard widgets would 402 every endpoint.
+        // Send super-admins to the admin console; everyone else to the picker.
+        var user = AuthState.CurrentUser;
+        if (user?.CurrentTenantId is null)
+        {
+            Nav.NavigateTo(user?.IsSuperAdmin == true ? "/admin/tenants" : "/select-farm",
+                replace: true);
+            return;
+        }
+
         var statsTask = GoatSvc.GetStatsAsync();
         var alertsTask = AlertsSvc.ListAsync(includeDismissed: false, limit: 5);
         var activityTask = ToolsSvc.GetActivityAsync(10);
