@@ -1,0 +1,157 @@
+@inject AlertsService AlertsApi
+@inject NavigationManager Nav
+@implements IDisposable
+
+<MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Dense="true" PopoverClass="alerts-menu">
+    <ActivatorContent>
+        <MudTooltip Text="Alerts">
+            <MudBadge Content="@_unread" Color="Color.Error" Overlap="true" Visible="@(_unread > 0)" Bordered="true">
+                <MudIconButton Icon="@Icons.Material.Filled.Notifications" Color="Color.Inherit" aria-label="Alerts" />
+            </MudBadge>
+        </MudTooltip>
+    </ActivatorContent>
+    <ChildContent>
+        <div class="pa-3" style="min-width: 320px; max-width: 380px;">
+            <div class="d-flex align-center mb-2">
+                <MudText Typo="Typo.subtitle2" Style="font-weight:600;flex:1;">Recent alerts</MudText>
+                @if (_alerts.Count > 0)
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="DismissAllAsync">Dismiss all</MudButton>
+                }
+            </div>
+            @if (_loading)
+            {
+                <MudProgressLinear Indeterminate="true" />
+            }
+            else if (_alerts.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">No active alerts.</MudText>
+            }
+            else
+            {
+                @foreach (var a in _alerts.Take(8))
+                {
+                    <div class="alert-row @SeverityCss(a.Severity)" @onclick="@(() => OpenAsync(a))">
+                        <MudIcon Icon="@SeverityIcon(a.Severity)" Size="Size.Small" />
+                        <div style="flex:1;">
+                            <div class="alert-title">@a.Title</div>
+                            @if (!string.IsNullOrEmpty(a.Body))
+                            {
+                                <div class="alert-body">@a.Body</div>
+                            }
+                            <div class="alert-meta">@FormatRelative(a.CreatedAt)</div>
+                        </div>
+                        <span @onclick:stopPropagation="true">
+                            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                                           OnClick="@(async () => await DismissAsync(a.Id))" />
+                        </span>
+                    </div>
+                }
+                <MudDivider Class="my-1" />
+                <MudButton FullWidth="true" Variant="Variant.Text"
+                           OnClick="@(() => Nav.NavigateTo("/alerts"))">
+                    View all
+                </MudButton>
+            }
+        </div>
+    </ChildContent>
+</MudMenu>
+
+<style>
+.alerts-menu .alert-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.alerts-menu .alert-row:hover { background: var(--mud-palette-action-default-hover); }
+.alerts-menu .alert-row.error   { border-left: 3px solid #c62828; padding-left: 8px; }
+.alerts-menu .alert-row.warning { border-left: 3px solid #ef6c00; padding-left: 8px; }
+.alerts-menu .alert-row.info    { border-left: 3px solid #1565c0; padding-left: 8px; }
+.alerts-menu .alert-title { font-weight: 500; font-size: 0.9rem; }
+.alerts-menu .alert-body  { font-size: 0.8rem; color: var(--mud-palette-text-secondary); }
+.alerts-menu .alert-meta  { font-size: 0.72rem; color: var(--mud-palette-text-disabled); margin-top: 2px; }
+</style>
+
+@code {
+    private List<GoatLab.Shared.DTOs.AlertDto> _alerts = new();
+    private int _unread;
+    private bool _loading = true;
+    private System.Threading.Timer? _poll;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+        // Poll every 60s. Cheap — endpoint is ~10ms when there are no new alerts.
+        _poll = new System.Threading.Timer(async _ => await InvokeAsync(RefreshAsync),
+            null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
+    }
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            var list = await AlertsApi.ListAsync(includeDismissed: false, limit: 20);
+            _alerts = list ?? new();
+            _unread = _alerts.Count(a => a.ReadAt is null);
+            _loading = false;
+            StateHasChanged();
+        }
+        catch
+        {
+            // 402/feature-off: ApiService already showed the upgrade dialog.
+            // Silent here so we don't keep popping during background polls.
+            _loading = false;
+        }
+    }
+
+    private async Task OpenAsync(GoatLab.Shared.DTOs.AlertDto a)
+    {
+        try { await AlertsApi.MarkReadAsync(a.Id); } catch { }
+        if (!string.IsNullOrEmpty(a.DeepLink)) Nav.NavigateTo(a.DeepLink);
+        else Nav.NavigateTo("/alerts");
+    }
+
+    private async Task DismissAsync(int id)
+    {
+        try { await AlertsApi.DismissAsync(id); } catch { }
+        _alerts.RemoveAll(a => a.Id == id);
+        _unread = _alerts.Count(a => a.ReadAt is null);
+        StateHasChanged();
+    }
+
+    private async Task DismissAllAsync()
+    {
+        try { await AlertsApi.DismissAllAsync(); } catch { }
+        _alerts.Clear();
+        _unread = 0;
+        StateHasChanged();
+    }
+
+    private static string SeverityCss(GoatLab.Shared.Models.AlertSeverity s) => s switch
+    {
+        GoatLab.Shared.Models.AlertSeverity.Error => "error",
+        GoatLab.Shared.Models.AlertSeverity.Warning => "warning",
+        _ => "info",
+    };
+
+    private static string SeverityIcon(GoatLab.Shared.Models.AlertSeverity s) => s switch
+    {
+        GoatLab.Shared.Models.AlertSeverity.Error => Icons.Material.Filled.Error,
+        GoatLab.Shared.Models.AlertSeverity.Warning => Icons.Material.Filled.Warning,
+        _ => Icons.Material.Filled.Info,
+    };
+
+    private static string FormatRelative(DateTime utc)
+    {
+        var diff = DateTime.UtcNow - utc;
+        if (diff.TotalMinutes < 1) return "just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h ago";
+        return $"{(int)diff.TotalDays}d ago";
+    }
+
+    public void Dispose() => _poll?.Dispose();
+}

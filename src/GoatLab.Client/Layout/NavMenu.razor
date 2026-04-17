@@ -6,6 +6,10 @@
     <AuthorizeView Policy="HasTenant">
         <div class="nav-section-header">Overview</div>
         <MudNavLink Href="/dashboard" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+        @if (IsEnabled("SmartAlerts"))
+        {
+            <MudNavLink Href="/alerts" Icon="@Icons.Material.Filled.Notifications">Alerts</MudNavLink>
+        }
 
         @if (AnyEnabled("Goats", "Health", "Breeding"))
         {

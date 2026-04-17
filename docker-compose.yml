@@ -1,4 +1,19 @@
 services:
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: goatlab-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    volumes:
+      - goatlab-mailpit:/data
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_DATABASE: /data/mailpit.db
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
   sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: goatlab-sqlserver
@@ -29,11 +44,16 @@ services:
         condition: service_healthy
     ports:
       - "${APP_PORT:-8090}:8080"
+      - "${APP_HTTPS_PORT:-8443}:8443"
     volumes:
       - goatlab-media:/app/media
       - goatlab-backups:/app/backups
+      - ./certs:/app/certs:ro
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: "http://+:8080;https://+:8443"
+      Kestrel__Certificates__Default__Path: "/app/certs/app.pfx"
+      Kestrel__Certificates__Default__Password: "${CERT_PASSWORD:-changeit}"
       ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=GoatLab;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;Encrypt=True;"
       GoogleMaps__ApiKey: "${GOOGLE_MAPS_API_KEY:-}"
       Backup__AppPath: "/app/backups"
@@ -63,6 +83,10 @@ services:
       Backup__Offsite__RetentionDays: "${BACKUP_OFFSITE_RETENTION_DAYS:-30}"
       WebAuthn__RpId: "${WEBAUTHN_RP_ID:-localhost}"
       WebAuthn__Origins__0: "${WEBAUTHN_ORIGIN:-http://localhost:8095}"
+      Push__VapidPublicKey: "${PUSH_VAPID_PUBLIC_KEY:-}"
+      Push__VapidPrivateKey: "${PUSH_VAPID_PRIVATE_KEY:-}"
+      Push__Subject: "${PUSH_SUBJECT:-mailto:admin@goatlab.local}"
+      Identity__RequireConfirmedEmail: "${IDENTITY_REQUIRE_CONFIRMED_EMAIL:-false}"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
@@ -75,3 +99,4 @@ volumes:
   goatlab-mssql:
   goatlab-media:
   goatlab-backups:
+  goatlab-mailpit:

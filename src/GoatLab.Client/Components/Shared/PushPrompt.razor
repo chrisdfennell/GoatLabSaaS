@@ -1,0 +1,78 @@
+@inject PushService PushApi
+@inject IJSRuntime Js
+@inject ISnackbar Snackbar
+
+@if (_show)
+{
+    <div class="push-prompt">
+        <MudIcon Icon="@Icons.Material.Filled.NotificationsActive" Size="Size.Small" />
+        <span>Get notified about overdue health tasks, kiddings, and low feed — even when GoatLab isn't open.</span>
+        <MudSpacer />
+        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="EnableAsync">
+            Enable
+        </MudButton>
+        <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="DismissAsync"
+                       aria-label="Dismiss" />
+    </div>
+}
+
+<style>
+.push-prompt {
+    background: #1565c0;
+    color: #fff;
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    border-radius: 8px;
+    margin: 8px 0 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+}
+.push-prompt .mud-button { color: #1565c0; background: #fff; }
+.push-prompt .mud-icon-button { color: #fff; }
+</style>
+
+@code {
+    private const string DismissKey = "goatlab.pushPromptDismissed";
+    private bool _show;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            if (!await PushApi.IsSupportedAsync()) return;
+            var perm = await PushApi.PermissionAsync();
+            if (perm != "default") return; // already granted or explicitly denied
+
+            var dismissed = await Js.InvokeAsync<string?>("localStorage.getItem", DismissKey);
+            if (!string.IsNullOrEmpty(dismissed)) return;
+
+            _show = true;
+            StateHasChanged();
+        }
+        catch { /* push-interop.js may not be loaded yet */ }
+    }
+
+    private async Task EnableAsync()
+    {
+        try
+        {
+            var ok = await PushApi.SubscribeAsync();
+            if (ok) Snackbar.Add("Push notifications enabled.", Severity.Success);
+            else Snackbar.Add("Permission denied or push isn't configured.", Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Couldn't enable: {ex.Message}", Severity.Error);
+        }
+        _show = false;
+    }
+
+    private async Task DismissAsync()
+    {
+        try { await Js.InvokeVoidAsync("localStorage.setItem", DismissKey, "1"); } catch { }
+        _show = false;
+    }
+}

@@ -1,0 +1,128 @@
+@page "/alerts"
+@inject AlertsService AlertsApi
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Alerts — GoatLab</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-4">
+    <div class="d-flex align-center mb-3">
+        <MudText Typo="Typo.h5" Style="flex:1;">Alerts</MudText>
+        <MudSwitch T="bool" @bind-Value="_includeDismissed" Color="Color.Primary" Label="Show dismissed"
+                   Class="mr-3" />
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.DoneAll"
+                   OnClick="DismissAllAsync" Disabled="@(!_alerts.Any(a => a.DismissedAt is null))">
+            Dismiss all
+        </MudButton>
+    </div>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" />
+    }
+    else if (_alerts.Count == 0)
+    {
+        <MudPaper Class="pa-6 text-center" Elevation="0">
+            <MudIcon Icon="@Icons.Material.Filled.NotificationsOff" Size="Size.Large" Color="Color.Secondary" />
+            <MudText Typo="Typo.body1" Class="mt-2">No alerts. You're all caught up.</MudText>
+        </MudPaper>
+    }
+    else
+    {
+        <MudTable Items="_alerts" Hover="true" Dense="true">
+            <HeaderContent>
+                <MudTh Style="width:1px;"></MudTh>
+                <MudTh>Title</MudTh>
+                <MudTh>Detail</MudTh>
+                <MudTh>When</MudTh>
+                <MudTh Style="width:160px;">Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>
+                    <MudChip T="string" Size="Size.Small" Color="@SeverityColor(context.Severity)"
+                             Variant="Variant.Filled">@context.Severity</MudChip>
+                </MudTd>
+                <MudTd>
+                    @if (!string.IsNullOrEmpty(context.DeepLink))
+                    {
+                        <MudLink Href="@context.DeepLink">@context.Title</MudLink>
+                    }
+                    else
+                    {
+                        @context.Title
+                    }
+                </MudTd>
+                <MudTd>@context.Body</MudTd>
+                <MudTd>@context.CreatedAt.ToLocalTime().ToString("MMM d, h:mm tt")</MudTd>
+                <MudTd>
+                    @if (context.DismissedAt is null)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Text"
+                                   OnClick="@(() => DismissAsync(context.Id))">
+                            Dismiss
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Dismissed</MudText>
+                    }
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudContainer>
+
+@code {
+    private List<GoatLab.Shared.DTOs.AlertDto> _alerts = new();
+    private bool _loading = true;
+    private bool _includeDismissedField;
+
+    private bool _includeDismissed
+    {
+        get => _includeDismissedField;
+        set
+        {
+            if (_includeDismissedField == value) return;
+            _includeDismissedField = value;
+            _ = LoadAsync();
+        }
+    }
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var list = await AlertsApi.ListAsync(_includeDismissed, 250);
+            _alerts = list ?? new();
+        }
+        catch
+        {
+            _alerts = new();
+        }
+        _loading = false;
+    }
+
+    private async Task DismissAsync(int id)
+    {
+        try { await AlertsApi.DismissAsync(id); }
+        catch { Snackbar.Add("Couldn't dismiss alert.", Severity.Error); return; }
+        await LoadAsync();
+    }
+
+    private async Task DismissAllAsync()
+    {
+        try { await AlertsApi.DismissAllAsync(); }
+        catch { Snackbar.Add("Couldn't dismiss alerts.", Severity.Error); return; }
+        await LoadAsync();
+    }
+
+    private static Color SeverityColor(GoatLab.Shared.Models.AlertSeverity s) => s switch
+    {
+        GoatLab.Shared.Models.AlertSeverity.Error => Color.Error,
+        GoatLab.Shared.Models.AlertSeverity.Warning => Color.Warning,
+        _ => Color.Info,
+    };
+}

@@ -110,3 +110,33 @@ self.addEventListener('fetch', event => {
         event.respondWith(cacheFirst(req));
     }
 });
+
+// Web Push: server payloads are JSON shaped { title, body, url, tag? }.
+// Falls back to a generic notification if the payload is missing/non-JSON
+// (e.g. test pings).
+self.addEventListener('push', event => {
+    let data = { title: 'GoatLab', body: 'You have a new alert.', url: '/alerts' };
+    if (event.data) {
+        try { data = Object.assign(data, event.data.json()); }
+        catch { try { data.body = event.data.text(); } catch { /* swallow */ } }
+    }
+    event.waitUntil(self.registration.showNotification(data.title, {
+        body: data.body,
+        icon: '/images/icon-192.png',
+        badge: '/images/icon-192.png',
+        tag: data.tag || 'goatlab-alert',
+        data: { url: data.url },
+    }));
+});
+
+self.addEventListener('notificationclick', event => {
+    event.notification.close();
+    const target = (event.notification.data && event.notification.data.url) || '/alerts';
+    event.waitUntil((async () => {
+        const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const c of all) {
+            if (c.url.includes(target) && 'focus' in c) return c.focus();
+        }
+        if (self.clients.openWindow) return self.clients.openWindow(target);
+    })());
+});

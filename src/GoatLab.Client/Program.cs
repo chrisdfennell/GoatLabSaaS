@@ -70,5 +70,8 @@ builder.Services.AddScoped<AdminService>();
 builder.Services.AddScoped<OnboardingService>();
 builder.Services.AddScoped<AnnouncementsService>();
 builder.Services.AddScoped<ConfigService>();
+builder.Services.AddScoped<AlertsService>();
+builder.Services.AddScoped<PushService>();
+builder.Services.AddScoped<CoiService>();
 
 await builder.Build().RunAsync();

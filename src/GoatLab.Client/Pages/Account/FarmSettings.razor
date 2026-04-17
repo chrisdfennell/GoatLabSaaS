@@ -32,6 +32,13 @@
                 <MudSelectItem Value="TenantUnits.Metric">Metric (kg, m, °C)</MudSelectItem>
             </MudSelect>
 
+            <MudSwitch T="bool" @bind-Value="_alertEmailEnabled" Color="Color.Primary" Class="mb-4"
+                       Label="Email me a daily summary of new alerts"
+                       UncheckedColor="Color.Default" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-4 d-block">
+                Sent at 07:00 UTC to the farm owner. Only fires when there are new alerts in the last 24 hours.
+            </MudText>
+
             @if (!string.IsNullOrEmpty(_error))
             {
                 <MudAlert Severity="Severity.Error" Class="mb-3">@_error</MudAlert>
@@ -57,6 +64,7 @@
     private string _name = "";
     private string? _location;
     private TenantUnits _units;
+    private bool _alertEmailEnabled;
     private string? _error;
     private bool _busy;
 
@@ -64,7 +72,8 @@
         _settings is not null &&
         (_name != _settings.Name
          || (_location ?? "") != (_settings.Location ?? "")
-         || _units != _settings.Units);
+         || _units != _settings.Units
+         || _alertEmailEnabled != _settings.AlertEmailEnabled);
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -75,6 +84,7 @@
         _name = _settings.Name;
         _location = _settings.Location;
         _units = _settings.Units;
+        _alertEmailEnabled = _settings.AlertEmailEnabled;
     }
 
     private async Task SaveAsync()
@@ -83,7 +93,7 @@
         _error = null;
         try
         {
-            var (ok, err, updated) = await SettingsApi.UpdateAsync(new TenantSettingsService.UpdateInput(_name.Trim(), _location?.Trim(), _units));
+            var (ok, err, updated) = await SettingsApi.UpdateAsync(new TenantSettingsService.UpdateInput(_name.Trim(), _location?.Trim(), _units, _alertEmailEnabled));
             if (!ok)
             {
                 _error = err?.Length > 200 ? "Couldn't save. Check your inputs." : (err ?? "Save failed.");

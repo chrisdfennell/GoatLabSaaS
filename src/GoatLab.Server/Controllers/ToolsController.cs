@@ -444,34 +444,6 @@ public class ToolsController : ControllerBase
         return Ok(feed);
     }
 
-    // --- Dashboard Alerts ---
-
-    [HttpGet("alerts")]
-    public async Task<ActionResult<object>> GetAlerts()
-    {
-        var overdueMeds = await _db.MedicalRecords
-            .Include(r => r.Goat)
-            .Where(r => r.NextDueDate != null && r.NextDueDate <= DateTime.UtcNow)
-            .CountAsync();
-
-        var upcomingDueDates = await _db.BreedingRecords
-            .Where(b => b.Outcome == BreedingOutcome.Confirmed && b.EstimatedDueDate != null
-                && b.EstimatedDueDate <= DateTime.UtcNow.AddDays(14) && b.EstimatedDueDate > DateTime.UtcNow)
-            .CountAsync();
-
-        var lowFeedStock = await _db.FeedInventory
-            .Where(f => f.LowStockThreshold != null && f.QuantityOnHand <= f.LowStockThreshold)
-            .CountAsync();
-
-        var expiringMeds = await _db.MedicineCabinetItems
-            .Where(c => c.ExpirationDate != null && c.ExpirationDate <= DateTime.UtcNow.AddDays(30))
-            .CountAsync();
-
-        var sickGoats = await _db.Goats.CountAsync(g => g.Status == GoatStatus.Sick || g.Status == GoatStatus.AtVet);
-
-        return Ok(new { overdueMedications = overdueMeds, upcomingDueDates, lowFeedStock, expiringMedications = expiringMeds, sickGoats });
-    }
-
     private static string ToCsv<T>(IEnumerable<T> items)
     {
         var props = typeof(T).GetProperties();

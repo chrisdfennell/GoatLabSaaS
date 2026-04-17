@@ -77,6 +77,15 @@ public class Tenant
     // resubscription triggers a fresh reminder.
     public DateTime? TrialReminderSentAt { get; set; }
 
+    // --- Alerts ---
+
+    /// <summary>
+    /// When true, AlertDigestJob emails the tenant owner once a day with a
+    /// summary of new SmartAlerts. Independent of in-app alerts (always on if
+    /// the plan has SmartAlerts) and push (independent feature). Defaults true.
+    /// </summary>
+    public bool AlertEmailEnabled { get; set; } = true;
+
     public ICollection<TenantMember> Members { get; set; } = new List<TenantMember>();
 }
 

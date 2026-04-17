@@ -34,12 +34,14 @@ public class TenantSettingsController : ControllerBase
         string Slug,
         string? Location,
         TenantUnits Units,
+        bool AlertEmailEnabled,
         DateTime CreatedAt);
 
     public record UpdateSettingsInput(
         string Name,
         string? Location,
-        TenantUnits Units);
+        TenantUnits Units,
+        bool AlertEmailEnabled);
 
     [HttpGet]
     public async Task<ActionResult<TenantSettingsDto>> Get(CancellationToken ct)
@@ -47,7 +49,7 @@ public class TenantSettingsController : ControllerBase
         if (_tenantContext.TenantId is not int tenantId) return NotFound();
         var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct);
         if (tenant is null) return NotFound();
-        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.CreatedAt);
+        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.AlertEmailEnabled, tenant.CreatedAt);
     }
 
     [HttpPut]
@@ -68,10 +70,11 @@ public class TenantSettingsController : ControllerBase
         tenant.Name = name;
         tenant.Location = string.IsNullOrWhiteSpace(input.Location) ? null : input.Location.Trim();
         tenant.Units = input.Units;
+        tenant.AlertEmailEnabled = input.AlertEmailEnabled;
         tenant.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
-        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.CreatedAt);
+        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.AlertEmailEnabled, tenant.CreatedAt);
     }
 
     private async Task<bool> IsOwnerAsync(int tenantId, CancellationToken ct)

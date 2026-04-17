@@ -58,6 +58,54 @@ public static class EmailTemplates
         Text: $"Hi {displayName},\n\nYour {Brand} {planName} trial ends in {daysRemaining} day(s).\nAdd billing details at:\n{billingUrl}"
     );
 
+    public static (string Subject, string Html, string Text) AlertDigest(
+        string displayName, string farmName, IReadOnlyList<(string Title, string? Body, string Severity)> alerts, string alertsUrl)
+    {
+        // Group by severity so the Error rows surface visually first.
+        var ordered = alerts
+            .OrderBy(a => a.Severity == "Error" ? 0 : a.Severity == "Warning" ? 1 : 2)
+            .ToList();
+
+        string color(string sev) => sev switch
+        {
+            "Error" => "#c62828",
+            "Warning" => "#ef6c00",
+            _ => "#1565c0",
+        };
+
+        var rows = string.Join("\n", ordered.Select(a => $@"
+    <tr>
+      <td style=""padding:10px 12px;border-bottom:1px solid #eee;width:8px;background:{color(a.Severity)};""></td>
+      <td style=""padding:10px 12px;border-bottom:1px solid #eee;"">
+        <div style=""font-weight:600;color:#1a2421;"">{System.Net.WebUtility.HtmlEncode(a.Title)}</div>
+        {(string.IsNullOrEmpty(a.Body) ? "" : $@"<div style=""font-size:13px;color:#6b7a70;margin-top:2px;"">{System.Net.WebUtility.HtmlEncode(a.Body)}</div>")}
+      </td>
+    </tr>"));
+
+        var textRows = string.Join("\n", ordered.Select(a =>
+            $"- [{a.Severity}] {a.Title}{(string.IsNullOrEmpty(a.Body) ? "" : $" — {a.Body}")}"));
+
+        var noun = alerts.Count == 1 ? "alert" : "alerts";
+        return (
+            Subject: $"{Brand}: {alerts.Count} new {noun} for {farmName}",
+            Html: $@"<div style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:600px;margin:0 auto;padding:24px;color:#1a2421;"">
+  <h2 style=""color:#2e7d32;margin-bottom:8px;"">{alerts.Count} new {noun}</h2>
+  <p>Hi {System.Net.WebUtility.HtmlEncode(displayName)},</p>
+  <p>Here's what came up on <strong>{System.Net.WebUtility.HtmlEncode(farmName)}</strong> in the last 24 hours.</p>
+  <table style=""width:100%;border-collapse:collapse;margin:20px 0;background:#fff;border:1px solid #eee;border-radius:8px;overflow:hidden;"">
+    <tbody>{rows}
+    </tbody>
+  </table>
+  <p style=""margin:24px 0;"">
+    <a href=""{alertsUrl}""
+       style=""display:inline-block;background:#2e7d32;color:#fff;text-decoration:none;padding:10px 20px;border-radius:8px;font-weight:600;"">View in {Brand}</a>
+  </p>
+  <p style=""font-size:12px;color:#6b7a70;"">You're getting this because alert emails are enabled for {System.Net.WebUtility.HtmlEncode(farmName)}. Turn them off in Farm settings.</p>
+</div>",
+            Text: $"Hi {displayName},\n\n{alerts.Count} new {noun} on {farmName} in the last 24 hours:\n\n{textRows}\n\nView in {Brand}: {alertsUrl}"
+        );
+    }
+
     public static (string Subject, string Html, string Text) PasswordReset(string displayName, string resetUrl) =>
     (
         Subject: $"Reset your {Brand} password",

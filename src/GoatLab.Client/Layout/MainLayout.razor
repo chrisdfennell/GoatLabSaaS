@@ -24,6 +24,12 @@
         <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
                        Color="Color.Inherit" OnClick="@ToggleDarkMode" aria-label="Toggle dark mode" />
 
+        <AuthorizeView Policy="HasTenant">
+            <Authorized>
+                <AlertsBell />
+            </Authorized>
+        </AuthorizeView>
+
         <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Dense="true">
             <ActivatorContent>
                 <MudTooltip Text="@(_user?.DisplayName ?? "Account")">
@@ -147,6 +153,11 @@
                 <span>@_queueCount queued change@(_queueCount == 1 ? "" : "s") — syncing…</span>
             </div>
         }
+        <AuthorizeView Policy="HasTenant">
+            <Authorized>
+                <PushPrompt />
+            </Authorized>
+        </AuthorizeView>
         @Body
 
         <footer class="app-footer">

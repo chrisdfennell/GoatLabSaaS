@@ -51,16 +51,20 @@
                     Toggle what this plan includes. Users on this plan can only access endpoints
                     whose feature is enabled here.
                 </MudText>
-                <MudGrid Spacing="1">
-                    @foreach (var feat in _allFeatures)
-                    {
-                        <MudItem xs="12" sm="6" md="4">
-                            <MudCheckBox T="bool" Value="@_featureEnabled[feat]"
-                                         ValueChanged="@((bool v) => _featureEnabled[feat] = v)"
-                                         Label="@feat.ToString()" Color="Color.Primary" />
-                        </MudItem>
-                    }
-                </MudGrid>
+                @foreach (var (label, feats) in FeatureGroups)
+                {
+                    <MudText Typo="Typo.subtitle2" Class="mt-3 mb-1" Style="font-weight:600;">@label</MudText>
+                    <MudGrid Spacing="1">
+                        @foreach (var feat in feats)
+                        {
+                            <MudItem xs="12" sm="6" md="4">
+                                <MudCheckBox T="bool" Value="@_featureEnabled[feat]"
+                                             ValueChanged="@((bool v) => _featureEnabled[feat] = v)"
+                                             Label="@feat.ToString()" Color="Color.Primary" />
+                            </MudItem>
+                        }
+                    </MudGrid>
+                }
             </MudItem>
         </MudGrid>
     </DialogContent>
@@ -79,6 +83,15 @@
 
     private readonly AppFeature[] _allFeatures = Enum.GetValues<AppFeature>();
     private Dictionary<AppFeature, bool> _featureEnabled = new();
+
+    private static readonly (string Label, AppFeature[] Features)[] FeatureGroups = new[]
+    {
+        ("Core",          new[] { AppFeature.Goats, AppFeature.Health, AppFeature.Breeding, AppFeature.Milk, AppFeature.Barns }),
+        ("Production",    new[] { AppFeature.Sales, AppFeature.Finance, AppFeature.Inventory, AppFeature.Calendar, AppFeature.Map, AppFeature.ShowRecords }),
+        ("Reports",       new[] { AppFeature.CareGuide, AppFeature.AdvancedReports, AppFeature.DataExport }),
+        ("Breeding tools",new[] { AppFeature.CoiCalculator }),
+        ("Notifications", new[] { AppFeature.SmartAlerts, AppFeature.PushNotifications, AppFeature.PdfDocuments }),
+    };
 
     private string _name = "";
     private string _slug = "";

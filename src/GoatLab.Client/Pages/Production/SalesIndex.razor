@@ -139,6 +139,11 @@
                                      Icon="@GetPaymentIcon(s.PaymentStatus)">
                                 @FormatPayment(s.PaymentStatus)
                             </MudChip>
+                            <MudTooltip Text="Download contract PDF">
+                                <MudIconButton Icon="@Icons.Material.Filled.PictureAsPdf"
+                                               Href="@($"/api/documents/sales/{s.Id}/contract.pdf")"
+                                               Target="_blank" Size="Size.Small" />
+                            </MudTooltip>
                         </div>
                     }
                 </div>

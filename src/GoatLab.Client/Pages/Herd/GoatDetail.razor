@@ -1,9 +1,12 @@
 @page "/herd/{Id:int}"
+@using GoatLab.Shared.DTOs
 @inject GoatService GoatSvc
 @inject HealthService HealthSvc
 @inject MilkService MilkSvc
 @inject SalesService SalesSvc
 @inject ShowService ShowSvc
+@inject CoiService Coi
+@inject CookieAuthStateProvider AuthState
 @inject NavigationManager Nav
 @inject IDialogService Dialog
 @inject ISnackbar Snackbar
@@ -73,6 +76,12 @@ else
                        StartIcon="@Icons.Material.Filled.AttachMoney" Href="@($"/herd/{Id}/pnl")">P&amp;L</MudButton>
             <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
                        StartIcon="@Icons.Material.Filled.PictureAsPdf" Href="@($"/herd/report/{Id}")">Report</MudButton>
+            <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                       StartIcon="@Icons.Material.Filled.Description"
+                       Href="@($"/api/documents/goats/{Id}/pedigree.pdf")" Target="_blank">Pedigree PDF</MudButton>
+            <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                       StartIcon="@Icons.Material.Filled.HealthAndSafety"
+                       Href="@($"/api/documents/goats/{Id}/health-certificate.pdf")" Target="_blank">Health Cert PDF</MudButton>
             <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
                        StartIcon="@Icons.Material.Filled.Delete" OnClick="DeleteGoat">Delete</MudButton>
         </div>
@@ -812,6 +821,103 @@ else
             </MudPaper>
         </MudTabPanel>
 
+        @* ===== INBREEDING TAB ===== *@
+        @if (CoiEnabled)
+        {
+            <MudTabPanel Text="Inbreeding" Icon="@Icons.Material.Filled.Biotech">
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Biotech" />
+                            <div>
+                                <MudText Typo="Typo.h6">Wright's coefficient of inbreeding</MudText>
+                                <MudText Typo="Typo.body2" Class="section-hint">
+                                    Probability that the two alleles at a locus are identical by descent. Walks 6 generations of pedigree.
+                                </MudText>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (coiLoading)
+                    {
+                        <MudProgressLinear Indeterminate Color="Color.Primary" />
+                    }
+                    else if (coiResult is null)
+                    {
+                        <div class="inline-empty">
+                            <MudIcon Icon="@Icons.Material.Filled.Pets" />
+                            <MudText Typo="Typo.body1">No COI to compute</MudText>
+                            <MudText Typo="Typo.body2">This goat needs both a sire and a dam recorded before COI can be calculated.</MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="d-flex align-center gap-3 mb-4">
+                            <MudChip T="string" Size="Size.Large" Color="@CoiColor(coiResult.Coi)" Variant="Variant.Filled">
+                                COI: @FormatCoi(coiResult.Coi)
+                            </MudChip>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                @CoiDescription(coiResult.Coi)
+                            </MudText>
+                        </div>
+                        @if (coiResult.CommonAncestors.Count > 0)
+                        {
+                            <MudText Typo="Typo.subtitle2" Class="mb-2">Common ancestors</MudText>
+                            <MudSimpleTable Dense Hover Bordered="false" Striped>
+                                <thead>
+                                    <tr><th>Ancestor</th><th>Sire path</th><th>Dam path</th><th>Contribution</th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var a in coiResult.CommonAncestors.Take(10))
+                                    {
+                                        <tr>
+                                            <td><MudLink Href="@($"/herd/{a.GoatId}")">@(a.Name ?? $"#{a.GoatId}")</MudLink></td>
+                                            <td>@a.SirePathLength</td>
+                                            <td>@a.DamPathLength</td>
+                                            <td>@FormatCoi(a.Contribution)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </MudSimpleTable>
+                        }
+                    }
+
+                    <MudDivider Class="my-4" />
+
+                    <MudText Typo="Typo.subtitle2" Class="mb-2">What if I bred @goat.Name with…</MudText>
+                    <MudGrid>
+                        <MudItem xs="12" sm="8">
+                            <MudSelect T="int?" @bind-Value="selectedMateId" Label="Pick a mate" Variant="Variant.Outlined"
+                                       Clearable AnchorOrigin="Origin.BottomCenter">
+                                @foreach (var m in MateCandidates)
+                                {
+                                    <MudSelectItem T="int?" Value="@((int?)m.Id)">@m.Name @(m.EarTag is not null ? $"#{m.EarTag}" : "")</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4" Class="d-flex align-end">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth
+                                       OnClick="ComputeMateCoi" Disabled="@(selectedMateId is null || mateCoiLoading)">
+                                @(mateCoiLoading ? "Computing…" : "Project offspring COI")
+                            </MudButton>
+                        </MudItem>
+                    </MudGrid>
+
+                    @if (mateCoiResult is not null)
+                    {
+                        <div class="d-flex align-center gap-3 mt-3">
+                            <MudChip T="string" Size="Size.Large" Color="@CoiColor(mateCoiResult.Coi)" Variant="Variant.Filled">
+                                Projected: @FormatCoi(mateCoiResult.Coi)
+                            </MudChip>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                @CoiDescription(mateCoiResult.Coi)
+                            </MudText>
+                        </div>
+                    }
+                </MudPaper>
+            </MudTabPanel>
+        }
+
         @* ===== DOCUMENTS TAB ===== *@
         <MudTabPanel Text="Documents" Icon="@Icons.Material.Filled.Folder">
             <MudPaper Class="polished-section" Elevation="0">
@@ -992,6 +1098,40 @@ else
     private bool uploadingDoc;
     private static readonly string[] DocumentTypes = { "Registration", "Health certificate", "Test result", "Bill of sale", "Pedigree", "Show papers", "Other" };
 
+    // Inbreeding tab state
+    private CoiResultDto? coiResult;
+    private bool coiLoading;
+    private List<Goat> herdGoats = new();
+    private int? selectedMateId;
+    private CoiResultDto? mateCoiResult;
+    private bool mateCoiLoading;
+
+    private bool CoiEnabled => AuthState.CurrentUser?.EnabledFeatures?
+        .Contains("CoiCalculator", StringComparer.OrdinalIgnoreCase) == true;
+
+    private IEnumerable<Goat> MateCandidates =>
+        herdGoats.Where(g => g.Id != Id
+            && goat is not null
+            && g.Gender != goat.Gender
+            && g.Gender != Gender.Wether);
+
+    private static MudBlazor.Color CoiColor(double coi) => coi switch
+    {
+        < 0.0625 => MudBlazor.Color.Success,
+        < 0.125 => MudBlazor.Color.Warning,
+        _ => MudBlazor.Color.Error,
+    };
+
+    private static string FormatCoi(double coi) => $"{(coi * 100):F2}%";
+
+    private static string CoiDescription(double coi) => coi switch
+    {
+        < 0.0625 => "Within breeder-safe range (<6.25%).",
+        < 0.125 => "Elevated. Watch for reduced vigor in offspring (6.25–12.5%).",
+        < 0.25 => "High. Equivalent to first-cousin or closer mating.",
+        _ => "Very high — equivalent to full-sib or parent-offspring mating.",
+    };
+
     // Computed for tabs
     private List<ShowRecord> ShowRecords => showRecordsList ?? new();
     private List<LinearAppraisal> Appraisals => appraisals ?? new();
@@ -1060,6 +1200,52 @@ else
         RebuildWeightChart();
         RebuildMilkTrendChart(milkTrendTask.Result);
         ComputeAdg();
+
+        if (CoiEnabled)
+        {
+            _ = LoadCoiAsync();
+        }
+    }
+
+    private async Task LoadCoiAsync()
+    {
+        coiLoading = true;
+        try
+        {
+            var coiTask = goat is { SireId: not null, DamId: not null }
+                ? Coi.GetForGoatAsync(Id)
+                : Task.FromResult<CoiResultDto?>(null);
+            var herdTask = GoatSvc.GetAllAsync(includeExternal: true);
+            await Task.WhenAll(coiTask, herdTask);
+            coiResult = coiTask.Result;
+            herdGoats = herdTask.Result ?? new();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not load COI: {ex.Message}", Severity.Warning);
+        }
+        finally
+        {
+            coiLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ComputeMateCoi()
+    {
+        if (selectedMateId is null || goat is null) return;
+        mateCoiLoading = true;
+        try
+        {
+            var sireId = goat.Gender == Gender.Male ? Id : selectedMateId.Value;
+            var damId = goat.Gender == Gender.Male ? selectedMateId.Value : Id;
+            mateCoiResult = await Coi.GetForMateAsync(sireId, damId);
+        }
+        finally
+        {
+            mateCoiLoading = false;
+            StateHasChanged();
+        }
     }
 
     private void RebuildWeightChart()

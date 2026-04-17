@@ -5,6 +5,7 @@
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject PushService PushApi
 
 <PageTitle>Account settings — GoatLab</PageTitle>
 
@@ -22,6 +23,53 @@
                    Href="/api/account/export-data">
             Export my data
         </MudButton>
+    </MudPaper>
+
+    <MudPaper Class="pa-6 mb-6">
+        <MudText Typo="Typo.h6" GutterBottom="true">Notification devices</MudText>
+        <MudText Typo="Typo.body2" Class="mb-4" Color="Color.Secondary">
+            Browsers and phones registered to receive GoatLab push notifications.
+            Remove a device to stop sending alerts to it.
+        </MudText>
+        @if (_pushDevices is null)
+        {
+            <MudProgressLinear Indeterminate="true" />
+        }
+        else if (_pushDevices.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                No devices registered yet. Visit GoatLab on a phone or laptop and accept the
+                "Enable notifications" prompt.
+            </MudText>
+        }
+        else
+        {
+            <MudList T="GoatLab.Shared.DTOs.PushSubscriptionDto" Dense="true">
+                @foreach (var d in _pushDevices)
+                {
+                    <MudListItem T="GoatLab.Shared.DTOs.PushSubscriptionDto" Icon="@Icons.Material.Filled.Devices">
+                        <div class="d-flex align-center" style="gap:12px;">
+                            <div style="flex:1;">
+                                <div>@(string.IsNullOrEmpty(d.UserAgent) ? "Unknown device" : d.UserAgent)</div>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    Added @d.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")
+                                    @(d.LastUsedAt is null ? "" : $" — last used {d.LastUsedAt.Value.ToLocalTime():MMM d}")
+                                </MudText>
+                            </div>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                           OnClick="@(() => RemoveDeviceAsync(d.Id))" />
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+        }
+        <div class="d-flex gap-2 mt-3">
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.NotificationsActive"
+                       OnClick="EnableHereAsync">Enable on this device</MudButton>
+            <MudButton Variant="Variant.Text" StartIcon="@Icons.Material.Filled.Send"
+                       OnClick="SendTestAsync">Send test</MudButton>
+        </div>
     </MudPaper>
 
     <MudPaper Class="pa-6 danger-zone">
@@ -45,6 +93,40 @@
 
 @code {
     private bool _busy;
+    private List<GoatLab.Shared.DTOs.PushSubscriptionDto>? _pushDevices;
+
+    protected override Task OnInitializedAsync() => LoadDevicesAsync();
+
+    private async Task LoadDevicesAsync()
+    {
+        try { _pushDevices = await PushApi.ListSubscriptionsAsync() ?? new(); }
+        catch { _pushDevices = new(); }
+    }
+
+    private async Task EnableHereAsync()
+    {
+        try
+        {
+            var ok = await PushApi.SubscribeAsync();
+            if (ok) Snackbar.Add("This device is now subscribed.", Severity.Success);
+            else Snackbar.Add("Permission denied or push isn't configured.", Severity.Warning);
+        }
+        catch (Exception ex) { Snackbar.Add($"Couldn't subscribe: {ex.Message}", Severity.Error); }
+        await LoadDevicesAsync();
+    }
+
+    private async Task RemoveDeviceAsync(int id)
+    {
+        try { await PushApi.RemoveSubscriptionAsync(id); }
+        catch { Snackbar.Add("Could not remove device.", Severity.Error); return; }
+        await LoadDevicesAsync();
+    }
+
+    private async Task SendTestAsync()
+    {
+        try { await PushApi.SendTestAsync(); Snackbar.Add("Test notification queued.", Severity.Info); }
+        catch { Snackbar.Add("Couldn't send test.", Severity.Error); }
+    }
 
     private async Task DeleteAsync()
     {

@@ -43,6 +43,13 @@
 
     <!-- CSV export -->
     <PackageReference Include="CsvHelper" Version="33.0.1" />
+
+    <!-- PDF generation (sales contracts, pedigree, health certs). Community
+         license is free under $1M revenue / 10 employees. -->
+    <PackageReference Include="QuestPDF" Version="2024.12.3" />
+
+    <!-- Web Push (VAPID) for browser notifications -->
+    <PackageReference Include="WebPush" Version="1.0.12" />
   </ItemGroup>
 
   <ItemGroup>

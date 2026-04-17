@@ -2,11 +2,15 @@ using System.Threading.RateLimiting;
 using GoatLab.Server.Data;
 using GoatLab.Server.Data.Auth;
 using GoatLab.Server.Services;
+using GoatLab.Server.Services.Alerts;
 using GoatLab.Server.Services.Backup;
 using GoatLab.Server.Services.Billing;
 using GoatLab.Server.Services.Email;
 using GoatLab.Server.Services.Jobs;
+using GoatLab.Server.Services.Pdf;
+using GoatLab.Server.Services.Pedigree;
 using GoatLab.Server.Services.Plans;
+using GoatLab.Server.Services.Push;
 using Fido2NetLib;
 using Hangfire;
 using Hangfire.SqlServer;
@@ -200,6 +204,16 @@ builder.Services.AddScoped<IBillingService, StripeBillingService>();
 // within a single request.
 builder.Services.AddScoped<IFeatureGate, FeatureGate>();
 
+// Smart alerts (scanner) + Web Push (VAPID) + PDF generation (QuestPDF).
+// QuestPDF requires its license type to be set once at startup. Community is
+// free for revenue < $1M / < 10 employees — flag for review at scale.
+builder.Services.AddScoped<AlertScannerService>();
+builder.Services.Configure<PushOptions>(builder.Configuration.GetSection(PushOptions.SectionName));
+builder.Services.AddScoped<PushService>();
+builder.Services.AddScoped<PdfService>();
+builder.Services.AddScoped<CoiCalculator>();
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
 // Offsite database backup. No-op when Backup:Offsite:Enabled is false.
 builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.SectionName));
 builder.Services.AddScoped<IBackupService, BackupService>();
@@ -349,6 +363,20 @@ if (hangfireEnabled)
         "offsite-backup-daily",
         job => job.RunAsync(CancellationToken.None),
         "0 4 * * *"); // 04:00 UTC daily
+
+    // Smart alerts. Hourly so push notifications are timely; the scanner is
+    // idempotent so re-runs within 24h don't duplicate alerts.
+    RecurringJob.AddOrUpdate<AlertScanJob>(
+        "alert-scan-hourly",
+        job => job.RunAsync(CancellationToken.None),
+        "0 * * * *"); // top of every hour, UTC
+
+    // Email digest of the last 24h of alerts. 07:00 UTC ≈ early morning in
+    // North America, late morning in Europe — fine for a daily summary.
+    RecurringJob.AddOrUpdate<AlertDigestJob>(
+        "alert-digest-daily",
+        job => job.RunAsync(CancellationToken.None),
+        "0 7 * * *");
 }
 
 app.MapControllers();

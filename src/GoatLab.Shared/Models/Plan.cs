@@ -21,6 +21,10 @@ public enum AppFeature
     AdvancedReports = 11,
     ShowRecords = 12,
     DataExport = 13,
+    SmartAlerts = 14,
+    PushNotifications = 15,
+    PdfDocuments = 16,
+    CoiCalculator = 17,
 }
 
 public class Plan

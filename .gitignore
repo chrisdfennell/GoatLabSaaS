@@ -41,3 +41,12 @@ Thumbs.db
 ## Secrets
 .env
 
+## Dev TLS certificates (generated locally via mkcert)
+certs/*.pfx
+certs/*.pem
+certs/*.key
+certs/*.crt
+
+## mkcert binary (downloaded per developer)
+tools/mkcert.exe
+

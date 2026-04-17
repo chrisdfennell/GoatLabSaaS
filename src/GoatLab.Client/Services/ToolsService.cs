@@ -8,7 +8,6 @@ public class ToolsService
     private readonly ApiService _api;
     public ToolsService(ApiService api) => _api = api;
 
-    public Task<AlertsInfo?> GetAlertsAsync() => _api.GetAsync<AlertsInfo>("api/tools/alerts");
     public Task<List<ActivityItem>?> GetActivityAsync(int count = 20) => _api.GetAsync<List<ActivityItem>>($"api/tools/activity?count={count}");
     public async Task<byte[]> BackupDatabaseAsync()
     {
@@ -45,15 +44,6 @@ public class ToolsService
     public Task<byte[]> ExportMilkCsvAsync() => _api.GetBytesAsync("api/tools/export/milk-logs");
     public Task<byte[]> ExportMedicalCsvAsync() => _api.GetBytesAsync("api/tools/export/medical-records");
     public Task<byte[]> ExportFinancesCsvAsync() => _api.GetBytesAsync("api/tools/export/finances");
-}
-
-public class AlertsInfo
-{
-    public int OverdueMedications { get; set; }
-    public int UpcomingDueDates { get; set; }
-    public int LowFeedStock { get; set; }
-    public int ExpiringMedications { get; set; }
-    public int SickGoats { get; set; }
 }
 
 public class ActivityItem

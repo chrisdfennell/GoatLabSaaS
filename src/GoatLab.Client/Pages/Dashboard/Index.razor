@@ -1,6 +1,9 @@
 @page "/dashboard"
+@using GoatLab.Shared.DTOs
+@using GoatLab.Shared.Models
 @inject GoatService GoatSvc
 @inject ToolsService ToolsSvc
+@inject AlertsService AlertsSvc
 @inject MilkService MilkSvc
 @inject GoatService GoatListSvc
 @inject WeatherService Weather
@@ -177,41 +180,29 @@
 </MudGrid>
 
 @* --- Alerts --- *@
-@if (alerts != null && (alerts.OverdueMedications > 0 || alerts.UpcomingDueDates > 0 || alerts.LowFeedStock > 0 || alerts.SickGoats > 0 || alerts.ExpiringMedications > 0))
+@if (alerts != null && alerts.Count > 0)
 {
     <MudPaper Class="pa-4 mb-4 section-card" Outlined Elevation="0">
-        <div class="d-flex align-center mb-3">
-            <MudIcon Icon="@Icons.Material.Filled.Notifications" Color="Color.Warning" Class="mr-2" />
-            <MudText Typo="Typo.h6" Style="font-weight:600;">Alerts</MudText>
+        <div class="d-flex align-center justify-space-between mb-3">
+            <div class="d-flex align-center">
+                <MudIcon Icon="@Icons.Material.Filled.Notifications" Color="Color.Warning" Class="mr-2" />
+                <MudText Typo="Typo.h6" Style="font-weight:600;">Alerts</MudText>
+            </div>
+            <MudButton Size="Size.Small" Variant="Variant.Text" Href="/alerts" EndIcon="@Icons.Material.Filled.ArrowForward">View all</MudButton>
         </div>
-        @if (alerts.OverdueMedications > 0)
+        @foreach (var a in alerts)
         {
-            <MudAlert Severity="Severity.Error" Class="mb-2" Dense Variant="Variant.Filled" Icon="@Icons.Material.Filled.Warning">
-                @alerts.OverdueMedications overdue medication(s) — <MudLink Href="/health" Color="Color.Inherit" Underline="Underline.Always" Style="color:inherit;font-weight:600;">view health records</MudLink>
-            </MudAlert>
-        }
-        @if (alerts.SickGoats > 0)
-        {
-            <MudAlert Severity="Severity.Warning" Class="mb-2" Dense Variant="Variant.Filled" Icon="@Icons.Material.Filled.Sick">
-                @alerts.SickGoats goat(s) sick or at vet
-            </MudAlert>
-        }
-        @if (alerts.UpcomingDueDates > 0)
-        {
-            <MudAlert Severity="Severity.Info" Class="mb-2" Dense Variant="Variant.Filled" Icon="@Icons.Material.Filled.ChildCare">
-                @alerts.UpcomingDueDates kidding due date(s) in next 14 days — <MudLink Href="/breeding" Color="Color.Inherit" Underline="Underline.Always" Style="color:inherit;font-weight:600;">view breeding</MudLink>
-            </MudAlert>
-        }
-        @if (alerts.LowFeedStock > 0)
-        {
-            <MudAlert Severity="Severity.Warning" Class="mb-2" Dense Variant="Variant.Filled" Icon="@Icons.Material.Filled.Inventory">
-                @alerts.LowFeedStock feed item(s) low on stock — <MudLink Href="/inventory" Color="Color.Inherit" Underline="Underline.Always" Style="color:inherit;font-weight:600;">view inventory</MudLink>
-            </MudAlert>
-        }
-        @if (alerts.ExpiringMedications > 0)
-        {
-            <MudAlert Severity="Severity.Warning" Class="mb-2" Dense Variant="Variant.Filled" Icon="@Icons.Material.Filled.MedicalServices">
-                @alerts.ExpiringMedications medication(s) expiring within 30 days
+            <MudAlert Severity="@MapAlertSeverity(a.Severity)" Class="mb-2" Dense Variant="Variant.Filled" Icon="@MapAlertIcon(a.Type)">
+                <strong>@a.Title</strong>
+                @if (!string.IsNullOrWhiteSpace(a.Body))
+                {
+                    <text> — @a.Body</text>
+                }
+                @if (!string.IsNullOrWhiteSpace(a.DeepLink))
+                {
+                    <text> — </text>
+                    <MudLink Href="@a.DeepLink" Color="Color.Inherit" Underline="Underline.Always" Style="color:inherit;font-weight:600;">view</MudLink>
+                }
             </MudAlert>
         }
     </MudPaper>
@@ -347,7 +338,7 @@
 
 @code {
     private HerdStats? stats;
-    private AlertsInfo? alerts;
+    private List<AlertDto>? alerts;
     private List<ActivityItem>? activity;
     private List<Goat>? goats;
     private List<MilkTrend>? milkTrends;
@@ -381,7 +372,7 @@
     protected override async Task OnInitializedAsync()
     {
         var statsTask = GoatSvc.GetStatsAsync();
-        var alertsTask = ToolsSvc.GetAlertsAsync();
+        var alertsTask = AlertsSvc.ListAsync(includeDismissed: false, limit: 5);
         var activityTask = ToolsSvc.GetActivityAsync(10);
         var goatsTask = GoatListSvc.GetAllAsync();
         var trendsTask = MilkSvc.GetTrendsAsync(days: 30);
@@ -424,8 +415,6 @@
         try
         {
             notificationPermission = await Notifications.GetPermissionAsync();
-            if (notificationPermission == "granted")
-                await Notifications.FireAlertDigestAsync();
             StateHasChanged();
         }
         catch { }
@@ -436,10 +425,27 @@
         notificationPermission = await Notifications.RequestPermissionAsync();
         if (notificationPermission == "granted")
         {
-            await Notifications.FireAlertDigestAsync();
             Snackbar.Add("Notifications enabled", Severity.Success);
         }
     }
+
+    private static Severity MapAlertSeverity(AlertSeverity s) => s switch
+    {
+        AlertSeverity.Error => Severity.Error,
+        AlertSeverity.Warning => Severity.Warning,
+        _ => Severity.Info
+    };
+
+    private static string MapAlertIcon(AlertType t) => t switch
+    {
+        AlertType.MedicationOverdue => Icons.Material.Filled.Warning,
+        AlertType.MedicationDue => Icons.Material.Filled.MedicalServices,
+        AlertType.KiddingOverdue => Icons.Material.Filled.ChildCare,
+        AlertType.KiddingUpcoming => Icons.Material.Filled.ChildCare,
+        AlertType.LowFeedStock => Icons.Material.Filled.Inventory,
+        AlertType.WeightDrop => Icons.Material.Filled.TrendingDown,
+        _ => Icons.Material.Filled.Notifications
+    };
 
     private void BuildMilkChart()
     {

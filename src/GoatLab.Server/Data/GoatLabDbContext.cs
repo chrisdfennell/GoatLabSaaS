@@ -98,6 +98,10 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Announcement> Announcements => Set<Announcement>();
     public DbSet<AnnouncementDismissal> AnnouncementDismissals => Set<AnnouncementDismissal>();
 
+    // Smart alerts (per-tenant) + push subscriptions (per-user-per-device)
+    public DbSet<Alert> Alerts => Set<Alert>();
+    public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -261,6 +265,21 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(a => a.At);
         modelBuilder.Entity<AdminAuditLog>()
             .HasIndex(a => new { a.TargetType, a.TargetId });
+
+        // Alert lookups always filter to active (non-dismissed) entries newest-first.
+        // The composite index lets the bell-icon poll a tenant's open alerts cheaply.
+        modelBuilder.Entity<Alert>()
+            .HasIndex(a => new { a.TenantId, a.DismissedAt, a.CreatedAt });
+        // Scanner uses (TenantId, Type, EntityType, EntityId) to upsert idempotently.
+        modelBuilder.Entity<Alert>()
+            .HasIndex(a => new { a.TenantId, a.Type, a.EntityType, a.EntityId });
+
+        // Push subscriptions: lookup by endpoint (web-push uses it as identity)
+        // and by tenant+user (for "send to this user's devices").
+        modelBuilder.Entity<PushSubscription>()
+            .HasIndex(p => p.Endpoint).IsUnique();
+        modelBuilder.Entity<PushSubscription>()
+            .HasIndex(p => new { p.TenantId, p.UserId });
 
         // Announcements: common queries filter by active + time window + target tag.
         modelBuilder.Entity<Announcement>()
