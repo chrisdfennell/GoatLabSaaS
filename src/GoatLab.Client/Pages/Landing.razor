@@ -291,8 +291,8 @@
                 <span class="term-title">~/goatlab</span>
             </div>
             <pre class="term-body"><span class="t-muted"># clone and launch</span>
-<span class="t-prompt">$</span> git clone https://github.com/chrisdfennell/GoatLabSaaS.git
-<span class="t-prompt">$</span> cd GoatLabSaaS
+<span class="t-prompt">$</span> git clone https://github.com/chrisdfennell/GoatLab.git
+<span class="t-prompt">$</span> cd GoatLab
 <span class="t-prompt">$</span> cp .env.example .env
 <span class="t-prompt">$</span> docker compose up -d
 <span class="t-muted">
@@ -738,7 +738,12 @@
 
 @code {
     // TODO: update this to the real repo URL once public.
-    private const string RepoUrl = "https://github.com/chrisdfennell/GoatLabSaaS";
+    // The "Self-host" pitch on this landing page points to the OPEN-SOURCE /
+    // self-hosted variant (chrisdfennell/GoatLab), not this SaaS repo
+    // (chrisdfennell/GoatLabSaaS). Two products, two repos:
+    //   - GoatLab     — self-hosted, run on your own hardware (Pi, NAS, VPS)
+    //   - GoatLabSaaS — this hosted product (Stripe billing, multi-tenant)
+    private const string RepoUrl = "https://github.com/chrisdfennell/GoatLab";
 
     private List<BillingService.PublicPlan>? _plans;
 
