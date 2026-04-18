@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using GoatLab.Client.Components.Shared;
+using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MudBlazor;
 
@@ -25,28 +26,62 @@ public class ApiService
     private readonly IJSRuntime _js;
     private readonly ISnackbar _snackbar;
     private readonly IDialogService _dialogs;
+    private readonly NavigationManager _nav;
     // Prevent two upgrade dialogs piling on top of each other when a page fires
     // multiple requests in parallel (e.g. tabs, prefetch, OnInitialized).
     private bool _upgradeDialogOpen;
+    // Same idea for redirects: parallel 401s from OnInitialized shouldn't each
+    // try to kick a NavigateTo("/login") on top of each other.
+    private bool _redirectingToLogin;
 
-    public ApiService(HttpClient http, IJSRuntime js, ISnackbar snackbar, IDialogService dialogs)
+    public ApiService(HttpClient http, IJSRuntime js, ISnackbar snackbar, IDialogService dialogs, NavigationManager nav)
     {
         _http = http;
         _js = js;
         _snackbar = snackbar;
         _dialogs = dialogs;
+        _nav = nav;
     }
 
     public async Task<T?> GetAsync<T>(string url)
     {
-        var resp = await _http.GetAsync(url);
+        HttpResponseMessage resp;
+        try { resp = await _http.GetAsync(url); }
+        catch (HttpRequestException)
+        {
+            // Transport failure on a read — surface a toast and return default.
+            // No offline-queue path since there's nothing to replay.
+            _snackbar.Add("Network error. Please try again.", Severity.Error);
+            return default;
+        }
+
         if (resp.StatusCode == HttpStatusCode.PaymentRequired)
         {
             await ShowUpgradeToastAsync(resp);
             return default;
         }
-        resp.EnsureSuccessStatusCode();
+        if (resp.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            RedirectToLoginOnce();
+            return default;
+        }
+        if (!resp.IsSuccessStatusCode)
+        {
+            // 404/403/500 on a GET — toast the server message and hand the
+            // caller default. Pages generally render "no data" fine.
+            _snackbar.Add(await ExtractErrorMessageAsync(resp), Severity.Error);
+            return default;
+        }
         return await resp.Content.ReadFromJsonAsync<T>();
+    }
+
+    private void RedirectToLoginOnce()
+    {
+        if (_redirectingToLogin) return;
+        _redirectingToLogin = true;
+        // forceLoad clears the WASM app state so the next page is a fresh boot
+        // with no stale auth cookie cached in CookieAuthStateProvider.
+        _nav.NavigateTo("/login?sessionExpired=1", forceLoad: true);
     }
 
     public async Task<T?> PostAsync<T>(string url, T data)
@@ -143,11 +178,18 @@ public class ApiService
     // Non-success HTTP status (not 402, which has its own dialog path). Parses
     // the error message from the response body (ProblemDetails / { error }
     // shapes), shows a toast, and returns true so the caller short-circuits
-    // with default/skip.
+    // with default/skip. 401 is special-cased to redirect to /login instead —
+    // the user's session expired (or the DataProtection key ring rotated) and
+    // no amount of toast text helps.
     private async Task<bool> HandleClientErrorAsync(HttpResponseMessage resp)
     {
         if (resp.IsSuccessStatusCode) return false;
         if (resp.StatusCode == HttpStatusCode.PaymentRequired) return false;
+        if (resp.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            RedirectToLoginOnce();
+            return true;
+        }
 
         var message = await ExtractErrorMessageAsync(resp);
         _snackbar.Add(message, Severity.Error);

@@ -42,6 +42,11 @@ services:
     volumes:
       - goatlab-media:/app/media
       - goatlab-backups:/app/backups
+      # Persist ASP.NET Core DataProtection key ring across container restarts.
+      # Without this, every `docker compose up --build` regenerates the key ring
+      # and invalidates every user's auth cookie (they get silently logged out
+      # and the next API call 401s, which can crash the Blazor circuit).
+      - goatlab-dpkeys:/root/.aspnet/DataProtection-Keys
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_URLS: "http://+:8080"
@@ -104,5 +109,6 @@ volumes:
   goatlab-mssql:
   goatlab-media:
   goatlab-backups:
+  goatlab-dpkeys:
   caddy_data:
   caddy_config:

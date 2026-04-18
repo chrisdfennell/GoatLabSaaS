@@ -18,6 +18,7 @@ using Fido2NetLib;
 using Hangfire;
 using Hangfire.SqlServer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
@@ -90,6 +91,17 @@ builder.Services.AddDbContext<GoatLabDbContext>(options =>
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAdminAuditLogger, AdminAuditLogger>();
+
+// DataProtection: persist the key ring to a known path so auth cookies survive
+// container rebuilds. Docker compose mounts a named volume at this path (see
+// docker-compose.prod.yml). SetApplicationName pins the purpose string so keys
+// aren't accidentally re-scoped by a container-id change.
+var dpKeyPath = builder.Configuration.GetValue<string>("DataProtection:KeyPath")
+                ?? "/root/.aspnet/DataProtection-Keys";
+try { Directory.CreateDirectory(dpKeyPath); } catch { /* read-only FS in tests — fall through */ }
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dpKeyPath))
+    .SetApplicationName("GoatLab");
 
 // ASP.NET Core Identity with cookie auth. Blazor WASM uses same-site cookies
 // against its hosting server, so no JWT plumbing needed.
