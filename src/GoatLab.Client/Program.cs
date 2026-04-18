@@ -75,5 +75,6 @@ builder.Services.AddScoped<PushService>();
 builder.Services.AddScoped<CoiService>();
 builder.Services.AddScoped<ReportsService>();
 builder.Services.AddScoped<ForecastService>();
+builder.Services.AddScoped<WaitlistService>();
 
 await builder.Build().RunAsync();

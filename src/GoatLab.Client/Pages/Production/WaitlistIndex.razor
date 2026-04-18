@@ -1,0 +1,277 @@
+@page "/waitlist"
+@inject WaitlistService WaitlistSvc
+@inject SalesService SalesSvc
+@inject GoatService GoatSvc
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject CookieAuthStateProvider AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Waitlist — GoatLab</PageTitle>
+
+@if (!FeatureEnabled)
+{
+    <MudPaper Class="polished-section" Elevation="0">
+        <div class="inline-empty">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" />
+            <MudText Typo="Typo.h6">Buyer Waitlist is a paid feature</MudText>
+            <MudText Typo="Typo.body2">Take deposits and queue pre-sale reservations. Available on Farm and Dairy plans.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/billing" StartIcon="@Icons.Material.Filled.Upgrade">See plans</MudButton>
+        </div>
+    </MudPaper>
+}
+else
+{
+    <div class="page-hero page-hero-teal">
+        <div class="page-hero-icon"><MudIcon Icon="@Icons.Material.Filled.HourglassTop" /></div>
+        <div class="page-hero-text">
+            <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Sales</MudText>
+            <MudText Typo="Typo.h4" Class="page-hero-title">Buyer waitlist</MudText>
+            <MudText Typo="Typo.body2" Class="page-hero-sub">Pre-sale reservations with optional deposits. Fulfillments create Sale records automatically.</MudText>
+        </div>
+    </div>
+
+    <MudPaper Class="polished-section" Elevation="0">
+        <div class="polished-section-header">
+            <div class="polished-section-header-title">
+                <MudIcon Icon="@Icons.Material.Filled.PeopleOutline" />
+                <div>
+                    <MudText Typo="Typo.h6">@(_entries?.Count ?? 0) entries</MudText>
+                    <MudText Typo="Typo.body2" Class="section-hint">Higher priority first, then by join date.</MudText>
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <MudSelect T="WaitlistStatus?" @bind-Value="_filter" Variant="Variant.Outlined" Dense Clearable Label="Status">
+                    <MudSelectItem T="WaitlistStatus?" Value="null">All</MudSelectItem>
+                    <MudSelectItem T="WaitlistStatus?" Value="WaitlistStatus.Waiting">Waiting</MudSelectItem>
+                    <MudSelectItem T="WaitlistStatus?" Value="WaitlistStatus.Offered">Offered</MudSelectItem>
+                    <MudSelectItem T="WaitlistStatus?" Value="WaitlistStatus.Fulfilled">Fulfilled</MudSelectItem>
+                    <MudSelectItem T="WaitlistStatus?" Value="WaitlistStatus.Cancelled">Cancelled</MudSelectItem>
+                </MudSelect>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddEntry">Add entry</MudButton>
+            </div>
+        </div>
+
+        @if (_entries is null)
+        {
+            <MudProgressCircular Indeterminate />
+        }
+        else if (_entries.Count == 0)
+        {
+            <MudText Typo="Typo.body2">No waitlist entries yet. Click "Add entry" to reserve a customer's spot.</MudText>
+        }
+        else
+        {
+            <MudSimpleTable Dense Hover>
+                <thead>
+                    <tr>
+                        <th>Priority</th>
+                        <th>Customer</th>
+                        <th>Prefs</th>
+                        <th>Window</th>
+                        <th style="text-align:right;">Deposit</th>
+                        <th>Status</th>
+                        <th>Fulfilled</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var e in Filtered())
+                    {
+                        <tr>
+                            <td>@e.Priority</td>
+                            <td>@(e.Customer?.Name ?? "—")</td>
+                            <td>
+                                <span style="font-size:0.85em;">
+                                    @(string.IsNullOrWhiteSpace(e.BreedPreference) ? "" : e.BreedPreference + " ")
+                                    @(e.SexPreference.HasValue ? (e.SexPreference == Gender.Female ? "doe" : "buck") + " " : "")
+                                    @(string.IsNullOrWhiteSpace(e.ColorPreference) ? "" : "(" + e.ColorPreference + ")")
+                                </span>
+                            </td>
+                            <td>@FormatWindow(e.MinDueDate, e.MaxDueDate)</td>
+                            <td style="text-align:right;">
+                                @if (e.DepositCents > 0)
+                                {
+                                    <span>$@((e.DepositCents / 100m).ToString("N2"))</span>
+                                    @if (e.DepositPaid)
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Color="Color.Success" />
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.HourglassEmpty" Size="Size.Small" Color="Color.Warning" />
+                                    }
+                                }
+                                else { <span>—</span> }
+                            </td>
+                            <td><MudChip T="string" Size="Size.Small" Color="@StatusColor(e.Status)">@e.Status</MudChip></td>
+                            <td>
+                                @if (e.Status == WaitlistStatus.Fulfilled && e.FulfilledGoat != null)
+                                {
+                                    <a href="@($"/herd/{e.FulfilledGoatId}")">@e.FulfilledGoat.Name</a>
+                                }
+                                else { <span>—</span> }
+                            </td>
+                            <td style="text-align:right;">
+                                @if (e.Status == WaitlistStatus.Waiting)
+                                {
+                                    <MudTooltip Text="Mark as offered">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Campaign" Size="Size.Small" OnClick="() => OfferAsync(e.Id)" />
+                                    </MudTooltip>
+                                }
+                                @if (e.Status is WaitlistStatus.Waiting or WaitlistStatus.Offered)
+                                {
+                                    <MudTooltip Text="Fulfill — creates a Sale">
+                                        <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Color="Color.Success" OnClick="() => FulfillAsync(e)" />
+                                    </MudTooltip>
+                                    <MudTooltip Text="Edit">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditAsync(e)" />
+                                    </MudTooltip>
+                                    <MudTooltip Text="Cancel">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" Color="Color.Error" OnClick="() => CancelAsync(e.Id)" />
+                                    </MudTooltip>
+                                }
+                                else
+                                {
+                                    <MudTooltip Text="Delete record">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" OnClick="() => DeleteAsync(e.Id)" />
+                                    </MudTooltip>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+    </MudPaper>
+}
+
+@code {
+    private bool FeatureEnabled { get; set; }
+    private List<WaitlistEntry>? _entries;
+    private List<Customer>? _customers;
+    private List<Goat>? _goats;
+    private WaitlistStatus? _filter;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ = await AuthState.GetAuthenticationStateAsync();
+        FeatureEnabled = (AuthState.CurrentUser?.EnabledFeatures ?? Array.Empty<string>())
+            .Contains("BuyerWaitlist", StringComparer.OrdinalIgnoreCase);
+        if (!FeatureEnabled) return;
+        await Reload();
+        _customers = await SalesSvc.GetCustomersAsync();
+        _goats = await GoatSvc.GetAllAsync();
+    }
+
+    private async Task Reload() => _entries = await WaitlistSvc.GetAllAsync() ?? new();
+
+    private IEnumerable<WaitlistEntry> Filtered() =>
+        _filter.HasValue ? _entries!.Where(e => e.Status == _filter.Value) : _entries!;
+
+    private async Task AddEntry()
+    {
+        if (_customers is null) _customers = await SalesSvc.GetCustomersAsync();
+        var parameters = new DialogParameters
+        {
+            ["Entry"] = new WaitlistEntry(),
+            ["Customers"] = _customers ?? new List<Customer>(),
+            ["IsEdit"] = false,
+        };
+        var dlg = await Dialog.ShowAsync<WaitlistEntryDialog>("New waitlist entry", parameters);
+        var result = await dlg.Result;
+        if (result?.Canceled == false && result.Data is WaitlistEntry created)
+        {
+            await WaitlistSvc.CreateAsync(created);
+            Snackbar.Add("Added to waitlist.", Severity.Success);
+            await Reload();
+        }
+    }
+
+    private async Task EditAsync(WaitlistEntry entry)
+    {
+        var copy = new WaitlistEntry
+        {
+            Id = entry.Id, TenantId = entry.TenantId, CustomerId = entry.CustomerId,
+            BreedPreference = entry.BreedPreference, SexPreference = entry.SexPreference,
+            ColorPreference = entry.ColorPreference, MinDueDate = entry.MinDueDate, MaxDueDate = entry.MaxDueDate,
+            DepositCents = entry.DepositCents, DepositPaid = entry.DepositPaid,
+            Priority = entry.Priority, Notes = entry.Notes, Status = entry.Status,
+        };
+        var parameters = new DialogParameters
+        {
+            ["Entry"] = copy,
+            ["Customers"] = _customers ?? new List<Customer>(),
+            ["IsEdit"] = true,
+        };
+        var dlg = await Dialog.ShowAsync<WaitlistEntryDialog>("Edit waitlist entry", parameters);
+        var result = await dlg.Result;
+        if (result?.Canceled == false && result.Data is WaitlistEntry updated)
+        {
+            await WaitlistSvc.UpdateAsync(updated);
+            Snackbar.Add("Entry updated.", Severity.Success);
+            await Reload();
+        }
+    }
+
+    private async Task OfferAsync(int id)
+    {
+        await WaitlistSvc.OfferAsync(id);
+        Snackbar.Add("Marked as offered.", Severity.Info);
+        await Reload();
+    }
+
+    private async Task FulfillAsync(WaitlistEntry entry)
+    {
+        if (_goats is null) _goats = await GoatSvc.GetAllAsync();
+        var parameters = new DialogParameters
+        {
+            ["Entry"] = entry,
+            ["Goats"] = _goats ?? new List<Goat>(),
+        };
+        var dlg = await Dialog.ShowAsync<FulfillWaitlistDialog>("Fulfill waitlist entry", parameters);
+        var result = await dlg.Result;
+        if (result?.Canceled == false && result.Data is FulfillWaitlistDialog.FulfillResult r)
+        {
+            var sale = await WaitlistSvc.FulfillAsync(entry.Id, r.GoatId, r.SaleAmount, r.Description);
+            Snackbar.Add(sale is null ? "Fulfill failed." : $"Sale #{sale.Id} created.", sale is null ? Severity.Error : Severity.Success);
+            await Reload();
+        }
+    }
+
+    private async Task CancelAsync(int id)
+    {
+        var reason = await Dialog.ShowMessageBox(
+            "Cancel waitlist entry?",
+            "You can add an optional reason below. This cannot be undone.",
+            yesText: "Cancel entry", cancelText: "Keep");
+        if (reason != true) return;
+        await WaitlistSvc.CancelAsync(id, null);
+        Snackbar.Add("Entry cancelled.", Severity.Info);
+        await Reload();
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        var ok = await Dialog.ShowMessageBox("Delete record?", "Permanently remove this waitlist entry.", yesText: "Delete", cancelText: "Keep");
+        if (ok != true) return;
+        await WaitlistSvc.DeleteAsync(id);
+        await Reload();
+    }
+
+    private static Color StatusColor(WaitlistStatus s) => s switch
+    {
+        WaitlistStatus.Waiting => Color.Info,
+        WaitlistStatus.Offered => Color.Warning,
+        WaitlistStatus.Fulfilled => Color.Success,
+        WaitlistStatus.Cancelled => Color.Default,
+        _ => Color.Default,
+    };
+
+    private static string FormatWindow(DateTime? min, DateTime? max)
+    {
+        if (!min.HasValue && !max.HasValue) return "—";
+        string l(DateTime? d) => d?.ToString("MMM yyyy") ?? "?";
+        return $"{l(min)} → {l(max)}";
+    }
+}

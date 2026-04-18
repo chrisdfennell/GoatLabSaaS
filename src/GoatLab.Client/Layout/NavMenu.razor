@@ -19,11 +19,12 @@
             @if (IsEnabled("Breeding")) { <MudNavLink Href="/breeding" Icon="@Icons.Material.Filled.Favorite">Breeding</MudNavLink> }
         }
 
-        @if (AnyEnabled("Milk", "Sales", "Finance", "Inventory"))
+        @if (AnyEnabled("Milk", "Sales", "Finance", "Inventory", "BuyerWaitlist"))
         {
             <div class="nav-section-header">Production</div>
             @if (IsEnabled("Milk")) { <MudNavLink Href="/production" Icon="@Icons.Material.Filled.WaterDrop">Milk</MudNavLink> }
             @if (IsEnabled("Sales")) { <MudNavLink Href="/sales" Icon="@Icons.Material.Filled.Storefront">Sales</MudNavLink> }
+            @if (IsEnabled("BuyerWaitlist")) { <MudNavLink Href="/waitlist" Icon="@Icons.Material.Filled.HourglassTop">Waitlist</MudNavLink> }
             @if (IsEnabled("Finance")) { <MudNavLink Href="/finance" Icon="@Icons.Material.Filled.AccountBalance">Finances</MudNavLink> }
             @if (IsEnabled("Inventory")) { <MudNavLink Href="/inventory" Icon="@Icons.Material.Filled.Inventory">Inventory</MudNavLink> }
         }

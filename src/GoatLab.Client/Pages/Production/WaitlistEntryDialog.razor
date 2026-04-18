@@ -1,0 +1,84 @@
+@* Add / edit a WaitlistEntry. Parent passes a fresh copy so Cancel doesn't dirty the original. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudSelect T="int" @bind-Value="Entry.CustomerId" Label="Customer" Variant="Variant.Outlined" Required>
+                    @foreach (var c in Customers)
+                    {
+                        <MudSelectItem Value="@c.Id">@c.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField @bind-Value="Entry.Priority" Label="Priority (higher = earlier)" Variant="Variant.Outlined" Min="0" Max="999" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="Entry.BreedPreference" Label="Breed preference" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudSelect T="Gender?" @bind-Value="Entry.SexPreference" Label="Sex" Variant="Variant.Outlined" Clearable>
+                    <MudSelectItem T="Gender?" Value="null">Either</MudSelectItem>
+                    <MudSelectItem T="Gender?" Value="Gender.Female">Doe</MudSelectItem>
+                    <MudSelectItem T="Gender?" Value="Gender.Male">Buck</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudTextField @bind-Value="Entry.ColorPreference" Label="Color" Variant="Variant.Outlined" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudDatePicker @bind-Date="_minDue" Label="Earliest due date" Variant="Variant.Outlined" Editable />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudDatePicker @bind-Date="_maxDue" Label="Latest due date" Variant="Variant.Outlined" Editable />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="decimal" Value="@DepositDollars" ValueChanged="@(v => DepositDollars = v)" Label="Deposit ($)" Variant="Variant.Outlined" Format="F2" Min="0" />
+            </MudItem>
+            <MudItem xs="12" sm="6" Class="d-flex align-center">
+                <MudSwitch T="bool" @bind-Value="Entry.DepositPaid" Color="Color.Success" Label="Deposit received" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="Entry.Notes" Label="Notes" Variant="Variant.Outlined" Lines="3" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save" Disabled="@(Entry.CustomerId == 0)">@SaveLabel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public WaitlistEntry Entry { get; set; } = new();
+    [Parameter] public List<Customer> Customers { get; set; } = new();
+    [Parameter] public bool IsEdit { get; set; }
+
+    private DateTime? _minDue;
+    private DateTime? _maxDue;
+
+    protected override void OnInitialized()
+    {
+        _minDue = Entry.MinDueDate;
+        _maxDue = Entry.MaxDueDate;
+    }
+
+    private decimal DepositDollars
+    {
+        get => Entry.DepositCents / 100m;
+        set => Entry.DepositCents = (int)Math.Round(value * 100);
+    }
+
+    private string SaveLabel => IsEdit ? "Save" : "Add to waitlist";
+
+    private void Save()
+    {
+        Entry.MinDueDate = _minDue;
+        Entry.MaxDueDate = _maxDue;
+        MudDialog.Close(DialogResult.Ok(Entry));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

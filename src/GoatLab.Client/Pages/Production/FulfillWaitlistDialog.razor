@@ -1,0 +1,82 @@
+@* Picks a goat + sale amount to convert the waitlist entry into a Sale. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Fulfilling <strong>@(Entry.Customer?.Name ?? "this reservation")</strong>. A Sale will be
+            created linked to the chosen goat and customer, with the existing deposit applied.
+        </MudText>
+
+        <MudGrid>
+            <MudItem xs="12">
+                <MudAutocomplete T="Goat"
+                                 @bind-Value="_selectedGoat"
+                                 Label="Goat to sell"
+                                 Variant="Variant.Outlined"
+                                 SearchFunc="SearchGoats"
+                                 ToStringFunc="@GoatLabel"
+                                 Required />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField @bind-Value="_saleAmount" Label="Sale amount ($)" Variant="Variant.Outlined" Format="F2" Min="0" Required />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                @if (Entry.DepositPaid && Entry.DepositCents > 0)
+                {
+                    <MudPaper Class="pa-3" Elevation="0" Style="background: rgba(76,175,80,0.1);border-radius:8px;">
+                        <MudText Typo="Typo.caption">Deposit applied</MudText>
+                        <MudText Typo="Typo.h6">$@((Entry.DepositCents / 100m).ToString("N2"))</MudText>
+                    </MudPaper>
+                }
+                else if (Entry.DepositCents > 0)
+                {
+                    <MudAlert Severity="Severity.Warning" Dense>Deposit not yet received.</MudAlert>
+                }
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_description" Label="Description" Variant="Variant.Outlined" Placeholder="Optional — defaults to 'Waitlist fulfillment: <Goat>'" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="Save" Disabled="@(_selectedGoat is null || _saleAmount <= 0)">
+            Create Sale
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    public record FulfillResult(int GoatId, decimal SaleAmount, string? Description);
+
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public WaitlistEntry Entry { get; set; } = new();
+    [Parameter] public List<Goat> Goats { get; set; } = new();
+
+    private Goat? _selectedGoat;
+    private decimal _saleAmount;
+    private string? _description;
+
+    private static string GoatLabel(Goat? g) =>
+        g is null ? string.Empty : $"{g.Name} — {g.Breed ?? ""} {g.Gender}";
+
+    private Task<IEnumerable<Goat>> SearchGoats(string query, CancellationToken ct)
+    {
+        IEnumerable<Goat> q = Goats.Where(g => !g.IsExternal);
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            q = q.Where(g => g.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+                             || (g.Breed ?? "").Contains(query, StringComparison.OrdinalIgnoreCase)
+                             || (g.EarTag ?? "").Contains(query, StringComparison.OrdinalIgnoreCase));
+        }
+        return Task.FromResult(q.Take(15));
+    }
+
+    private void Save()
+    {
+        if (_selectedGoat is null) return;
+        MudDialog.Close(DialogResult.Ok(new FulfillResult(_selectedGoat.Id, _saleAmount, _description)));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

@@ -102,6 +102,9 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Alert> Alerts => Set<Alert>();
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
 
+    // Buyer waitlist (pre-sale reservations with optional deposits)
+    public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -161,6 +164,30 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
             .WithMany()
             .HasForeignKey(s => s.GoatId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // WaitlistEntry: no cascades. Deleting a Customer/Sale/Goat should not
+        // take their waitlist history with them — we keep history rows and null
+        // the FK so reporting still reflects who signed up.
+        modelBuilder.Entity<WaitlistEntry>()
+            .HasOne(w => w.Customer)
+            .WithMany()
+            .HasForeignKey(w => w.CustomerId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<WaitlistEntry>()
+            .HasOne(w => w.FulfilledSale)
+            .WithMany()
+            .HasForeignKey(w => w.FulfilledSaleId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<WaitlistEntry>()
+            .HasOne(w => w.FulfilledGoat)
+            .WithMany()
+            .HasForeignKey(w => w.FulfilledGoatId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<WaitlistEntry>()
+            .HasIndex(w => new { w.TenantId, w.Status, w.Priority });
 
         // Transaction -> Goat (optional, for cost-per-goat)
         modelBuilder.Entity<Transaction>()

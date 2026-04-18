@@ -26,6 +26,7 @@ public enum AppFeature
     PdfDocuments = 16,
     CoiCalculator = 17,
     Forecasting = 18,
+    BuyerWaitlist = 19,
 }
 
 public class Plan
