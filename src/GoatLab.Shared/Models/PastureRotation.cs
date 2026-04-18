@@ -10,7 +10,9 @@ public class PastureRotation : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int PastureId { get; set; }
-    public Pasture Pasture { get; set; } = null!;
+    // Nullable so POST bodies that only carry PastureId don't trip
+    // ASP.NET Core's non-nullable-reference model validator.
+    public Pasture? Pasture { get; set; }
 
     public DateTime StartDate { get; set; }
     public DateTime? EndDate { get; set; }
