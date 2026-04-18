@@ -105,6 +105,7 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
 
     // Buyer waitlist (pre-sale reservations with optional deposits)
     public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
+    public DbSet<BuyerAccessToken> BuyerAccessTokens => Set<BuyerAccessToken>();
 
     // API keys + outbound webhooks + delivery history (all tenant-owned)
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
@@ -198,6 +199,17 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
         // ApiKey: unique hash for bearer lookup. Prefix indexed for UI filtering.
         modelBuilder.Entity<ApiKey>()
             .HasIndex(k => k.KeyHash).IsUnique();
+
+        // BuyerAccessToken: unique hash for bearer lookup. Cascade with the
+        // WaitlistEntry — tokens only exist for a living reservation, and the
+        // buyer portal view has nothing to show after the entry is gone.
+        modelBuilder.Entity<BuyerAccessToken>()
+            .HasIndex(t => t.TokenHash).IsUnique();
+        modelBuilder.Entity<BuyerAccessToken>()
+            .HasOne(t => t.WaitlistEntry)
+            .WithMany()
+            .HasForeignKey(t => t.WaitlistEntryId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // FeedConsumption -> FeedInventory: Restrict. Consumption history is
         // audit-grade; deleting a feed item with logged usage should fail loudly

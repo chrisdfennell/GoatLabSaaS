@@ -1,0 +1,134 @@
+@using GoatLab.Shared.Models
+@inject WaitlistService WaitlistSvc
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6"><MudIcon Icon="@Icons.Material.Filled.Share" Class="mr-2" />Buyer portal link</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_issued is null)
+        {
+            <MudText Typo="Typo.body2" Class="mb-3">
+                Generate a private link for <strong>@(Entry.Customer?.Name ?? "this customer")</strong> to view their reservation.
+                No account or password needed — the URL itself is the credential.
+            </MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="6">
+                    <MudNumericField T="int" @bind-Value="_days" Label="Valid for (days)" Min="1" Max="365"
+                                     Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudSwitch T="bool" @bind-Value="_sendEmail" Label="Email the link to the customer" Color="Color.Primary" />
+                </MudItem>
+            </MudGrid>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                You'll see the plaintext link once — copy it if the customer has no email on file.
+            </MudText>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Success" Class="mb-3" Dense>
+                Link created. @(_issued.EmailSent ? "Emailed to the customer." : "Copy and share it now — it won't be shown again.")
+            </MudAlert>
+            <MudTextField Value="@_issued.Url" ReadOnly Variant="Variant.Outlined"
+                          Label="Portal URL" Lines="2" T="string" />
+            <div class="d-flex gap-2 mt-3">
+                <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ContentCopy"
+                           OnClick="() => CopyAsync(_issued.Url)">Copy link</MudButton>
+                <MudText Class="align-self-center" Typo="Typo.caption" Color="Color.Secondary">
+                    Valid until @_issued.ExpiresAt.ToLocalTime().ToString("MMM d, yyyy")
+                </MudText>
+            </div>
+        }
+
+        @if (_existing is { Count: > 0 })
+        {
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Existing links</MudText>
+            <MudSimpleTable Dense>
+                <thead>
+                    <tr><th>Prefix</th><th>Created</th><th>Expires</th><th>Last used</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in _existing)
+                    {
+                        <tr style="@(t.RevokedAt is not null || t.ExpiresAt <= DateTime.UtcNow ? "opacity:0.5;" : "")">
+                            <td><code>@t.Prefix…</code></td>
+                            <td>@t.CreatedAt.ToLocalTime().ToString("MMM d")</td>
+                            <td>@t.ExpiresAt.ToLocalTime().ToString("MMM d, yyyy")</td>
+                            <td>@(t.LastUsedAt?.ToLocalTime().ToString("MMM d, h:mm tt") ?? "—")</td>
+                            <td>
+                                @if (t.RevokedAt is null && t.ExpiresAt > DateTime.UtcNow)
+                                {
+                                    <MudIconButton Icon="@Icons.Material.Filled.Block" Size="Size.Small"
+                                                   Color="Color.Error" OnClick="() => RevokeAsync(t.Id)" />
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Small">@(t.RevokedAt is not null ? "Revoked" : "Expired")</MudChip>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+        @if (_issued is null)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Link" OnClick="IssueAsync" Disabled="_working">
+                Create link
+            </MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public WaitlistEntry Entry { get; set; } = default!;
+
+    private int _days = 90;
+    private bool _sendEmail = true;
+    private bool _working;
+    private IssuePortalTokenResponse? _issued;
+    private List<PortalTokenDto>? _existing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _existing = await WaitlistSvc.GetPortalLinksAsync(Entry.Id);
+    }
+
+    private void Close() => MudDialog.Close();
+
+    private async Task IssueAsync()
+    {
+        _working = true;
+        try
+        {
+            _issued = await WaitlistSvc.IssuePortalLinkAsync(Entry.Id, _days, _sendEmail);
+            _existing = await WaitlistSvc.GetPortalLinksAsync(Entry.Id);
+        }
+        finally { _working = false; }
+    }
+
+    private async Task RevokeAsync(int tokenId)
+    {
+        await WaitlistSvc.RevokePortalLinkAsync(tokenId);
+        _existing = await WaitlistSvc.GetPortalLinksAsync(Entry.Id);
+    }
+
+    private async Task CopyAsync(string url)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", url);
+            Snackbar.Add("Link copied", Severity.Info);
+        }
+        catch { Snackbar.Add("Copy failed — select and copy manually.", Severity.Warning); }
+    }
+}

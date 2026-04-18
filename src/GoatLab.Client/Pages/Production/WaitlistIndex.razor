@@ -124,6 +124,9 @@ else
                                     <MudTooltip Text="Fulfill — creates a Sale">
                                         <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Color="Color.Success" OnClick="() => FulfillAsync(e)" />
                                     </MudTooltip>
+                                    <MudTooltip Text="Send buyer portal link">
+                                        <MudIconButton Icon="@Icons.Material.Filled.Share" Size="Size.Small" OnClick="() => ShareAsync(e)" />
+                                    </MudTooltip>
                                     <MudTooltip Text="Edit">
                                         <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditAsync(e)" />
                                     </MudTooltip>
@@ -237,6 +240,14 @@ else
             Snackbar.Add(sale is null ? "Fulfill failed." : $"Sale #{sale.Id} created.", sale is null ? Severity.Error : Severity.Success);
             await Reload();
         }
+    }
+
+    private async Task ShareAsync(WaitlistEntry entry)
+    {
+        var parameters = new DialogParameters { ["Entry"] = entry };
+        var dlg = await Dialog.ShowAsync<ShareBuyerPortalDialog>("Buyer portal link", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        await dlg.Result;
     }
 
     private async Task CancelAsync(int id)

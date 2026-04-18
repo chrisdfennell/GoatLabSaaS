@@ -1,0 +1,205 @@
+@page "/buyer/{Token}"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@layout GoatLab.Client.Layout.LandingLayout
+@inject HttpClient Http
+
+<PageTitle>Your reservation — @(view?.FarmName ?? "GoatLab")</PageTitle>
+
+<div class="container" style="padding:40px 20px;max-width:900px;">
+    @if (loading)
+    {
+        <div style="text-align:center;padding:80px 0;">
+            <MudProgressCircular Indeterminate Color="Color.Primary" />
+        </div>
+    }
+    else if (view is null)
+    {
+        <div style="text-align:center;padding:80px 0;">
+            <MudIcon Icon="@Icons.Material.Filled.LinkOff" Style="font-size:4rem;color:#bbb;" />
+            <MudText Typo="Typo.h5" Class="mt-4">This link isn't valid anymore.</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">
+                It may have expired, been revoked, or the reservation was cancelled. Contact the farm directly for an updated link.
+            </MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" Href="/">Back to GoatLab</MudButton>
+        </div>
+    }
+    else
+    {
+        <MudText Typo="Typo.overline" Color="Color.Primary" Style="letter-spacing:2px;">Reservation</MudText>
+        <MudText Typo="Typo.h3" Style="font-weight:700;margin:0 0 6px 0;">Hi @view.CustomerName,</MudText>
+        <MudText Typo="Typo.subtitle1" Color="Color.Secondary">
+            Here's the live status of your reservation with <strong>@view.FarmName</strong>.
+        </MudText>
+
+        <MudPaper Class="pa-4 mt-4" Outlined Style="border-radius:12px;">
+            <div class="d-flex align-center mb-2" style="gap:10px;">
+                <MudChip T="string" Color="@StatusColor(view.ReservationStatus)" Size="Size.Medium">@view.ReservationStatus</MudChip>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">
+                    Reserved @view.ReservationCreatedAt.ToLocalTime().ToString("MMMM d, yyyy")
+                </MudText>
+            </div>
+
+            <MudSimpleTable Dense>
+                <tbody>
+                    @if (!string.IsNullOrWhiteSpace(view.BreedPreference))
+                    {
+                        <tr><td style="color:var(--mud-palette-text-secondary);">Breed preference</td><td>@view.BreedPreference</td></tr>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(view.SexPreference))
+                    {
+                        <tr><td style="color:var(--mud-palette-text-secondary);">Sex preference</td><td>@view.SexPreference</td></tr>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(view.ColorPreference))
+                    {
+                        <tr><td style="color:var(--mud-palette-text-secondary);">Color preference</td><td>@view.ColorPreference</td></tr>
+                    }
+                    @if (view.DepositCents > 0)
+                    {
+                        <tr>
+                            <td style="color:var(--mud-palette-text-secondary);">Deposit</td>
+                            <td>
+                                $@((view.DepositCents / 100m).ToString("N2"))
+                                @if (view.DepositPaid)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success" Class="ml-2" Icon="@Icons.Material.Filled.CheckCircle">Received</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Class="ml-2" Icon="@Icons.Material.Filled.HourglassEmpty">Pending</MudChip>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    @if (view.OfferedAt.HasValue)
+                    {
+                        <tr><td style="color:var(--mud-palette-text-secondary);">Offered</td><td>@view.OfferedAt.Value.ToLocalTime().ToString("MMMM d, yyyy")</td></tr>
+                    }
+                    @if (view.FulfilledAt.HasValue)
+                    {
+                        <tr><td style="color:var(--mud-palette-text-secondary);">Fulfilled</td><td>@view.FulfilledAt.Value.ToLocalTime().ToString("MMMM d, yyyy")</td></tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        </MudPaper>
+
+        @if (view.Goat is not null)
+        {
+            <MudText Typo="Typo.overline" Color="Color.Primary" Class="mt-6" Style="letter-spacing:2px;">Reserved goat</MudText>
+            <MudText Typo="Typo.h4" Style="font-weight:700;margin:0 0 12px 0;">@view.Goat.Name</MudText>
+            <MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mb-3">
+                @(view.Goat.Breed ?? "Unknown breed")
+                <span> · @view.Goat.Gender</span>
+                @if (view.Goat.DateOfBirth.HasValue) { <span> · @AgeString(view.Goat.DateOfBirth.Value)</span> }
+            </MudText>
+
+            @if (view.Goat.PhotoUrls.Count > 0)
+            {
+                <MudGrid Spacing="2">
+                    @foreach (var p in view.Goat.PhotoUrls)
+                    {
+                        <MudItem xs="6" sm="4" md="3">
+                            <MudPaper Outlined Style="border-radius:12px;overflow:hidden;aspect-ratio:1;">
+                                <img src="@p" alt="Photo" style="width:100%;height:100%;object-fit:cover;" />
+                            </MudPaper>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+
+            @if (view.Goat.LatestWeightLbs.HasValue)
+            {
+                <MudPaper Class="pa-3 mt-3" Outlined Style="border-radius:12px;">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Latest weight</MudText>
+                    <MudText Typo="Typo.h6">@view.Goat.LatestWeightLbs.Value.ToString("F1") lbs
+                        <span style="font-weight:400;color:var(--mud-palette-text-secondary);font-size:0.8em;">
+                            · recorded @view.Goat.LatestWeightDate?.ToLocalTime().ToString("MMM d, yyyy")
+                        </span>
+                    </MudText>
+                </MudPaper>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(view.Goat.Bio))
+            {
+                <MudPaper Class="pa-4 mt-3" Outlined Style="border-radius:12px;">
+                    <MudText Typo="Typo.overline" Color="Color.Secondary">About</MudText>
+                    <MudText Typo="Typo.body1" Style="white-space:pre-wrap;">@view.Goat.Bio</MudText>
+                </MudPaper>
+            }
+        }
+        else if (view.ReservationStatus == "Waiting")
+        {
+            <MudAlert Severity="Severity.Info" Class="mt-4" Variant="Variant.Outlined">
+                No specific goat reserved yet. The farm will update this page when a match is offered.
+            </MudAlert>
+        }
+
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-6 d-block" Style="text-align:center;">
+            Questions? Reach out to @view.FarmName directly.
+        </MudText>
+    }
+</div>
+
+@code {
+    [Parameter] public string Token { get; set; } = "";
+
+    private bool loading = true;
+    private BuyerPortalView? view;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            view = await Http.GetFromJsonAsync<BuyerPortalView>($"api/buyer/{Uri.EscapeDataString(Token)}");
+        }
+        catch { view = null; }
+        finally { loading = false; }
+    }
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "Waiting" => Color.Info,
+        "Offered" => Color.Warning,
+        "Fulfilled" => Color.Success,
+        "Cancelled" => Color.Default,
+        _ => Color.Default,
+    };
+
+    private static string AgeString(DateTime dob)
+    {
+        var months = (int)((DateTime.UtcNow - dob).TotalDays / 30.44);
+        if (months < 1) return "less than a month old";
+        if (months < 12) return $"{months} month{(months == 1 ? "" : "s")} old";
+        var years = months / 12;
+        var rem = months % 12;
+        return rem == 0
+            ? $"{years} year{(years == 1 ? "" : "s")} old"
+            : $"{years}y {rem}mo old";
+    }
+
+    public record BuyerPortalView(
+        string FarmName,
+        string CustomerName,
+        string ReservationStatus,
+        DateTime ReservationCreatedAt,
+        DateTime? OfferedAt,
+        DateTime? FulfilledAt,
+        string? BreedPreference,
+        string? SexPreference,
+        string? ColorPreference,
+        int DepositCents,
+        bool DepositPaid,
+        DateTime? DepositReceivedAt,
+        BuyerGoatView? Goat);
+
+    public record BuyerGoatView(
+        int Id,
+        string Name,
+        string? Breed,
+        string Gender,
+        DateTime? DateOfBirth,
+        string? Bio,
+        string? PrimaryPhotoUrl,
+        List<string> PhotoUrls,
+        double? LatestWeightLbs,
+        DateTime? LatestWeightDate);
+}

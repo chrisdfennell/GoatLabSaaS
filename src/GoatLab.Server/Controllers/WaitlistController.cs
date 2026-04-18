@@ -1,4 +1,7 @@
+using System.Security.Cryptography;
 using GoatLab.Server.Data;
+using GoatLab.Server.Services.ApiKeys;
+using GoatLab.Server.Services.Email;
 using GoatLab.Server.Services.Plans;
 using GoatLab.Server.Services.Webhooks;
 using GoatLab.Shared.Models;
@@ -14,9 +17,11 @@ public class WaitlistController : ControllerBase
 {
     private readonly GoatLabDbContext _db;
     private readonly WebhookDispatcher? _webhooks;
-    public WaitlistController(GoatLabDbContext db, WebhookDispatcher? webhooks = null)
+    private readonly IAppEmailSender _email;
+    public WaitlistController(GoatLabDbContext db, IAppEmailSender email, WebhookDispatcher? webhooks = null)
     {
         _db = db;
+        _email = email;
         _webhooks = webhooks;
     }
 
@@ -184,6 +189,83 @@ public class WaitlistController : ControllerBase
         entry.CancelledAt = DateTime.UtcNow;
         entry.CancelReason = req.Reason;
         await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // --- Buyer portal magic-link tokens ---
+
+    public record IssuePortalTokenRequest(int DaysValid = 90, bool SendEmail = true);
+    public record IssuePortalTokenResponse(string Token, string Url, DateTime ExpiresAt, bool EmailSent);
+    public record PortalTokenDto(int Id, string Prefix, DateTime CreatedAt, DateTime ExpiresAt, DateTime? LastUsedAt, DateTime? RevokedAt);
+
+    [HttpPost("{id}/portal-link")]
+    public async Task<ActionResult<IssuePortalTokenResponse>> IssuePortalToken(int id, IssuePortalTokenRequest req)
+    {
+        var entry = await _db.WaitlistEntries
+            .Include(w => w.Customer)
+            .Include(w => w.Tenant)
+            .FirstOrDefaultAsync(w => w.Id == id);
+        if (entry is null) return NotFound();
+        if (entry.Customer is null) return BadRequest(new { error = "Waitlist entry has no customer." });
+
+        // Token: portal_<32 random bytes base64url>. Same hashing story as API
+        // keys — we store SHA-256 only, plaintext is shown/emailed once.
+        var bytes = RandomNumberGenerator.GetBytes(32);
+        var plaintext = "portal_" + Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        var hash = ApiKeyGenerator.HashPlaintext(plaintext);
+        var days = Math.Clamp(req.DaysValid, 1, 365);
+        var expiresAt = DateTime.UtcNow.AddDays(days);
+
+        var token = new BuyerAccessToken
+        {
+            WaitlistEntryId = entry.Id,
+            TokenHash = hash,
+            Prefix = plaintext[..Math.Min(12, plaintext.Length)],
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = expiresAt,
+        };
+        _db.BuyerAccessTokens.Add(token);
+        await _db.SaveChangesAsync();
+
+        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        var url = $"{baseUrl}/buyer/{plaintext}";
+
+        bool emailSent = false;
+        if (req.SendEmail && !string.IsNullOrWhiteSpace(entry.Customer.Email))
+        {
+            var tpl = EmailTemplates.BuyerPortal(
+                entry.Customer.Name,
+                entry.Tenant?.Name ?? "our farm",
+                url,
+                expiresAt);
+            await _email.SendAsync(entry.Customer.Email!, tpl.Subject, tpl.Html, tpl.Text);
+            emailSent = true;
+        }
+
+        return Ok(new IssuePortalTokenResponse(plaintext, url, expiresAt, emailSent));
+    }
+
+    [HttpGet("{id}/portal-links")]
+    public async Task<ActionResult<List<PortalTokenDto>>> GetPortalTokens(int id)
+    {
+        var tokens = await _db.BuyerAccessTokens
+            .Where(t => t.WaitlistEntryId == id)
+            .OrderByDescending(t => t.CreatedAt)
+            .Select(t => new PortalTokenDto(t.Id, t.Prefix, t.CreatedAt, t.ExpiresAt, t.LastUsedAt, t.RevokedAt))
+            .ToListAsync();
+        return tokens;
+    }
+
+    [HttpDelete("portal-links/{tokenId}")]
+    public async Task<IActionResult> RevokePortalToken(int tokenId)
+    {
+        var token = await _db.BuyerAccessTokens.FindAsync(tokenId);
+        if (token is null) return NotFound();
+        if (token.RevokedAt is null)
+        {
+            token.RevokedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
         return NoContent();
     }
 

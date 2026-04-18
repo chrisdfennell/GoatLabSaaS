@@ -106,6 +106,25 @@ public static class EmailTemplates
         );
     }
 
+    public static (string Subject, string Html, string Text) BuyerPortal(string customerName, string farmName, string portalUrl, DateTime expiresAt) =>
+    (
+        Subject: $"Your reservation at {farmName}",
+        Html: $@"<div style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:0 auto;padding:24px;color:#1a2421;"">
+  <h2 style=""color:#2e7d32;margin-bottom:8px;"">Track your reservation</h2>
+  <p>Hi {System.Net.WebUtility.HtmlEncode(customerName)},</p>
+  <p><strong>{System.Net.WebUtility.HtmlEncode(farmName)}</strong> has shared a live view of your reservation with you. Check it anytime — no account or password needed.</p>
+  <p style=""margin:32px 0;"">
+    <a href=""{portalUrl}""
+       style=""display:inline-block;background:#2e7d32;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;"">Open your reservation</a>
+  </p>
+  <p style=""font-size:13px;color:#6b7a70;"">This link works until <strong>{expiresAt:MMMM d, yyyy}</strong>. Keep it private — anyone with the link can see your reservation details.</p>
+  <p style=""font-size:13px;color:#6b7a70;"">If the button doesn't work, paste this link into your browser:<br/>
+    <span style=""word-break:break-all;"">{portalUrl}</span>
+  </p>
+</div>",
+        Text: $"Hi {customerName},\n\n{farmName} has shared a live view of your reservation with you. Open:\n{portalUrl}\n\nThe link works until {expiresAt:MMMM d, yyyy}."
+    );
+
     public static (string Subject, string Html, string Text) PasswordReset(string displayName, string resetUrl) =>
     (
         Subject: $"Reset your {Brand} password",

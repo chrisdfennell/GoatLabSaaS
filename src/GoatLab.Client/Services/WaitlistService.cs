@@ -23,4 +23,17 @@ public class WaitlistService
 
     public Task OfferAsync(int id) => _api.PostAsync($"api/waitlist/{id}/offer", new { }, noReturn: true);
     public Task CancelAsync(int id, string? reason) => _api.PostAsync($"api/waitlist/{id}/cancel", new { reason }, noReturn: true);
+
+    public Task<IssuePortalTokenResponse?> IssuePortalLinkAsync(int id, int daysValid, bool sendEmail) =>
+        _api.PostAsync<object, IssuePortalTokenResponse>($"api/waitlist/{id}/portal-link",
+            new { daysValid, sendEmail });
+
+    public Task<List<PortalTokenDto>?> GetPortalLinksAsync(int id) =>
+        _api.GetAsync<List<PortalTokenDto>>($"api/waitlist/{id}/portal-links");
+
+    public Task RevokePortalLinkAsync(int tokenId) =>
+        _api.DeleteAsync($"api/waitlist/portal-links/{tokenId}");
 }
+
+public record IssuePortalTokenResponse(string Token, string Url, DateTime ExpiresAt, bool EmailSent);
+public record PortalTokenDto(int Id, string Prefix, DateTime CreatedAt, DateTime ExpiresAt, DateTime? LastUsedAt, DateTime? RevokedAt);

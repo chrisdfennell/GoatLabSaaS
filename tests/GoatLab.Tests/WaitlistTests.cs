@@ -1,4 +1,5 @@
 using GoatLab.Server.Controllers;
+using GoatLab.Server.Services.Email;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 
@@ -6,6 +7,12 @@ namespace GoatLab.Tests;
 
 // Exercises WaitlistController directly (no HTTP pipeline). Covers the
 // create → offer → fulfill happy path, plus guards on finalised entries.
+internal sealed class NoopEmailSender : IAppEmailSender
+{
+    public Task SendAsync(string toAddress, string subject, string htmlBody,
+        string? plainTextBody = null, CancellationToken cancellationToken = default) => Task.CompletedTask;
+}
+
 public class WaitlistTests
 {
     private const int TenantId = 1;
@@ -17,7 +24,7 @@ public class WaitlistTests
         db.Context.Tenants.Add(new Tenant { Id = TenantId, Name = "Acme", Slug = "acme", PlanId = 2 });
         db.Context.SaveChanges();
         db.Tenant.TenantId = TenantId;
-        return (db, new WaitlistController(db.Context));
+        return (db, new WaitlistController(db.Context, new NoopEmailSender()));
     }
 
     private static int AddCustomer(TestDb db, string name = "Buyer")
