@@ -72,6 +72,7 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
     // Suppliers & Inventory
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<FeedInventory> FeedInventory => Set<FeedInventory>();
+    public DbSet<FeedConsumption> FeedConsumptions => Set<FeedConsumption>();
 
     // Shows & Appraisals
     public DbSet<ShowRecord> ShowRecords => Set<ShowRecord>();
@@ -197,6 +198,18 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
         // ApiKey: unique hash for bearer lookup. Prefix indexed for UI filtering.
         modelBuilder.Entity<ApiKey>()
             .HasIndex(k => k.KeyHash).IsUnique();
+
+        // FeedConsumption -> FeedInventory: Restrict. Consumption history is
+        // audit-grade; deleting a feed item with logged usage should fail loudly
+        // rather than silently dropping history. Tenant-scoped index for
+        // trailing-average forecasts.
+        modelBuilder.Entity<FeedConsumption>()
+            .HasOne(c => c.FeedInventory)
+            .WithMany()
+            .HasForeignKey(c => c.FeedInventoryId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<FeedConsumption>()
+            .HasIndex(c => new { c.TenantId, c.FeedInventoryId, c.Date });
 
         // Webhook -> WebhookDelivery: cascade is fine, both are tenant-owned and
         // the tenant-filter is already no-cascade, so SQL Server won't see a

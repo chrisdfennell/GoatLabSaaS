@@ -37,3 +37,23 @@ public record CashflowForecastDto(
     IReadOnlyList<CashflowDayDto> Projected);
 
 public record CashflowDayDto(DateTime Date, decimal Income, decimal Expense, decimal CumulativeNet);
+
+// -------- Feed reorder forecast --------
+public record FeedForecastDto(
+    DateTime GeneratedAt,
+    int Horizon,
+    int TrailingWindowDays,
+    IReadOnlyList<FeedForecastItemDto> Items);
+
+public record FeedForecastItemDto(
+    int FeedInventoryId,
+    string FeedName,
+    string? Unit,
+    double QuantityOnHand,
+    double? LowStockThreshold,
+    double TrailingDailyUse,
+    double ProjectedUse,
+    double ProjectedRemaining,
+    int? DaysUntilEmpty,
+    int? DaysUntilLowStock,
+    bool ReorderSoon);

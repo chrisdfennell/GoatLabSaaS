@@ -132,6 +132,87 @@ public class InventoryController : ControllerBase
         return NoContent();
     }
 
+    // --- Feed Consumption ---
+
+    [HttpGet("feed-consumption")]
+    public async Task<ActionResult<List<FeedConsumption>>> GetConsumption(
+        [FromQuery] int? feedId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    {
+        var q = _db.FeedConsumptions
+            .Include(c => c.FeedInventory)
+            .AsQueryable();
+        if (feedId.HasValue) q = q.Where(c => c.FeedInventoryId == feedId.Value);
+        if (from.HasValue) q = q.Where(c => c.Date >= from.Value);
+        if (to.HasValue) q = q.Where(c => c.Date <= to.Value);
+        return await q.OrderByDescending(c => c.Date).ToListAsync();
+    }
+
+    [HttpPost("feed-consumption")]
+    public async Task<ActionResult<FeedConsumption>> LogConsumption(FeedConsumption log)
+    {
+        var feed = await _db.FeedInventory.FindAsync(log.FeedInventoryId);
+        if (feed is null) return NotFound(new { error = "Feed item not found." });
+        if (log.Quantity <= 0) return BadRequest(new { error = "Quantity must be positive." });
+
+        log.CreatedAt = DateTime.UtcNow;
+        _db.FeedConsumptions.Add(log);
+        feed.QuantityOnHand = Math.Max(0, feed.QuantityOnHand - log.Quantity);
+        feed.LastUpdated = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return Ok(log);
+    }
+
+    public record BulkFeedConsumptionDto(DateTime Date, string? Notes, List<BulkFeedConsumptionItem> Items);
+    public record BulkFeedConsumptionItem(int FeedInventoryId, double Quantity);
+
+    [HttpPost("feed-consumption/bulk")]
+    public async Task<ActionResult<object>> LogConsumptionBulk(BulkFeedConsumptionDto bulk)
+    {
+        if (bulk.Items.Count == 0) return BadRequest(new { error = "No items provided." });
+
+        var ids = bulk.Items.Select(i => i.FeedInventoryId).Distinct().ToList();
+        var items = await _db.FeedInventory.Where(f => ids.Contains(f.Id)).ToDictionaryAsync(f => f.Id);
+        var missing = ids.Where(id => !items.ContainsKey(id)).ToList();
+        if (missing.Count > 0) return NotFound(new { error = $"Feed items not found: {string.Join(", ", missing)}" });
+
+        var created = new List<FeedConsumption>();
+        var now = DateTime.UtcNow;
+        foreach (var row in bulk.Items.Where(i => i.Quantity > 0))
+        {
+            var feed = items[row.FeedInventoryId];
+            var log = new FeedConsumption
+            {
+                FeedInventoryId = row.FeedInventoryId,
+                Date = bulk.Date,
+                Quantity = row.Quantity,
+                Notes = bulk.Notes,
+                CreatedAt = now
+            };
+            _db.FeedConsumptions.Add(log);
+            feed.QuantityOnHand = Math.Max(0, feed.QuantityOnHand - row.Quantity);
+            feed.LastUpdated = now;
+            created.Add(log);
+        }
+        await _db.SaveChangesAsync();
+        return Ok(new { logged = created.Count });
+    }
+
+    [HttpDelete("feed-consumption/{id}")]
+    public async Task<IActionResult> DeleteConsumption(int id)
+    {
+        var log = await _db.FeedConsumptions.FindAsync(id);
+        if (log is null) return NotFound();
+        var feed = await _db.FeedInventory.FindAsync(log.FeedInventoryId);
+        if (feed != null)
+        {
+            feed.QuantityOnHand += log.Quantity;
+            feed.LastUpdated = DateTime.UtcNow;
+        }
+        _db.FeedConsumptions.Remove(log);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // --- Medicine Cabinet ---
 
     [HttpGet("medicine")]

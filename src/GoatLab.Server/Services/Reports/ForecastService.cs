@@ -79,6 +79,59 @@ public class ForecastService
         return new MilkForecastDto(today, days, avg, avg * days, historical, projected);
     }
 
+    // ---------- Feed reorder forecast ----------
+
+    // Approach: for each feed item, average daily consumption over the trailing
+    // window, project that flat forward, compare against current on-hand. Flags
+    // items whose projected remaining hits the low-stock threshold (or zero) in
+    // the horizon. Items with zero recent consumption are returned but not
+    // flagged — we don't guess reorder dates without signal.
+    public async Task<FeedForecastDto> GetFeedForecastAsync(int days = 60, CancellationToken ct = default)
+    {
+        var today = Today();
+        const int trailingDays = 30;
+        var windowStart = today.AddDays(-trailingDays);
+
+        var feeds = await _db.FeedInventory
+            .AsNoTracking()
+            .OrderBy(f => f.FeedName)
+            .ToListAsync(ct);
+
+        var usage = await _db.FeedConsumptions
+            .AsNoTracking()
+            .Where(c => c.Date >= windowStart && c.Date < today.AddDays(1))
+            .GroupBy(c => c.FeedInventoryId)
+            .Select(g => new { FeedId = g.Key, Total = g.Sum(x => x.Quantity) })
+            .ToListAsync(ct);
+        var usageByFeed = usage.ToDictionary(u => u.FeedId, u => u.Total);
+
+        var items = feeds.Select(f =>
+        {
+            var total = usageByFeed.GetValueOrDefault(f.Id, 0.0);
+            var daily = total / trailingDays;
+            var projectedUse = daily * days;
+            var remaining = f.QuantityOnHand - projectedUse;
+            int? daysUntilEmpty = daily > 0 && f.QuantityOnHand > 0
+                ? (int)Math.Floor(f.QuantityOnHand / daily)
+                : (int?)null;
+            int? daysUntilLow = daily > 0 && f.LowStockThreshold is double low && f.QuantityOnHand > low
+                ? (int)Math.Floor((f.QuantityOnHand - low) / daily)
+                : (int?)null;
+            bool reorderSoon = daily > 0 &&
+                (f.QuantityOnHand <= (f.LowStockThreshold ?? 0)
+                 || (daysUntilLow.HasValue && daysUntilLow.Value <= days)
+                 || (daysUntilEmpty.HasValue && daysUntilEmpty.Value <= days));
+
+            return new FeedForecastItemDto(
+                f.Id, f.FeedName, f.Unit,
+                f.QuantityOnHand, f.LowStockThreshold,
+                Math.Round(daily, 2), Math.Round(projectedUse, 1), Math.Round(remaining, 1),
+                daysUntilEmpty, daysUntilLow, reorderSoon);
+        }).ToList();
+
+        return new FeedForecastDto(today, days, trailingDays, items);
+    }
+
     // ---------- Cash-flow forecast ----------
 
     public async Task<CashflowForecastDto> GetCashflowForecastAsync(int days = 90, CancellationToken ct = default)

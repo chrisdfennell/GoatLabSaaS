@@ -18,6 +18,22 @@ public class InventoryService
     public Task UpdateFeedAsync(FeedInventory f) => _api.PutAsync($"api/inventory/feed/{f.Id}", f);
     public Task DeleteFeedAsync(int id) => _api.DeleteAsync($"api/inventory/feed/{id}");
 
+    // Feed consumption log
+    public Task<List<FeedConsumption>?> GetConsumptionAsync(int? feedId = null, DateTime? from = null, DateTime? to = null)
+    {
+        var qs = new List<string>();
+        if (feedId.HasValue) qs.Add($"feedId={feedId}");
+        if (from.HasValue) qs.Add($"from={from.Value:yyyy-MM-dd}");
+        if (to.HasValue) qs.Add($"to={to.Value:yyyy-MM-dd}");
+        var url = "api/inventory/feed-consumption" + (qs.Count > 0 ? "?" + string.Join("&", qs) : "");
+        return _api.GetAsync<List<FeedConsumption>>(url);
+    }
+    public Task<FeedConsumption?> LogConsumptionAsync(FeedConsumption c) =>
+        _api.PostAsync("api/inventory/feed-consumption", c);
+    public Task<BulkConsumptionResult?> LogConsumptionBulkAsync(BulkConsumptionBody body) =>
+        _api.PostAsync<BulkConsumptionBody, BulkConsumptionResult>("api/inventory/feed-consumption/bulk", body);
+    public Task DeleteConsumptionAsync(int id) => _api.DeleteAsync($"api/inventory/feed-consumption/{id}");
+
     // Medicine cabinet
     public Task<List<MedicineCabinetItem>?> GetMedicineAsync() =>
         _api.GetAsync<List<MedicineCabinetItem>>("api/inventory/medicine");
@@ -43,3 +59,7 @@ public class ExpiringItem
     public DateTime? ExpirationDate { get; set; }
     public bool Expired { get; set; }
 }
+
+public record BulkConsumptionBody(DateTime Date, string? Notes, List<BulkConsumptionItem> Items);
+public record BulkConsumptionItem(int FeedInventoryId, double Quantity);
+public record BulkConsumptionResult(int Logged);

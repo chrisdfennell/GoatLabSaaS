@@ -2,6 +2,7 @@
 @inject InventoryService InvSvc
 @inject HealthService HealthSvc
 @inject ISnackbar Snackbar
+@inject IDialogService Dialog
 
 <PageTitle>Inventory — GoatLab</PageTitle>
 
@@ -41,10 +42,16 @@
                         <MudText Typo="Typo.body2" Class="section-hint">Current stock levels with low-stock alerts.</MudText>
                     </div>
                 </div>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-                           OnClick="() => showFeedForm = !showFeedForm">
-                    @(showFeedForm ? "Close" : "Add Feed")
-                </MudButton>
+                <div class="d-flex gap-2">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.RemoveShoppingCart"
+                               OnClick="OpenLogUseDialog" Disabled="@(feed == null || feed.Count == 0)">
+                        Log Use
+                    </MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
+                               OnClick="() => showFeedForm = !showFeedForm">
+                        @(showFeedForm ? "Close" : "Add Feed")
+                    </MudButton>
+                </div>
             </div>
 
             @if (showFeedForm)
@@ -422,6 +429,16 @@
     {
         await InvSvc.DeleteFeedAsync(id);
         await Task.WhenAll(LoadFeed(), LoadExpiring());
+    }
+
+    private async Task OpenLogUseDialog()
+    {
+        if (feed is null || feed.Count == 0) return;
+        var parameters = new DialogParameters { ["Feed"] = feed };
+        var dialog = await Dialog.ShowAsync<LogFeedUseDialog>("Log feed use", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true });
+        var result = await dialog.Result;
+        if (result?.Canceled == false) await LoadFeed();
     }
 
     private string GetSupplierIcon(SupplierType t) => t switch

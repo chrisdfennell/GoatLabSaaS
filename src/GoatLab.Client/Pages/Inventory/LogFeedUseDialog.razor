@@ -1,0 +1,100 @@
+@using GoatLab.Shared.Models
+@inject InventoryService InvSvc
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6"><MudIcon Icon="@Icons.Material.Filled.RemoveShoppingCart" Class="mr-2" />Log Feed Use</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mb-3">
+            Enter the amount used today for each feed. Only non-zero rows are saved. Stock on hand is decremented automatically.
+        </MudText>
+        <MudGrid>
+            <MudItem xs="6">
+                <MudDatePicker @bind-Date="date" Label="Date" Variant="Variant.Outlined" Editable />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="notes" Label="Notes (optional)" Variant="Variant.Outlined" Placeholder="AM feed, trailer, etc." />
+            </MudItem>
+        </MudGrid>
+
+        <MudDivider Class="my-3" />
+
+        @if (Feed.Count == 0)
+        {
+            <MudText Typo="Typo.body2">No feed items to log. Add a feed item first.</MudText>
+        }
+        else
+        {
+            <MudSimpleTable Dense Hover>
+                <thead>
+                    <tr>
+                        <th>Feed</th>
+                        <th style="text-align:right;">On hand</th>
+                        <th style="width:180px;">Used</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var f in Feed)
+                    {
+                        <tr>
+                            <td>@f.FeedName</td>
+                            <td style="text-align:right;">@f.QuantityOnHand @f.Unit</td>
+                            <td>
+                                <MudNumericField T="double" @bind-Value="quantities[f.Id]" Variant="Variant.Outlined"
+                                                 Min="0" Step="0.1" Margin="Margin.Dense"
+                                                 Adornment="Adornment.End" AdornmentText="@(f.Unit ?? string.Empty)" />
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Save" OnClick="Save" Disabled="saving">
+            Save
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public List<FeedInventory> Feed { get; set; } = new();
+
+    private DateTime? date = DateTime.Today;
+    private string? notes;
+    private Dictionary<int, double> quantities = new();
+    private bool saving;
+
+    protected override void OnInitialized()
+    {
+        foreach (var f in Feed) quantities[f.Id] = 0;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private async Task Save()
+    {
+        var items = quantities
+            .Where(kv => kv.Value > 0)
+            .Select(kv => new BulkConsumptionItem(kv.Key, kv.Value))
+            .ToList();
+        if (items.Count == 0)
+        {
+            Snackbar.Add("Enter at least one non-zero amount.", Severity.Warning);
+            return;
+        }
+        saving = true;
+        try
+        {
+            var result = await InvSvc.LogConsumptionBulkAsync(new BulkConsumptionBody(date ?? DateTime.Today, notes, items));
+            if (result != null) Snackbar.Add($"Logged {result.Logged} row(s)", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        finally { saving = false; }
+    }
+}

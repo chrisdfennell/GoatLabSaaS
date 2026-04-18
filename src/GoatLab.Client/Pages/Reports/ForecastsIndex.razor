@@ -84,6 +84,58 @@ else
             }
         </MudTabPanel>
 
+        <MudTabPanel Text="Feed" Icon="@Icons.Material.Filled.Grain">
+            @if (_feed == null) { <MudProgressCircular Indeterminate /> }
+            else if (_feed.Items.Count == 0)
+            {
+                <MudText Typo="Typo.body2">Add feed inventory to see reorder projections.</MudText>
+            }
+            else
+            {
+                <div class="report-tiles">
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Tracked feeds</MudText><MudText Typo="Typo.h5">@_feed.Items.Count</MudText></div>
+                    <div class="report-tile r-bad"><MudText Typo="Typo.overline">Reorder soon</MudText><MudText Typo="Typo.h5">@_feed.Items.Count(i => i.ReorderSoon)</MudText></div>
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Usage window</MudText><MudText Typo="Typo.h5">@_feed.TrailingWindowDays d</MudText></div>
+                </div>
+
+                <MudPaper Class="polished-section" Elevation="0">
+                    <MudText Typo="Typo.h6">Reorder watch · next @_feed.Horizon days</MudText>
+                    <MudText Typo="Typo.body2" Class="section-hint mb-2">Daily use averaged over the last @_feed.TrailingWindowDays days; items with zero recent consumption aren't flagged.</MudText>
+                    <MudSimpleTable Dense Hover>
+                        <thead>
+                            <tr>
+                                <th>Feed</th>
+                                <th style="text-align:right;">On hand</th>
+                                <th style="text-align:right;">Daily use</th>
+                                <th style="text-align:right;">Projected left</th>
+                                <th style="text-align:right;">Runs out</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var it in _feed.Items.OrderBy(i => i.ReorderSoon ? 0 : 1).ThenBy(i => i.DaysUntilEmpty ?? int.MaxValue))
+                            {
+                                <tr>
+                                    <td>@it.FeedName</td>
+                                    <td style="text-align:right;">@it.QuantityOnHand.ToString("N1") @it.Unit</td>
+                                    <td style="text-align:right;">@(it.TrailingDailyUse > 0 ? $"{it.TrailingDailyUse:N2} {it.Unit}" : "—")</td>
+                                    <td style="text-align:right;color:@(it.ProjectedRemaining <= 0 ? "#c62828" : "inherit");">@it.ProjectedRemaining.ToString("N1")</td>
+                                    <td style="text-align:right;">@(it.DaysUntilEmpty.HasValue ? $"{it.DaysUntilEmpty}d" : "—")</td>
+                                    <td>
+                                        @if (it.ReorderSoon)
+                                        {
+                                            <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled"
+                                                     Icon="@Icons.Material.Filled.Warning">Reorder soon</MudChip>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudPaper>
+            }
+        </MudTabPanel>
+
         <MudTabPanel Text="Cash flow" Icon="@Icons.Material.Filled.AccountBalance">
             @if (_cash == null) { <MudProgressCircular Indeterminate /> }
             else
@@ -126,6 +178,7 @@ else
     private KiddingForecastDto? _kidding;
     private MilkForecastDto? _milk;
     private CashflowForecastDto? _cash;
+    private FeedForecastDto? _feed;
 
     private List<ChartSeries> _milkSeries = new();
     private string[] _milkLabels = Array.Empty<string>();
@@ -145,8 +198,11 @@ else
     {
         await LoadKidding();
         await LoadMilk();
+        await LoadFeed();
         await LoadCash();
     }
+
+    private async Task LoadFeed() => _feed = await ForecastSvc.GetFeedAsync();
 
     private async Task LoadKidding() => _kidding = await ForecastSvc.GetKiddingAsync();
 

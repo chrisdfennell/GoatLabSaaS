@@ -15,4 +15,7 @@ public class ForecastService
 
     public Task<CashflowForecastDto?> GetCashflowAsync(int days = 90)
         => _api.GetAsync<CashflowForecastDto>($"api/forecasts/cashflow?days={days}");
+
+    public Task<FeedForecastDto?> GetFeedAsync(int days = 60)
+        => _api.GetAsync<FeedForecastDto>($"api/forecasts/feed?days={days}");
 }
