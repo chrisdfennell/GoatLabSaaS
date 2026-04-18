@@ -148,7 +148,9 @@ public class AdminController : ControllerBase
     public async Task<ActionResult<AdminTenantDetail>> GetTenantDetail(int id)
     {
         _tenantContext.BypassFilter = true;
-        var tenant = await _db.Tenants.AsNoTracking().FirstOrDefaultAsync(t => t.Id == id);
+        var tenant = await _db.Tenants.AsNoTracking()
+            .Include(t => t.Plan)
+            .FirstOrDefaultAsync(t => t.Id == id);
         if (tenant is null) return NotFound();
 
         var goatCount = await _db.Goats.CountAsync(g => g.TenantId == id);
@@ -174,7 +176,10 @@ public class AdminController : ControllerBase
             tenant.CreatedAt, tenant.UpdatedAt,
             goatCount, milkCount, medCount, lastActivity, members,
             tenant.SuspendedAt, tenant.SuspensionReason,
-            tenant.DeletedAt, tenant.Notes, tenant.Tag, flags);
+            tenant.DeletedAt, tenant.Notes, tenant.Tag, flags,
+            tenant.PlanId, tenant.Plan?.Name ?? "(unknown)", tenant.Plan?.Slug ?? "",
+            tenant.SubscriptionStatus, tenant.TrialEndsAt, tenant.CurrentPeriodEnd,
+            tenant.StripeCustomerId, tenant.StripeSubscriptionId);
     }
 
     [HttpPut("tenants/{id}")]
@@ -291,6 +296,58 @@ public class AdminController : ControllerBase
         await _db.SaveChangesAsync();
 
         await _audit.LogAsync("tenant.tag", "Tenant", id.ToString(), $"{old ?? "—"} → {newTag ?? "—"}");
+        return NoContent();
+    }
+
+    // Super-admin manual plan assignment. Use for comps / friends & family /
+    // migration. Does NOT talk to Stripe — callers that want the customer's
+    // subscription cancelled first must do that separately via the Stripe
+    // dashboard. Any non-null SubscriptionStatus is recorded verbatim so you
+    // can flag rows with "comp", "manual", etc.
+    [HttpPut("tenants/{id}/plan")]
+    public async Task<IActionResult> SetTenantPlan(int id, AdminTenantPlanRequest req)
+    {
+        _tenantContext.BypassFilter = true;
+        var tenant = await _db.Tenants.Include(t => t.Plan).FirstOrDefaultAsync(t => t.Id == id);
+        if (tenant is null) return NotFound();
+
+        var plan = await _db.Plans.FirstOrDefaultAsync(p => p.Id == req.PlanId);
+        if (plan is null) return BadRequest(new { error = "Plan not found." });
+
+        var oldPlanName = tenant.Plan?.Name ?? "(none)";
+        tenant.PlanId = plan.Id;
+
+        // SubscriptionStatus is a free-form string the UI surfaces in the trial
+        // banner. "comp" / "manual" are conventional markers; null means "no
+        // active billing tracked".
+        tenant.SubscriptionStatus = string.IsNullOrWhiteSpace(req.SubscriptionStatus)
+            ? null
+            : req.SubscriptionStatus.Trim();
+
+        if (req.ClearTrial)
+        {
+            tenant.TrialEndsAt = null;
+            tenant.CurrentPeriodEnd = null;
+            // Reset the trial-reminder stamp so a future legitimate trial fires
+            // a fresh reminder.
+            tenant.TrialReminderSentAt = null;
+        }
+
+        if (req.ClearStripeLink)
+        {
+            tenant.StripeCustomerId = null;
+            tenant.StripeSubscriptionId = null;
+        }
+
+        tenant.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        await _audit.LogAsync("tenant.set_plan", "Tenant", id.ToString(),
+            $"{oldPlanName} → {plan.Name}"
+            + (tenant.SubscriptionStatus is null ? "" : $"; status={tenant.SubscriptionStatus}")
+            + (req.ClearTrial ? "; cleared trial" : "")
+            + (req.ClearStripeLink ? "; unlinked Stripe" : ""));
+
         return NoContent();
     }
 

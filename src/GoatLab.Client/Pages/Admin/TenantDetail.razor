@@ -101,6 +101,71 @@ else
     <MudGrid Spacing="3">
         <MudItem xs="12" md="7">
             <MudPaper Class="pa-4 section-card mb-3" Outlined Elevation="0">
+                <div class="d-flex align-center justify-space-between mb-2">
+                    <MudText Typo="Typo.h6" Style="font-weight:600;">Plan &amp; billing</MudText>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.SwapHoriz" OnClick="OpenChangePlanAsync">
+                        Change plan
+                    </MudButton>
+                </div>
+                <MudSimpleTable Dense Hover>
+                    <tbody>
+                        <tr>
+                            <td style="color:var(--mud-palette-text-secondary);width:40%;">Plan</td>
+                            <td><strong>@detail.PlanName</strong> <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@detail.PlanSlug</MudChip></td>
+                        </tr>
+                        <tr>
+                            <td style="color:var(--mud-palette-text-secondary);">Subscription status</td>
+                            <td>
+                                @if (string.IsNullOrWhiteSpace(detail.SubscriptionStatus))
+                                {
+                                    <span style="opacity:0.6;">(none)</span>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="@StatusColor(detail.SubscriptionStatus)">@detail.SubscriptionStatus</MudChip>
+                                }
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="color:var(--mud-palette-text-secondary);">Trial ends</td>
+                            <td>@(detail.TrialEndsAt?.ToLocalTime().ToString("MMM d, yyyy") ?? "—")</td>
+                        </tr>
+                        <tr>
+                            <td style="color:var(--mud-palette-text-secondary);">Current period end</td>
+                            <td>@(detail.CurrentPeriodEnd?.ToLocalTime().ToString("MMM d, yyyy") ?? "—")</td>
+                        </tr>
+                        <tr>
+                            <td style="color:var(--mud-palette-text-secondary);">Stripe customer</td>
+                            <td>
+                                @if (string.IsNullOrWhiteSpace(detail.StripeCustomerId))
+                                {
+                                    <span style="opacity:0.6;">(not linked)</span>
+                                }
+                                else
+                                {
+                                    <code style="font-size:0.85em;">@detail.StripeCustomerId</code>
+                                }
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="color:var(--mud-palette-text-secondary);">Stripe subscription</td>
+                            <td>
+                                @if (string.IsNullOrWhiteSpace(detail.StripeSubscriptionId))
+                                {
+                                    <span style="opacity:0.6;">(none)</span>
+                                }
+                                else
+                                {
+                                    <code style="font-size:0.85em;">@detail.StripeSubscriptionId</code>
+                                }
+                            </td>
+                        </tr>
+                    </tbody>
+                </MudSimpleTable>
+            </MudPaper>
+
+            <MudPaper Class="pa-4 section-card mb-3" Outlined Elevation="0">
                 <MudText Typo="Typo.h6" Class="mb-2" Style="font-weight:600;">Members</MudText>
                 <MudTable Items="@detail.Members" Dense Hover Elevation="0">
                     <HeaderContent>
@@ -290,6 +355,41 @@ else
         }
         catch (Exception ex) { Snackbar.Add($"Save failed: {ex.Message}", Severity.Error); }
     }
+
+    private async Task OpenChangePlanAsync()
+    {
+        if (detail is null) return;
+        var parameters = new DialogParameters
+        {
+            ["TenantName"] = detail.Name,
+            ["CurrentPlanId"] = detail.PlanId,
+            ["CurrentSubscriptionStatus"] = detail.SubscriptionStatus,
+            ["HasStripeLink"] = !string.IsNullOrWhiteSpace(detail.StripeSubscriptionId),
+        };
+        var dlg = await Dialog.ShowAsync<ChangePlanDialog>("Change plan", parameters);
+        var r = await dlg.Result;
+        if (r?.Canceled != false || r.Data is not ChangePlanDialog.Result result) return;
+
+        try
+        {
+            await Admin.SetTenantPlanAsync(Id, result.PlanId, result.SubscriptionStatus,
+                result.ClearTrial, result.ClearStripeLink);
+            Snackbar.Add("Plan updated.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Plan change failed: {ex.Message}", Severity.Error); }
+    }
+
+    // Match the trial-banner severity cues for a few common status strings.
+    private static Color StatusColor(string? status) => status?.ToLowerInvariant() switch
+    {
+        "active" => Color.Success,
+        "trialing" => Color.Info,
+        "comp" or "manual" => Color.Secondary,
+        "past_due" or "unpaid" => Color.Error,
+        "canceled" or "cancelled" or "incomplete_expired" => Color.Default,
+        _ => Color.Default,
+    };
 
     private async Task ToggleFlagAsync(string key, bool on)
     {

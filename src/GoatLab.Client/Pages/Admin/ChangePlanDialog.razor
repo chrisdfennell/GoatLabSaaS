@@ -1,0 +1,102 @@
+@* Super-admin tool to move a tenant between plans. Used for comps, friends-&-family,
+   and manual Stripe migrations. Does NOT talk to Stripe — cancel that separately. *@
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Change plan — @TenantName</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_plans is null)
+        {
+            <MudProgressCircular Indeterminate />
+        }
+        else
+        {
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudSelect T="int" @bind-Value="_planId" Label="Plan" Variant="Variant.Outlined" Required>
+                        @foreach (var p in _plans)
+                        {
+                            <MudSelectItem Value="@p.Id">
+                                @p.Name
+                                @if (!p.IsPublic) { <span style="opacity:0.6;"> (hidden)</span> }
+                                @if (p.PriceMonthlyCents == 0) { <span style="opacity:0.6;"> — free</span> }
+                                else { <span style="opacity:0.6;"> — $@((p.PriceMonthlyCents / 100m).ToString("N2"))/mo</span> }
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                        Tip: for friends-&-family comps, create a "Comp" plan in /admin/plans (price $0, IsPublic off) and pick it here.
+                    </MudText>
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_subscriptionStatus" Label="Subscription status (free text)"
+                                  Variant="Variant.Outlined"
+                                  HelperText="Shown in admin. Conventional values: 'comp', 'manual', 'active', 'past_due'. Blank = clear." />
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_clearTrial" Color="Color.Primary"
+                               Label="Clear trial & current-period fields" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block">
+                        Stops the trial-ending banner and lets a future real trial start fresh.
+                    </MudText>
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudSwitch T="bool" @bind-Value="_clearStripeLink" Color="Color.Warning"
+                               Label="Unlink from Stripe (customer & subscription IDs)" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block">
+                        Only enable if this tenant will no longer be billed through Stripe. Cancel the Stripe subscription separately first.
+                    </MudText>
+                </MudItem>
+
+                @if (HasStripeLink)
+                {
+                    <MudItem xs="12">
+                        <MudAlert Severity="Severity.Info" Dense>
+                            This tenant has an active Stripe link. Changing the plan here won't update Stripe.
+                        </MudAlert>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save"
+                   Disabled="@(_plans is null || _planId == 0)">
+            Change plan
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string TenantName { get; set; } = "";
+    [Parameter] public int CurrentPlanId { get; set; }
+    [Parameter] public string? CurrentSubscriptionStatus { get; set; }
+    [Parameter] public bool HasStripeLink { get; set; }
+    [Inject] AdminPlansService Plans { get; set; } = null!;
+
+    private List<AdminPlansService.AdminPlan>? _plans;
+    private int _planId;
+    private string? _subscriptionStatus;
+    private bool _clearTrial;
+    private bool _clearStripeLink;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _plans = await Plans.GetAllAsync();
+        _planId = CurrentPlanId;
+        _subscriptionStatus = CurrentSubscriptionStatus;
+    }
+
+    public record Result(int PlanId, string? SubscriptionStatus, bool ClearTrial, bool ClearStripeLink);
+
+    private void Save() =>
+        MudDialog.Close(DialogResult.Ok(new Result(_planId, _subscriptionStatus, _clearTrial, _clearStripeLink)));
+
+    private void Cancel() => MudDialog.Cancel();
+}

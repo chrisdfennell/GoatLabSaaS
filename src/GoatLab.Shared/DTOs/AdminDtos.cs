@@ -57,7 +57,15 @@ public record AdminTenantDetail(
     DateTime? DeletedAt,
     string? Notes,
     string? Tag,
-    IReadOnlyDictionary<string, bool> FeatureFlags
+    IReadOnlyDictionary<string, bool> FeatureFlags,
+    int PlanId,
+    string PlanName,
+    string PlanSlug,
+    string? SubscriptionStatus,
+    DateTime? TrialEndsAt,
+    DateTime? CurrentPeriodEnd,
+    string? StripeCustomerId,
+    string? StripeSubscriptionId
 );
 
 public record AdminUserMembershipRow(
@@ -88,6 +96,11 @@ public record AdminSuspendTenantRequest(string? Reason);
 public record AdminTenantNotesRequest(string? Notes);
 public record AdminTenantTagRequest(string? Tag);
 public record AdminTenantFlagsRequest(IReadOnlyDictionary<string, bool> Flags);
+public record AdminTenantPlanRequest(
+    int PlanId,
+    string? SubscriptionStatus,
+    bool ClearTrial,
+    bool ClearStripeLink);
 public record AdminLockUserRequest(int? DurationHours);
 public record AdminMaintenanceStatus(bool Enabled, DateTime? EnabledAt);
 public record AdminMaintenanceRequest(bool Enabled);

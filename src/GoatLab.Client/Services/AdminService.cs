@@ -52,6 +52,10 @@ public class AdminService
     public Task SetTenantFlagsAsync(int id, IReadOnlyDictionary<string, bool> flags) =>
         EnsurePutAsync($"api/admin/tenants/{id}/flags", new AdminTenantFlagsRequest(flags));
 
+    public Task SetTenantPlanAsync(int id, int planId, string? subscriptionStatus, bool clearTrial, bool clearStripeLink) =>
+        EnsurePutAsync($"api/admin/tenants/{id}/plan",
+            new AdminTenantPlanRequest(planId, subscriptionStatus, clearTrial, clearStripeLink));
+
     // Users
     public Task<List<AdminUserRow>?> GetUsersAsync() =>
         _http.GetFromJsonAsync<List<AdminUserRow>>("api/admin/users");
