@@ -17,7 +17,8 @@ public class MilkService
         return _api.GetAsync<List<MilkLog>>(url);
     }
 
-    public Task<MilkLog?> CreateAsync(MilkLog log) => _api.PostAsync("api/milk", log);
+    public Task<MilkLog?> CreateAsync(MilkLog log, bool overrideWithdrawal = false) =>
+        _api.PostAsync(overrideWithdrawal ? "api/milk?overrideWithdrawal=true" : "api/milk", log);
     public Task UpdateAsync(MilkLog log) => _api.PutAsync($"api/milk/{log.Id}", log);
     public Task DeleteAsync(int id) => _api.DeleteAsync($"api/milk/{id}");
     public Task<List<MilkTrend>?> GetTrendsAsync(int? goatId = null, int days = 30) =>

@@ -51,16 +51,18 @@ public class HealthController : ControllerBase
     {
         record.CreatedAt = DateTime.UtcNow;
 
-        // Auto-calculate next due date from recurrence
         if (record.Recurrence != RecurrenceInterval.None)
             record.NextDueDate = CalculateNextDue(record.Date, record.Recurrence);
+
+        await ApplyWithdrawalEndsAtAsync(record);
 
         _db.MedicalRecords.Add(record);
         await _db.SaveChangesAsync();
         await _webhooks.DispatchAsync(WebhookEventTypes.MedicalRecorded, new
         {
             record.Id, record.GoatId, record.RecordType, record.Title,
-            record.Date, record.NextDueDate, record.Dosage, record.AdministeredBy
+            record.Date, record.NextDueDate, record.Dosage, record.AdministeredBy,
+            record.MilkWithdrawalEndsAt, record.MeatWithdrawalEndsAt
         });
         return CreatedAtAction(nameof(GetRecord), new { id = record.Id }, record);
     }
@@ -84,9 +86,68 @@ public class HealthController : ControllerBase
             ? CalculateNextDue(record.Date, record.Recurrence)
             : null;
         existing.Notes = record.Notes;
+        await ApplyWithdrawalEndsAtAsync(existing);
 
         await _db.SaveChangesAsync();
         return NoContent();
+    }
+
+    private async Task ApplyWithdrawalEndsAtAsync(MedicalRecord record)
+    {
+        if (record.MedicationId is null)
+        {
+            record.MilkWithdrawalEndsAt = null;
+            record.MeatWithdrawalEndsAt = null;
+            return;
+        }
+        var med = await _db.Medications.FindAsync(record.MedicationId.Value);
+        record.MilkWithdrawalEndsAt = med?.MilkWithdrawalDays is int md && md > 0
+            ? record.Date.AddDays(md) : null;
+        record.MeatWithdrawalEndsAt = med?.MeatWithdrawalDays is int xd && xd > 0
+            ? record.Date.AddDays(xd) : null;
+    }
+
+    /// <summary>
+    /// Active milk/meat withdrawal windows for a goat. Returns the latest
+    /// unexpired end-date per type plus the source record, or nulls if clear.
+    /// </summary>
+    [HttpGet("withdrawal/{goatId}")]
+    public async Task<ActionResult<object>> GetWithdrawal(int goatId)
+    {
+        var now = DateTime.UtcNow;
+        var active = await _db.MedicalRecords
+            .Where(r => r.GoatId == goatId
+                        && (r.MilkWithdrawalEndsAt > now || r.MeatWithdrawalEndsAt > now))
+            .Include(r => r.Medication)
+            .ToListAsync();
+
+        var milk = active
+            .Where(r => r.MilkWithdrawalEndsAt > now)
+            .OrderByDescending(r => r.MilkWithdrawalEndsAt)
+            .FirstOrDefault();
+        var meat = active
+            .Where(r => r.MeatWithdrawalEndsAt > now)
+            .OrderByDescending(r => r.MeatWithdrawalEndsAt)
+            .FirstOrDefault();
+
+        return Ok(new
+        {
+            goatId,
+            milk = milk is null ? null : new
+            {
+                endsAt = milk.MilkWithdrawalEndsAt,
+                recordId = milk.Id,
+                medication = milk.Medication?.Name,
+                administered = milk.Date
+            },
+            meat = meat is null ? null : new
+            {
+                endsAt = meat.MeatWithdrawalEndsAt,
+                recordId = meat.Id,
+                medication = meat.Medication?.Name,
+                administered = meat.Date
+            }
+        });
     }
 
     [HttpDelete("records/{id}")]

@@ -75,6 +75,28 @@
                                 @foreach (var r in Enum.GetValues<RecurrenceInterval>()) { <MudSelectItem Value="r">@r</MudSelectItem> }
                             </MudSelect>
                         </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudSelect T="int?" @bind-Value="newRecord.MedicationId" Label="Medication (optional)" Variant="Variant.Outlined"
+                                       AnchorOrigin="Origin.BottomCenter" Clearable>
+                                <MudSelectItem T="int?" Value="null">(none)</MudSelectItem>
+                                @if (medications != null)
+                                {
+                                    @foreach (var m in medications)
+                                    {
+                                        var label = m.Name +
+                                            (m.MilkWithdrawalDays.HasValue ? $" · milk {m.MilkWithdrawalDays}d" : "") +
+                                            (m.MeatWithdrawalDays.HasValue ? $" · meat {m.MeatWithdrawalDays}d" : "");
+                                        <MudSelectItem T="int?" Value="@((int?)m.Id)">@label</MudSelectItem>
+                                    }
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudTextField @bind-Value="newRecord.Dosage" Label="Dosage" Variant="Variant.Outlined" Placeholder="e.g. 5 mL SubQ" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6" md="4">
+                            <MudTextField @bind-Value="newRecord.AdministeredBy" Label="Administered by" Variant="Variant.Outlined" />
+                        </MudItem>
 
                         <MudItem xs="12">
                             <MudText Class="field-label">Type</MudText>

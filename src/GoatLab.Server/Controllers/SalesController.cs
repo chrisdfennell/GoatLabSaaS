@@ -1,4 +1,5 @@
 using GoatLab.Server.Data;
+using GoatLab.Server.Services.Health;
 using GoatLab.Server.Services.Plans;
 using GoatLab.Server.Services.Webhooks;
 using GoatLab.Shared.Models;
@@ -14,10 +15,12 @@ public class SalesController : ControllerBase
 {
     private readonly GoatLabDbContext _db;
     private readonly WebhookDispatcher _webhooks;
-    public SalesController(GoatLabDbContext db, WebhookDispatcher webhooks)
+    private readonly WithdrawalService _withdrawal;
+    public SalesController(GoatLabDbContext db, WebhookDispatcher webhooks, WithdrawalService withdrawal)
     {
         _db = db;
         _webhooks = webhooks;
+        _withdrawal = withdrawal;
     }
 
     private static object SaleSummary(Sale s) => new
@@ -59,8 +62,22 @@ public class SalesController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<Sale>> Create(Sale sale)
+    public async Task<ActionResult<Sale>> Create(Sale sale, [FromQuery] bool overrideWithdrawal = false)
     {
+        if (!overrideWithdrawal && sale.GoatId.HasValue &&
+            sale.SaleType is SaleType.Milk or SaleType.Meat)
+        {
+            var kind = sale.SaleType == SaleType.Milk ? WithdrawalKind.Milk : WithdrawalKind.Meat;
+            var active = await _withdrawal.GetActiveAsync(sale.GoatId.Value, kind);
+            if (active is not null)
+            {
+                return Conflict(new
+                {
+                    error = $"Goat is in {sale.SaleType.ToString().ToLower()} withdrawal until {active.EndsAt:yyyy-MM-dd} ({active.MedicationName ?? "medication"}).",
+                    withdrawal = new { type = sale.SaleType.ToString().ToLower(), endsAt = active.EndsAt, medication = active.MedicationName, administered = active.Administered }
+                });
+            }
+        }
         sale.CreatedAt = DateTime.UtcNow;
         _db.Sales.Add(sale);
         await _db.SaveChangesAsync();

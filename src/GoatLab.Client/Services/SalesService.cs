@@ -13,7 +13,8 @@ public class SalesService
         return _api.GetAsync<List<Sale>>(url);
     }
     public Task<Sale?> GetAsync(int id) => _api.GetAsync<Sale>($"api/sales/{id}");
-    public Task<Sale?> CreateAsync(Sale s) => _api.PostAsync("api/sales", s);
+    public Task<Sale?> CreateAsync(Sale s, bool overrideWithdrawal = false) =>
+        _api.PostAsync(overrideWithdrawal ? "api/sales?overrideWithdrawal=true" : "api/sales", s);
     public Task UpdateAsync(Sale s) => _api.PutAsync($"api/sales/{s.Id}", s);
     public Task DeleteAsync(int id) => _api.DeleteAsync($"api/sales/{id}");
 

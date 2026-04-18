@@ -46,6 +46,25 @@ public class HealthService
 
     // Dashboard
     public Task<HealthDashboardData?> GetDashboardAsync() => _api.GetAsync<HealthDashboardData>("api/health/dashboard");
+
+    // Withdrawal status for a goat
+    public Task<WithdrawalStatus?> GetWithdrawalAsync(int goatId) =>
+        _api.GetAsync<WithdrawalStatus>($"api/health/withdrawal/{goatId}");
+}
+
+public class WithdrawalStatus
+{
+    public int GoatId { get; set; }
+    public WithdrawalWindow? Milk { get; set; }
+    public WithdrawalWindow? Meat { get; set; }
+}
+
+public class WithdrawalWindow
+{
+    public DateTime EndsAt { get; set; }
+    public int RecordId { get; set; }
+    public string? Medication { get; set; }
+    public DateTime Administered { get; set; }
 }
 
 public class HealthDashboardData

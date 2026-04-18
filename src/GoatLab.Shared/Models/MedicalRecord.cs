@@ -36,6 +36,12 @@ public class MedicalRecord : ITenantOwned
     public RecurrenceInterval Recurrence { get; set; } = RecurrenceInterval.None;
     public DateTime? NextDueDate { get; set; }
 
+    // Copied from Medication.MilkWithdrawalDays / MeatWithdrawalDays at save time —
+    // snapshotting means later edits to the Medication's withdrawal policy don't
+    // retroactively shift history or clear an active hold.
+    public DateTime? MilkWithdrawalEndsAt { get; set; }
+    public DateTime? MeatWithdrawalEndsAt { get; set; }
+
     [MaxLength(1000)]
     public string? Notes { get; set; }
 

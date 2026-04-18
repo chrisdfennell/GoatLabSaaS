@@ -1,8 +1,10 @@
 @page "/production"
 @inject MilkService MilkSvc
 @inject GoatService GoatSvc
+@inject HealthService HealthSvc
 @inject VoiceService Voice
 @inject ISnackbar Snackbar
+@inject IDialogService Dialog
 @implements IDisposable
 
 <PageTitle>Milk Production — GoatLab</PageTitle>
@@ -209,9 +211,24 @@
     {
         newLog.Date = logDate ?? DateTime.UtcNow;
         var amount = newLog.Amount;
+
+        bool overrideWithdrawal = false;
+        if (newLog.GoatId > 0)
+        {
+            var status = await HealthSvc.GetWithdrawalAsync(newLog.GoatId);
+            if (status?.Milk is not null)
+            {
+                var msg = $"This doe is in milk withdrawal until {status.Milk.EndsAt.ToLocalTime():MMM d, yyyy} ({status.Milk.Medication ?? "medication"}). Log anyway?";
+                var ok = await Dialog.ShowMessageBox("Milk withdrawal active", msg,
+                    yesText: "Log anyway", cancelText: "Cancel");
+                if (ok != true) return;
+                overrideWithdrawal = true;
+            }
+        }
+
         try
         {
-            await MilkSvc.CreateAsync(newLog);
+            await MilkSvc.CreateAsync(newLog, overrideWithdrawal);
             Snackbar.Add($"Logged {amount:F1} lbs", Severity.Success);
         }
         catch (OfflineQueuedException)

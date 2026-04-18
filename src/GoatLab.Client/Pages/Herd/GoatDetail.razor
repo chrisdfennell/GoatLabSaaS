@@ -76,6 +76,22 @@ else
                 <MudChip T="string" Color="Color.Success" Variant="Variant.Filled"
                          Icon="@Icons.Material.Filled.VerifiedUser" Size="Size.Large">Market Ready</MudChip>
             }
+            @if (withdrawal?.Milk is not null)
+            {
+                <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled"
+                         Icon="@Icons.Material.Filled.LocalDrink" Size="Size.Large"
+                         title="@($"{withdrawal.Milk.Medication} — administered {withdrawal.Milk.Administered.ToLocalTime():MMM d}")">
+                    Milk hold until @withdrawal.Milk.EndsAt.ToLocalTime().ToString("MMM d")
+                </MudChip>
+            }
+            @if (withdrawal?.Meat is not null)
+            {
+                <MudChip T="string" Color="Color.Warning" Variant="Variant.Filled"
+                         Icon="@Icons.Material.Filled.Restaurant" Size="Size.Large"
+                         title="@($"{withdrawal.Meat.Medication} — administered {withdrawal.Meat.Administered.ToLocalTime():MMM d}")">
+                    Meat hold until @withdrawal.Meat.EndsAt.ToLocalTime().ToString("MMM d")
+                </MudChip>
+            }
             <MudButton Variant="Variant.Filled" Color="Color.Surface" Style="background:rgba(255,255,255,0.92);color:#1b5e20;"
                        StartIcon="@Icons.Material.Filled.Edit" Href="@($"/herd/{Id}/edit")">Edit</MudButton>
             <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
@@ -1094,6 +1110,7 @@ else
     private List<ShowRecord>? showRecordsList;
     private List<LinearAppraisal>? appraisals;
     private List<LactationSummary>? lactations;
+    private WithdrawalStatus? withdrawal;
 
     private bool showWeightForm;
     private WeightRecord newWeight = new();
@@ -1203,8 +1220,11 @@ else
         var showTask = ShowSvc.GetShowsAsync(Id);
         var appraisalTask = ShowSvc.GetAppraisalsAsync(Id);
         var lactationTask = MilkSvc.GetLactationsAsync(Id);
+        var withdrawalTask = HealthSvc.GetWithdrawalAsync(Id);
 
-        await Task.WhenAll(medTask, weightTask, famachaTask, milkTask, salesTask, milkTrendTask, showTask, appraisalTask, lactationTask);
+        await Task.WhenAll(medTask, weightTask, famachaTask, milkTask, salesTask, milkTrendTask, showTask, appraisalTask, lactationTask, withdrawalTask);
+
+        withdrawal = withdrawalTask.Result;
 
         medicalRecords = medTask.Result;
         weights = weightTask.Result;

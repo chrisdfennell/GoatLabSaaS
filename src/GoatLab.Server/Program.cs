@@ -242,6 +242,7 @@ builder.Services.AddScoped<PdfService>();
 builder.Services.AddScoped<CoiCalculator>();
 builder.Services.AddScoped<ReportsService>();
 builder.Services.AddScoped<ForecastService>();
+builder.Services.AddScoped<GoatLab.Server.Services.Health.WithdrawalService>();
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 // Offsite database backup. No-op when Backup:Offsite:Enabled is false.

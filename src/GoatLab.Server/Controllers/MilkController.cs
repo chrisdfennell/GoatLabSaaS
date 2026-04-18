@@ -1,4 +1,5 @@
 using GoatLab.Server.Data;
+using GoatLab.Server.Services.Health;
 using GoatLab.Server.Services.Plans;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +13,12 @@ namespace GoatLab.Server.Controllers;
 public class MilkController : ControllerBase
 {
     private readonly GoatLabDbContext _db;
-    public MilkController(GoatLabDbContext db) => _db = db;
+    private readonly WithdrawalService _withdrawal;
+    public MilkController(GoatLabDbContext db, WithdrawalService withdrawal)
+    {
+        _db = db;
+        _withdrawal = withdrawal;
+    }
 
     [HttpGet]
     public async Task<ActionResult<List<MilkLog>>> GetAll([FromQuery] int? goatId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
@@ -27,8 +33,20 @@ public class MilkController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<MilkLog>> Create(MilkLog log)
+    public async Task<ActionResult<MilkLog>> Create(MilkLog log, [FromQuery] bool overrideWithdrawal = false)
     {
+        if (!overrideWithdrawal)
+        {
+            var active = await _withdrawal.GetActiveAsync(log.GoatId, WithdrawalKind.Milk);
+            if (active is not null)
+            {
+                return Conflict(new
+                {
+                    error = $"Goat is in milk withdrawal until {active.EndsAt:yyyy-MM-dd} ({active.MedicationName ?? "medication"}).",
+                    withdrawal = new { type = "milk", endsAt = active.EndsAt, medication = active.MedicationName, administered = active.Administered }
+                });
+            }
+        }
         log.CreatedAt = DateTime.UtcNow;
         _db.MilkLogs.Add(log);
         await _db.SaveChangesAsync();
