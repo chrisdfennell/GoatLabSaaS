@@ -84,14 +84,29 @@
     private readonly AppFeature[] _allFeatures = Enum.GetValues<AppFeature>();
     private Dictionary<AppFeature, bool> _featureEnabled = new();
 
-    private static readonly (string Label, AppFeature[] Features)[] FeatureGroups = new[]
+    private static readonly (string Label, AppFeature[] Features)[] NamedGroups = new[]
     {
         ("Core",          new[] { AppFeature.Goats, AppFeature.Health, AppFeature.Breeding, AppFeature.Milk, AppFeature.Barns }),
-        ("Production",    new[] { AppFeature.Sales, AppFeature.Finance, AppFeature.Inventory, AppFeature.Calendar, AppFeature.Map, AppFeature.ShowRecords }),
-        ("Reports",       new[] { AppFeature.CareGuide, AppFeature.AdvancedReports, AppFeature.DataExport }),
+        ("Production",    new[] { AppFeature.Sales, AppFeature.Finance, AppFeature.Inventory, AppFeature.Calendar, AppFeature.Map, AppFeature.ShowRecords, AppFeature.BuyerWaitlist }),
+        ("Reports",       new[] { AppFeature.CareGuide, AppFeature.AdvancedReports, AppFeature.DataExport, AppFeature.Forecasting }),
         ("Breeding tools",new[] { AppFeature.CoiCalculator }),
         ("Notifications", new[] { AppFeature.SmartAlerts, AppFeature.PushNotifications, AppFeature.PdfDocuments }),
+        ("Integrations",  new[] { AppFeature.WebhooksAndApi }),
     };
+
+    // Any AppFeature not named above drops into "Other" so a new enum value is
+    // never silently invisible in the editor.
+    private (string Label, AppFeature[] Features)[] FeatureGroups
+    {
+        get
+        {
+            var named = NamedGroups.SelectMany(g => g.Features).ToHashSet();
+            var others = _allFeatures.Where(f => !named.Contains(f)).ToArray();
+            return others.Length == 0
+                ? NamedGroups
+                : NamedGroups.Append(("Other", others)).ToArray();
+        }
+    }
 
     private string _name = "";
     private string _slug = "";
