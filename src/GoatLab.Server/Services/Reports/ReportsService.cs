@@ -314,4 +314,181 @@ public class ReportsService
             new ReportWindowDto(start, end.AddDays(-1)),
             total, avgPerGoat, byCat, byGoat, monthly);
     }
+
+    // ---------- Progeny ----------
+
+    // Rolls up offspring performance per sire and per dam. "Offspring" = goats
+    // whose DOB falls in [from, to] and who list a given parent. Dam-only
+    // metrics (kidding count, live-birth rate, avg litter size) come from
+    // KiddingRecord joined through BreedingRecord.DoeId. Daughter milk yield
+    // sums MilkLogs for this parent's daughters within the window — provides a
+    // quick "who produces productive daughters" signal without requiring the
+    // daughters themselves to have been born in the window.
+    public async Task<ProgenyReportDto> GetProgenyAsync(DateTime from, DateTime to, CancellationToken ct = default)
+    {
+        var (start, end) = Window(from, to);
+
+        // Offspring born in window, minimal projection.
+        var offspring = await _db.Goats.AsNoTracking()
+            .Where(g => g.DateOfBirth != null
+                        && g.DateOfBirth >= start && g.DateOfBirth < end)
+            .Select(g => new { g.Id, g.SireId, g.DamId, g.Status, g.Gender })
+            .ToListAsync(ct);
+
+        // Kids with a linked goat among the offspring — carries birth weight.
+        var offspringIds = offspring.Select(o => o.Id).ToList();
+        var kidWeights = offspringIds.Count == 0
+            ? new List<(int GoatId, double Weight)>()
+            : (await _db.Kids.AsNoTracking()
+                .Where(k => k.LinkedGoatId != null
+                            && offspringIds.Contains(k.LinkedGoatId!.Value)
+                            && k.BirthWeightLbs != null)
+                .Select(k => new { k.LinkedGoatId, k.BirthWeightLbs })
+                .ToListAsync(ct))
+                .Select(k => (GoatId: k.LinkedGoatId!.Value, Weight: k.BirthWeightLbs!.Value))
+                .ToList();
+        var weightByOffspring = kidWeights
+            .GroupBy(k => k.GoatId)
+            .ToDictionary(g => g.Key, g => g.Average(x => x.Weight));
+
+        // Distinct parent IDs across both roles. Use a tuple so a goat that's
+        // both a sire and a dam (impossible biologically, but defensive) lands
+        // as two rows — the report is per (ParentId, Gender).
+        var sireIds = offspring.Where(o => o.SireId.HasValue).Select(o => o.SireId!.Value).Distinct().ToList();
+        var damIds = offspring.Where(o => o.DamId.HasValue).Select(o => o.DamId!.Value).Distinct().ToList();
+        var allParentIds = sireIds.Concat(damIds).Distinct().ToList();
+
+        if (allParentIds.Count == 0)
+        {
+            return new ProgenyReportDto(new ReportWindowDto(start, end.AddDays(-1)), new List<ProgenyRowDto>());
+        }
+
+        var parentLookup = await _db.Goats.AsNoTracking()
+            .Where(g => allParentIds.Contains(g.Id))
+            .Select(g => new { g.Id, g.Name, g.Gender })
+            .ToDictionaryAsync(g => g.Id, g => (g.Name, g.Gender), ct);
+
+        // Dam-side kidding stats (scoped by KiddingDate in window).
+        var damKiddings = damIds.Count == 0
+            ? new Dictionary<int, (int Count, int Born, int Alive)>()
+            : (await _db.KiddingRecords.AsNoTracking()
+                .Where(k => k.KiddingDate >= start && k.KiddingDate < end
+                            && damIds.Contains(k.BreedingRecord.DoeId))
+                .Select(k => new { DoeId = k.BreedingRecord.DoeId, k.KidsBorn, k.KidsAlive })
+                .ToListAsync(ct))
+                .GroupBy(k => k.DoeId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (Count: g.Count(), Born: g.Sum(x => x.KidsBorn), Alive: g.Sum(x => x.KidsAlive)));
+
+        // Daughter milk: for each parent, find female offspring (NOT restricted
+        // to the window — we want established daughters producing now), then
+        // aggregate MilkLogs in the window. Pull daughters + their milk in two
+        // scoped queries keyed by the parent id set.
+        var daughters = await _db.Goats.AsNoTracking()
+            .Where(g => g.Gender == Gender.Female
+                        && ((g.SireId != null && allParentIds.Contains(g.SireId.Value))
+                            || (g.DamId != null && allParentIds.Contains(g.DamId.Value))))
+            .Select(g => new { g.Id, g.SireId, g.DamId })
+            .ToListAsync(ct);
+
+        var daughterIds = daughters.Select(d => d.Id).ToList();
+        var milkByDaughter = daughterIds.Count == 0
+            ? new Dictionary<int, (double Total, int Days)>()
+            : (await _db.MilkLogs.AsNoTracking()
+                .Where(m => m.Date >= start && m.Date < end && daughterIds.Contains(m.GoatId))
+                .Select(m => new { m.GoatId, m.Amount, Day = m.Date.Date })
+                .ToListAsync(ct))
+                .GroupBy(m => m.GoatId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => (Total: g.Sum(x => x.Amount), Days: g.Select(x => x.Day).Distinct().Count()));
+
+        // Lookup: parent → daughter ids (per role).
+        var daughtersBySire = daughters.Where(d => d.SireId.HasValue)
+            .GroupBy(d => d.SireId!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Id).ToList());
+        var daughtersByDam = daughters.Where(d => d.DamId.HasValue)
+            .GroupBy(d => d.DamId!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Id).ToList());
+
+        var rows = new List<ProgenyRowDto>();
+
+        foreach (var sireId in sireIds)
+        {
+            var off = offspring.Where(o => o.SireId == sireId).ToList();
+            rows.Add(BuildRow(sireId, Gender.Male, off, weightByOffspring,
+                damKidding: null,
+                daughterIds: daughtersBySire.GetValueOrDefault(sireId) ?? new List<int>(),
+                milkByDaughter, parentLookup));
+        }
+
+        foreach (var damId in damIds)
+        {
+            var off = offspring.Where(o => o.DamId == damId).ToList();
+            damKiddings.TryGetValue(damId, out var kidStats);
+            rows.Add(BuildRow(damId, Gender.Female, off, weightByOffspring,
+                damKidding: damKiddings.ContainsKey(damId) ? kidStats : ((int, int, int)?)null,
+                daughterIds: daughtersByDam.GetValueOrDefault(damId) ?? new List<int>(),
+                milkByDaughter, parentLookup));
+        }
+
+        // Default: most prolific first, ties broken by live-offspring count.
+        var ordered = rows
+            .OrderByDescending(r => r.OffspringCount)
+            .ThenByDescending(r => r.LiveOffspringCount)
+            .ToList();
+
+        return new ProgenyReportDto(new ReportWindowDto(start, end.AddDays(-1)), ordered);
+    }
+
+    private static ProgenyRowDto BuildRow(
+        int parentId,
+        Gender parentGender,
+        IReadOnlyList<dynamic> off,
+        Dictionary<int, double> weightByOffspring,
+        (int Count, int Born, int Alive)? damKidding,
+        List<int> daughterIds,
+        Dictionary<int, (double Total, int Days)> milkByDaughter,
+        Dictionary<int, (string Name, Gender Gender)> parentLookup)
+    {
+        parentLookup.TryGetValue(parentId, out var info);
+        var parentName = info.Name ?? $"Goat #{parentId}";
+
+        int count = off.Count;
+        int live = off.Count(o => o.Status != GoatStatus.Deceased);
+
+        var weights = off.Select(o => (int)o.Id)
+            .Where(id => weightByOffspring.ContainsKey(id))
+            .Select(id => weightByOffspring[id])
+            .ToList();
+        double? avgBirthWeight = weights.Count == 0 ? null : weights.Average();
+
+        int? kidCount = damKidding?.Count;
+        int? kidsBorn = damKidding?.Born;
+        int? kidsAlive = damKidding?.Alive;
+        double? liveBirthRate = damKidding.HasValue && damKidding.Value.Born > 0
+            ? (double)damKidding.Value.Alive / damKidding.Value.Born
+            : (double?)null;
+        double? avgLitter = damKidding.HasValue && damKidding.Value.Count > 0
+            ? (double)damKidding.Value.Born / damKidding.Value.Count
+            : (double?)null;
+
+        var dailyAverages = daughterIds
+            .Where(milkByDaughter.ContainsKey)
+            .Select(id => milkByDaughter[id])
+            .Where(m => m.Days > 0)
+            .Select(m => m.Total / m.Days)
+            .ToList();
+        double? avgDaughterDailyMilk = dailyAverages.Count == 0 ? null : dailyAverages.Average();
+        int daughtersWithMilk = dailyAverages.Count;
+
+        return new ProgenyRowDto(
+            parentId, parentName, parentGender,
+            count, live,
+            kidCount, kidsBorn, kidsAlive,
+            liveBirthRate, avgLitter,
+            avgBirthWeight,
+            avgDaughterDailyMilk, daughtersWithMilk);
+    }
 }

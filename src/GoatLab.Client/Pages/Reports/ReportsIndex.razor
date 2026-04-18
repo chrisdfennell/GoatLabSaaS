@@ -280,6 +280,78 @@ else
                 </MudGrid>
             }
         </MudTabPanel>
+
+        <MudTabPanel Text="Progeny" Icon="@Icons.Material.Filled.FamilyRestroom">
+            @if (_progeny == null) { <MudProgressCircular Indeterminate /> }
+            else
+            {
+                <MudPaper Class="polished-section" Elevation="0">
+                    <MudGrid>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="string" @bind-Value="_progenyGenderFilter" Label="Parent type" Variant="Variant.Outlined" Dense>
+                                <MudSelectItem Value="@("all")">All parents</MudSelectItem>
+                                <MudSelectItem Value="@("sires")">Sires (bucks)</MudSelectItem>
+                                <MudSelectItem Value="@("dams")">Dams (does)</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect T="string" @bind-Value="_progenySort" Label="Sort by" Variant="Variant.Outlined" Dense>
+                                <MudSelectItem Value="@("offspring")">Offspring count</MudSelectItem>
+                                <MudSelectItem Value="@("livebirth")">Live-birth rate (dams)</MudSelectItem>
+                                <MudSelectItem Value="@("milk")">Daughter milk yield</MudSelectItem>
+                                <MudSelectItem Value="@("birthweight")">Avg birth weight</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+
+                @if (!_progeny.Parents.Any())
+                {
+                    <MudPaper Class="polished-section" Elevation="0">
+                        <MudText Typo="Typo.body2">No offspring born in this window. Progeny is computed from goats whose DOB falls inside the date range and who list a Sire or Dam on their profile.</MudText>
+                    </MudPaper>
+                }
+                else
+                {
+                    <MudPaper Class="polished-section" Elevation="0">
+                        <MudText Typo="Typo.h6">Parent performance</MudText>
+                        <MudSimpleTable Dense Hover>
+                            <thead>
+                                <tr>
+                                    <th>Parent</th>
+                                    <th>Role</th>
+                                    <th style="text-align:right;">Offspring</th>
+                                    <th style="text-align:right;">Live</th>
+                                    <th style="text-align:right;">Avg birth wt (lbs)</th>
+                                    <th style="text-align:right;">Kiddings</th>
+                                    <th style="text-align:right;">Live-birth rate</th>
+                                    <th style="text-align:right;">Avg litter</th>
+                                    <th style="text-align:right;">Daughters milked</th>
+                                    <th style="text-align:right;">Avg daughter / day</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var r in FilteredProgeny().Take(50))
+                                {
+                                    <tr>
+                                        <td><a href="@($"/herd/{r.ParentId}")">@r.ParentName</a></td>
+                                        <td>@(r.ParentGender == GoatLab.Shared.Models.Gender.Male ? "Sire" : "Dam")</td>
+                                        <td style="text-align:right;">@r.OffspringCount</td>
+                                        <td style="text-align:right;">@r.LiveOffspringCount</td>
+                                        <td style="text-align:right;">@(r.AvgBirthWeightLbs.HasValue ? r.AvgBirthWeightLbs.Value.ToString("N1") : "—")</td>
+                                        <td style="text-align:right;">@(r.KiddingCount?.ToString() ?? "—")</td>
+                                        <td style="text-align:right;">@(r.LiveBirthRate.HasValue ? (r.LiveBirthRate.Value * 100).ToString("N1") + "%" : "—")</td>
+                                        <td style="text-align:right;">@(r.AvgLitterSize.HasValue ? r.AvgLitterSize.Value.ToString("N2") : "—")</td>
+                                        <td style="text-align:right;">@r.DaughtersWithMilkLogs</td>
+                                        <td style="text-align:right;">@(r.AvgDaughterDailyMilkLbs.HasValue ? r.AvgDaughterDailyMilkLbs.Value.ToString("N2") : "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    </MudPaper>
+                }
+            }
+        </MudTabPanel>
     </MudTabs>
 }
 
@@ -305,6 +377,9 @@ else
     private MortalityReportDto? _mort;
     private ParasiteReportDto? _parasite;
     private HealthSpendReportDto? _health;
+    private ProgenyReportDto? _progeny;
+    private string _progenyGenderFilter = "all";
+    private string _progenySort = "offspring";
 
     private List<ChartSeries> _pnlSeries = new();
     private string[] _pnlLabels = Array.Empty<string>();
@@ -344,7 +419,25 @@ else
             case 3: await LoadMortality(); break;
             case 4: await LoadParasite(); break;
             case 5: await LoadHealth(); break;
+            case 6: await LoadProgeny(); break;
         }
+    }
+
+    private async Task LoadProgeny() => _progeny = await ReportsSvc.GetProgenyAsync(_from, _to);
+
+    private IEnumerable<ProgenyRowDto> FilteredProgeny()
+    {
+        if (_progeny is null) return Array.Empty<ProgenyRowDto>();
+        IEnumerable<ProgenyRowDto> q = _progeny.Parents;
+        if (_progenyGenderFilter == "sires") q = q.Where(r => r.ParentGender == GoatLab.Shared.Models.Gender.Male);
+        else if (_progenyGenderFilter == "dams") q = q.Where(r => r.ParentGender == GoatLab.Shared.Models.Gender.Female);
+        return _progenySort switch
+        {
+            "livebirth" => q.OrderByDescending(r => r.LiveBirthRate ?? -1),
+            "milk" => q.OrderByDescending(r => r.AvgDaughterDailyMilkLbs ?? -1),
+            "birthweight" => q.OrderByDescending(r => r.AvgBirthWeightLbs ?? -1),
+            _ => q.OrderByDescending(r => r.OffspringCount),
+        };
     }
 
     private async Task LoadPnl()

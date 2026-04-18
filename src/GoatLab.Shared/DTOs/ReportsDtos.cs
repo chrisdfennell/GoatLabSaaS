@@ -86,3 +86,25 @@ public record HealthSpendReportDto(
 public record GoatSpendRowDto(int GoatId, string GoatName, decimal Total);
 
 public record MonthlyAmountDto(int Year, int Month, decimal Amount);
+
+// -------- Progeny --------
+// One row per (parent, role). Dam-only metrics are null for sire rows.
+// DaughterMilk fields are populated for both sires and dams.
+public record ProgenyReportDto(
+    ReportWindowDto Window,
+    IReadOnlyList<ProgenyRowDto> Parents);
+
+public record ProgenyRowDto(
+    int ParentId,
+    string ParentName,
+    GoatLab.Shared.Models.Gender ParentGender,
+    int OffspringCount,
+    int LiveOffspringCount,
+    int? KiddingCount,
+    int? KidsBorn,
+    int? KidsAlive,
+    double? LiveBirthRate,
+    double? AvgLitterSize,
+    double? AvgBirthWeightLbs,
+    double? AvgDaughterDailyMilkLbs,
+    int DaughtersWithMilkLogs);

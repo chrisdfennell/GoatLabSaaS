@@ -67,4 +67,11 @@ public class ReportsController : ControllerBase
         var (f, t) = Range(from, to);
         return Ok(await _reports.GetHealthSpendAsync(f, t, ct));
     }
+
+    [HttpGet("progeny")]
+    public async Task<ActionResult<ProgenyReportDto>> Progeny([FromQuery] DateTime? from, [FromQuery] DateTime? to, CancellationToken ct)
+    {
+        var (f, t) = Range(from, to);
+        return Ok(await _reports.GetProgenyAsync(f, t, ct));
+    }
 }

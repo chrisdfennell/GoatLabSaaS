@@ -189,4 +189,92 @@ public class ReportsServiceTests
         Assert.Equal("Buck", report.ByGoat[0].GoatName);
         Assert.Equal(95m, report.ByGoat[0].Total);
     }
+
+    [Fact]
+    public async Task Progeny_rolls_up_sire_and_dam_offspring()
+    {
+        using var db = NewDb();
+        // Parents.
+        var sireId = AddGoat(db, "Atlas");
+        db.Context.Goats.Find(sireId)!.Gender = Gender.Male;
+        var damId = AddGoat(db, "Daisy");
+        db.Context.Goats.Find(damId)!.Gender = Gender.Female;
+        db.Context.SaveChanges();
+
+        // Two offspring born in window linking back to both parents.
+        var kidADob = new DateTime(2026, 3, 5, 0, 0, 0, DateTimeKind.Utc);
+        var kidBDob = new DateTime(2026, 3, 6, 0, 0, 0, DateTimeKind.Utc);
+        var kidA = new Goat { TenantId = TenantId, Name = "Kid A", Gender = Gender.Female,
+            Status = GoatStatus.Healthy, SireId = sireId, DamId = damId, DateOfBirth = kidADob };
+        var kidB = new Goat { TenantId = TenantId, Name = "Kid B", Gender = Gender.Male,
+            Status = GoatStatus.Deceased, SireId = sireId, DamId = damId, DateOfBirth = kidBDob };
+        db.Context.Goats.AddRange(kidA, kidB);
+        db.Context.SaveChanges();
+
+        // Birth weights via Kid rows linked to the goats.
+        var breeding = new BreedingRecord { TenantId = TenantId, DoeId = damId,
+            BreedingDate = new DateTime(2025, 10, 1, 0, 0, 0, DateTimeKind.Utc) };
+        db.Context.BreedingRecords.Add(breeding);
+        db.Context.SaveChanges();
+        var kidding = new KiddingRecord { TenantId = TenantId, BreedingRecordId = breeding.Id,
+            KiddingDate = kidADob, KidsBorn = 2, KidsAlive = 1 };
+        db.Context.KiddingRecords.Add(kidding);
+        db.Context.SaveChanges();
+        db.Context.Kids.AddRange(
+            new Kid { TenantId = TenantId, KiddingRecordId = kidding.Id, LinkedGoatId = kidA.Id, BirthWeightLbs = 8.0, Gender = Gender.Female },
+            new Kid { TenantId = TenantId, KiddingRecordId = kidding.Id, LinkedGoatId = kidB.Id, BirthWeightLbs = 6.0, Gender = Gender.Male });
+        db.Context.SaveChanges();
+
+        var svc = new ReportsService(db.Context);
+        var report = await svc.GetProgenyAsync(new DateTime(2026, 3, 1), new DateTime(2026, 3, 31));
+
+        Assert.Equal(2, report.Parents.Count);
+
+        var sireRow = report.Parents.Single(p => p.ParentId == sireId);
+        Assert.Equal(Gender.Male, sireRow.ParentGender);
+        Assert.Equal(2, sireRow.OffspringCount);
+        Assert.Equal(1, sireRow.LiveOffspringCount);
+        Assert.Equal(7.0, sireRow.AvgBirthWeightLbs!.Value, precision: 6);
+        // Sire rows don't carry kidding stats.
+        Assert.Null(sireRow.KiddingCount);
+        Assert.Null(sireRow.LiveBirthRate);
+
+        var damRow = report.Parents.Single(p => p.ParentId == damId);
+        Assert.Equal(Gender.Female, damRow.ParentGender);
+        Assert.Equal(2, damRow.OffspringCount);
+        Assert.Equal(1, damRow.KiddingCount);
+        Assert.Equal(2, damRow.KidsBorn);
+        Assert.Equal(1, damRow.KidsAlive);
+        Assert.Equal(0.5, damRow.LiveBirthRate!.Value, precision: 6);
+        Assert.Equal(2.0, damRow.AvgLitterSize!.Value, precision: 6);
+    }
+
+    [Fact]
+    public async Task Progeny_computes_daughter_milk_yield()
+    {
+        using var db = NewDb();
+        // Sire with one daughter born in window; the daughter has milk logs.
+        var sireId = AddGoat(db, "Buck");
+        db.Context.Goats.Find(sireId)!.Gender = Gender.Male;
+        db.Context.SaveChanges();
+
+        var daughter = new Goat { TenantId = TenantId, Name = "Milky", Gender = Gender.Female,
+            Status = GoatStatus.Healthy, SireId = sireId, DateOfBirth = new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc) };
+        db.Context.Goats.Add(daughter);
+        db.Context.SaveChanges();
+
+        db.Context.MilkLogs.AddRange(
+            new MilkLog { TenantId = TenantId, GoatId = daughter.Id, Date = new DateTime(2026, 3, 10, 0, 0, 0, DateTimeKind.Utc), Amount = 6 },
+            new MilkLog { TenantId = TenantId, GoatId = daughter.Id, Date = new DateTime(2026, 3, 11, 0, 0, 0, DateTimeKind.Utc), Amount = 8 }
+        );
+        db.Context.SaveChanges();
+
+        var svc = new ReportsService(db.Context);
+        var report = await svc.GetProgenyAsync(new DateTime(2026, 3, 1), new DateTime(2026, 3, 31));
+
+        var row = Assert.Single(report.Parents);
+        Assert.Equal(sireId, row.ParentId);
+        Assert.Equal(1, row.DaughtersWithMilkLogs);
+        Assert.Equal(7.0, row.AvgDaughterDailyMilkLbs!.Value, precision: 6);
+    }
 }

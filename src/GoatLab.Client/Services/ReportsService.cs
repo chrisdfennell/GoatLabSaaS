@@ -32,4 +32,7 @@ public class ReportsService
 
     public Task<HealthSpendReportDto?> GetHealthSpendAsync(DateTime? from, DateTime? to)
         => _api.GetAsync<HealthSpendReportDto>($"api/reports/health-spend{Range(from, to)}");
+
+    public Task<ProgenyReportDto?> GetProgenyAsync(DateTime? from, DateTime? to)
+        => _api.GetAsync<ProgenyReportDto>($"api/reports/progeny{Range(from, to)}");
 }
