@@ -1,0 +1,46 @@
+# https://goatlab.app/robots.txt
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /admin
+Disallow: /account/
+Disallow: /billing
+Disallow: /dashboard
+Disallow: /breeding
+Disallow: /health
+Disallow: /production
+Disallow: /finance
+Disallow: /inventory
+Disallow: /sales
+Disallow: /purchases
+Disallow: /chores
+Disallow: /calendar
+Disallow: /alerts
+Disallow: /tools
+Disallow: /scan
+Disallow: /team
+Disallow: /farm-settings
+Disallow: /select-farm
+Disallow: /confirm-email
+Disallow: /accept-invite
+Disallow: /reset-password
+Disallow: /forgot-password
+Disallow: /pub/
+
+# Block AI training crawlers (flip to Allow if you want them indexing you)
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+Sitemap: https://goatlab.app/sitemap.xml

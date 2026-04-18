@@ -3,8 +3,35 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GoatLab</title>
+    <title>GoatLab — Herd management for modern goat farmers</title>
     <base href="/" />
+
+    <!-- SEO -->
+    <meta name="description" content="GoatLab is the all-in-one herd management platform for goat farmers. Track health, breeding, milk production, finances, and the whole farm — on any device, even offline." />
+    <meta name="keywords" content="goat farming, herd management, livestock software, dairy goat, meat goat, kidding tracker, milk production, farm management, goat health records" />
+    <meta name="author" content="GoatLab" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://goatlab.app/" />
+
+    <!-- Open Graph (Facebook, LinkedIn, iMessage, Slack) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="GoatLab" />
+    <meta property="og:title" content="GoatLab — Herd management for modern goat farmers" />
+    <meta property="og:description" content="Track every goat, kidding, vet visit, milking, feed bag, and dollar from one dashboard. Works on phones, tablets, and laptops. Works offline in the barn." />
+    <meta property="og:url" content="https://goatlab.app/" />
+    <meta property="og:image" content="https://goatlab.app/images/og-card.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="GoatLab — herd management dashboard for goat farmers" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="GoatLab — Herd management for modern goat farmers" />
+    <meta name="twitter:description" content="Track every goat, kidding, vet visit, milking, feed bag, and dollar from one dashboard. Works offline in the barn." />
+    <meta name="twitter:image" content="https://goatlab.app/images/og-card.png" />
+    <meta name="twitter:image:alt" content="GoatLab — herd management dashboard for goat farmers" />
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <link href="_content/MudBlazor/MudBlazor.min.css" rel="stylesheet" />
     <link href="css/app.css" rel="stylesheet" />
@@ -17,6 +44,34 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="GoatLab" />
+
+    <!-- JSON-LD: Organization + SoftwareApplication -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "name": "GoatLab",
+          "url": "https://goatlab.app/",
+          "logo": "https://goatlab.app/images/icon-512.png"
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "GoatLab",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web, iOS, Android",
+          "url": "https://goatlab.app/",
+          "description": "All-in-one herd management for goat farmers — health, breeding, milk production, finances, offline-first.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+          }
+        }
+      ]
+    }
+    </script>
 
     <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"

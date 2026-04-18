@@ -1,0 +1,11 @@
+/* TEAM */
+Founder & Maker: Christopher Fennell
+Site: https://goatlab.app/
+Contact: hello [at] goatlab.app
+
+/* SITE */
+Last update: 2026-04-18
+Standards: HTML5, CSS3, WebAssembly
+Components: Blazor WebAssembly, MudBlazor, ASP.NET Core, EF Core, PostgreSQL
+Software: Built with .NET, deployed on a Hostinger VPS
+Repo (open-source self-host): https://github.com/chrisdfennell/GoatLab
