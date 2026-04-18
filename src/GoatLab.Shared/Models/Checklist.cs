@@ -25,7 +25,7 @@ public class ChecklistItem : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int ChecklistId { get; set; }
-    public Checklist Checklist { get; set; } = null!;
+    public Checklist? Checklist { get; set; }
 
     [Required, MaxLength(300)]
     public string Description { get; set; } = string.Empty;

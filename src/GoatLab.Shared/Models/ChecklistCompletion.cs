@@ -9,7 +9,7 @@ public class ChecklistCompletion : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int ChecklistItemId { get; set; }
-    public ChecklistItem ChecklistItem { get; set; } = null!;
+    public ChecklistItem? ChecklistItem { get; set; }
 
     public DateTime Date { get; set; }
     public bool IsCompleted { get; set; }

@@ -10,7 +10,7 @@ public class BodyConditionScore : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int GoatId { get; set; }
-    public Goat Goat { get; set; } = null!;
+    public Goat? Goat { get; set; }
 
     /// <summary>BCS 1.0–5.0 (typically in 0.5 increments)</summary>
     public double Score { get; set; }

@@ -10,7 +10,7 @@ public class GoatPhoto : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int GoatId { get; set; }
-    public Goat Goat { get; set; } = null!;
+    public Goat? Goat { get; set; }
 
     [Required, MaxLength(500)]
     public string FilePath { get; set; } = string.Empty;

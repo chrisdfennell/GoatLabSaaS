@@ -10,7 +10,7 @@ public class GoatDocument : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int GoatId { get; set; }
-    public Goat Goat { get; set; } = null!;
+    public Goat? Goat { get; set; }
 
     [Required, MaxLength(200)]
     public string Title { get; set; } = string.Empty;

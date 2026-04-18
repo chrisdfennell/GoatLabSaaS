@@ -10,7 +10,7 @@ public class BreedingRecord : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int DoeId { get; set; }
-    public Goat Doe { get; set; } = null!;
+    public Goat? Doe { get; set; }
 
     public int? BuckId { get; set; }
     public Goat? Buck { get; set; }
