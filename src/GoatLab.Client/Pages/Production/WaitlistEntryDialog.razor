@@ -1,16 +1,48 @@
 @* Add / edit a WaitlistEntry. Parent passes a fresh copy so Cancel doesn't dirty the original. *@
+@inject SalesService SalesSvc
+@inject ISnackbar Snackbar
 
 <MudDialog>
     <DialogContent>
         <MudGrid>
             <MudItem xs="12" sm="6">
-                <MudSelect T="int" @bind-Value="Entry.CustomerId" Label="Customer" Variant="Variant.Outlined" Required>
-                    @foreach (var c in Customers)
-                    {
-                        <MudSelectItem Value="@c.Id">@c.Name</MudSelectItem>
-                    }
-                </MudSelect>
+                <div class="d-flex align-center" style="gap:4px;">
+                    <MudSelect T="int" @bind-Value="Entry.CustomerId" Label="Customer" Variant="Variant.Outlined" Required Class="flex-grow-1">
+                        @foreach (var c in Customers)
+                        {
+                            <MudSelectItem Value="@c.Id">@c.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudTooltip Text="Add a new customer">
+                        <MudIconButton Icon="@Icons.Material.Filled.PersonAdd" Color="Color.Primary"
+                                       OnClick="() => _showNewCustomer = !_showNewCustomer" />
+                    </MudTooltip>
+                </div>
             </MudItem>
+            @if (_showNewCustomer)
+            {
+                <MudItem xs="12">
+                    <MudPaper Class="pa-3" Outlined Style="border-radius:10px;">
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">New customer</MudText>
+                        <MudGrid Spacing="2">
+                            <MudItem xs="12" sm="4">
+                                <MudTextField @bind-Value="_newCustomer.Name" Label="Name" Variant="Variant.Outlined" Required />
+                            </MudItem>
+                            <MudItem xs="12" sm="4">
+                                <MudTextField @bind-Value="_newCustomer.Email" Label="Email" Variant="Variant.Outlined" />
+                            </MudItem>
+                            <MudItem xs="12" sm="4">
+                                <MudTextField @bind-Value="_newCustomer.Phone" Label="Phone" Variant="Variant.Outlined" />
+                            </MudItem>
+                        </MudGrid>
+                        <div class="d-flex gap-2 mt-2 justify-end">
+                            <MudButton Variant="Variant.Text" OnClick="() => { _showNewCustomer = false; _newCustomer = new(); }">Cancel</MudButton>
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd"
+                                       OnClick="AddCustomerAsync" Disabled="_savingCustomer">Add</MudButton>
+                        </div>
+                    </MudPaper>
+                </MudItem>
+            }
             <MudItem xs="12" sm="6">
                 <MudNumericField @bind-Value="Entry.Priority" Label="Priority (higher = earlier)" Variant="Variant.Outlined" Min="0" Max="999" />
             </MudItem>
@@ -59,10 +91,35 @@
     private DateTime? _minDue;
     private DateTime? _maxDue;
 
+    private bool _showNewCustomer;
+    private bool _savingCustomer;
+    private Customer _newCustomer = new();
+
     protected override void OnInitialized()
     {
         _minDue = Entry.MinDueDate;
         _maxDue = Entry.MaxDueDate;
+    }
+
+    private async Task AddCustomerAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newCustomer.Name))
+        {
+            Snackbar.Add("Name is required.", Severity.Warning);
+            return;
+        }
+        _savingCustomer = true;
+        try
+        {
+            var created = await SalesSvc.CreateCustomerAsync(_newCustomer);
+            if (created is null) return;
+            Customers.Add(created);
+            Entry.CustomerId = created.Id;
+            Snackbar.Add($"Added {created.Name}", Severity.Success);
+            _newCustomer = new();
+            _showNewCustomer = false;
+        }
+        finally { _savingCustomer = false; }
     }
 
     private decimal DepositDollars
