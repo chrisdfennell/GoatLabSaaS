@@ -174,16 +174,9 @@ else
 .r-bad { border-left-color: #c62828; }
 .r-info { border-left-color: #1565c0; }
 
-/* Rotate chart x-axis labels 45° and tuck them under the axis so 60–90 daily
-   dates don't mash into each other. MudBlazor 7.15 doesn't expose a rotation
-   option, so we patch the SVG text elements directly. */
-.tilted-xaxis .mud-charts-xaxis {
-    transform: rotate(-45deg);
-    transform-box: fill-box;
-    transform-origin: top right;
-    text-anchor: end;
-    font-size: 10px;
-}
+/* Smaller x-axis font so the ~12 downsampled labels stay comfortable at
+   chart widths down to ~600px. */
+.tilted-xaxis .mud-charts-xaxis { font-size: 11px; }
 </style>
 
 @code {
