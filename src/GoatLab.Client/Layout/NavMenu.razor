@@ -35,6 +35,13 @@
             @if (IsEnabled("Calendar")) { <MudNavLink Href="/calendar" Icon="@Icons.Material.Filled.CalendarMonth">Calendar</MudNavLink> }
         }
 
+        @if (AnyEnabled("AdvancedReports", "Forecasting"))
+        {
+            <div class="nav-section-header">Insights</div>
+            @if (IsEnabled("AdvancedReports")) { <MudNavLink Href="/reports" Icon="@Icons.Material.Filled.BarChart">Reports</MudNavLink> }
+            @if (IsEnabled("Forecasting")) { <MudNavLink Href="/forecasts" Icon="@Icons.Material.Filled.TrendingUp">Forecasts</MudNavLink> }
+        }
+
         @if (IsEnabled("CareGuide"))
         {
             <div class="nav-section-header">Reference</div>

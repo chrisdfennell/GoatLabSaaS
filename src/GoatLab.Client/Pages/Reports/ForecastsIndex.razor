@@ -1,0 +1,176 @@
+@page "/forecasts"
+@inject ForecastService ForecastSvc
+@inject CookieAuthStateProvider AuthState
+
+<PageTitle>Forecasts — GoatLab</PageTitle>
+
+@if (!FeatureEnabled)
+{
+    <MudPaper Class="polished-section" Elevation="0">
+        <div class="inline-empty">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" />
+            <MudText Typo="Typo.h6">Forecasting is a paid feature</MudText>
+            <MudText Typo="Typo.body2">Upgrade to Farm or Dairy to see kidding load, milk supply, and cash-flow projections.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/billing" StartIcon="@Icons.Material.Filled.Upgrade">See plans</MudButton>
+        </div>
+    </MudPaper>
+}
+else
+{
+    <div class="page-hero page-hero-blue">
+        <div class="page-hero-icon"><MudIcon Icon="@Icons.Material.Filled.TrendingUp" /></div>
+        <div class="page-hero-text">
+            <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Forecasts</MudText>
+            <MudText Typo="Typo.h4" Class="page-hero-title">Looking ahead</MudText>
+            <MudText Typo="Typo.body2" Class="page-hero-sub">Projections based on recent patterns. Assumes things stay the same — use as a planning aid, not a prediction.</MudText>
+        </div>
+    </div>
+
+    <MudTabs Elevation="0" Rounded ApplyEffectsToContainer PanelClass="pa-4" @bind-ActivePanelIndex="_activeTab">
+        <MudTabPanel Text="Kidding" Icon="@Icons.Material.Filled.ChildFriendly">
+            @if (_kidding == null) { <MudProgressCircular Indeterminate /> }
+            else
+            {
+                <div class="report-tiles">
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Next 30 days</MudText><MudText Typo="Typo.h5">@_kidding.Horizon30</MudText></div>
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Next 60 days</MudText><MudText Typo="Typo.h5">@_kidding.Horizon60</MudText></div>
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Next 90 days</MudText><MudText Typo="Typo.h5">@_kidding.Horizon90</MudText></div>
+                </div>
+
+                <MudPaper Class="polished-section" Elevation="0">
+                    <MudText Typo="Typo.h6">Upcoming does</MudText>
+                    @if (!_kidding.Upcoming.Any()) { <MudText Typo="Typo.body2">No kiddings expected in the window.</MudText> }
+                    else
+                    {
+                        <MudSimpleTable Dense Hover>
+                            <thead><tr><th>Doe</th><th>Estimated due</th><th style="text-align:right;">Days away</th></tr></thead>
+                            <tbody>
+                                @foreach (var k in _kidding.Upcoming)
+                                {
+                                    <tr>
+                                        <td><a href="@($"/herd/{k.DoeId}")">@k.DoeName</a></td>
+                                        <td>@k.EstimatedDueDate.ToString("MMM d, yyyy")</td>
+                                        <td style="text-align:right;color:@(k.DaysUntilDue <= 14 ? "#c62828" : "inherit");">@k.DaysUntilDue</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                </MudPaper>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Milk" Icon="@Icons.Material.Filled.WaterDrop">
+            @if (_milk == null) { <MudProgressCircular Indeterminate /> }
+            else
+            {
+                <div class="report-tiles">
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Trailing daily avg (14d)</MudText><MudText Typo="Typo.h5">@_milk.TrailingDailyAverage.ToString("N2") lbs</MudText></div>
+                    <div class="report-tile r-good"><MudText Typo="Typo.overline">Projected (@_milk.Horizon d)</MudText><MudText Typo="Typo.h5">@_milk.ProjectedTotal.ToString("N0") lbs</MudText></div>
+                </div>
+
+                @if (_milkSeries.Count > 0)
+                {
+                    <MudPaper Class="polished-section" Elevation="0">
+                        <MudText Typo="Typo.h6">Recent + projected</MudText>
+                        <MudChart ChartType="ChartType.Line" ChartSeries="@_milkSeries" XAxisLabels="@_milkLabels"
+                                  ChartOptions="@_chartOpts" Width="100%" Height="300px" />
+                    </MudPaper>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2">No milk logs in the trailing 14 days — log some milk to see a projection.</MudText>
+                }
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Cash flow" Icon="@Icons.Material.Filled.AccountBalance">
+            @if (_cash == null) { <MudProgressCircular Indeterminate /> }
+            else
+            {
+                <div class="report-tiles">
+                    <div class="report-tile r-good"><MudText Typo="Typo.overline">Income / day (trailing 90d)</MudText><MudText Typo="Typo.h5">$@_cash.TrailingIncomeDaily.ToString("N2")</MudText></div>
+                    <div class="report-tile r-bad"><MudText Typo="Typo.overline">Expense / day</MudText><MudText Typo="Typo.h5">$@_cash.TrailingExpenseDaily.ToString("N2")</MudText></div>
+                    <div class="@($"report-tile {(_cash.ProjectedNet >= 0 ? "r-good" : "r-bad")}")">
+                        <MudText Typo="Typo.overline">Projected net (@_cash.Horizon d)</MudText>
+                        <MudText Typo="Typo.h5">@(_cash.ProjectedNet >= 0 ? "+" : "")$@_cash.ProjectedNet.ToString("N2")</MudText>
+                    </div>
+                </div>
+
+                @if (_cashSeries.Count > 0)
+                {
+                    <MudPaper Class="polished-section" Elevation="0">
+                        <MudText Typo="Typo.h6">Cumulative net projection</MudText>
+                        <MudChart ChartType="ChartType.Line" ChartSeries="@_cashSeries" XAxisLabels="@_cashLabels"
+                                  ChartOptions="@_chartOpts" Width="100%" Height="300px" />
+                    </MudPaper>
+                }
+            }
+        </MudTabPanel>
+    </MudTabs>
+}
+
+<style>
+.report-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.report-tile { background: var(--mud-palette-surface); border-radius: 10px; padding: 14px; border-left: 4px solid #888; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+.mud-theme-dark .report-tile { background: rgba(255,255,255,0.04); }
+.r-good { border-left-color: #2e7d32; }
+.r-bad { border-left-color: #c62828; }
+.r-info { border-left-color: #1565c0; }
+</style>
+
+@code {
+    private bool FeatureEnabled { get; set; }
+    private int _activeTab;
+
+    private KiddingForecastDto? _kidding;
+    private MilkForecastDto? _milk;
+    private CashflowForecastDto? _cash;
+
+    private List<ChartSeries> _milkSeries = new();
+    private string[] _milkLabels = Array.Empty<string>();
+    private List<ChartSeries> _cashSeries = new();
+    private string[] _cashLabels = Array.Empty<string>();
+    private readonly ChartOptions _chartOpts = new() { YAxisTicks = 1, LineStrokeWidth = 2 };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ = await AuthState.GetAuthenticationStateAsync();
+        FeatureEnabled = (AuthState.CurrentUser?.EnabledFeatures ?? Array.Empty<string>())
+            .Contains("Forecasting", StringComparer.OrdinalIgnoreCase);
+        if (FeatureEnabled) await LoadAll();
+    }
+
+    private async Task LoadAll()
+    {
+        await LoadKidding();
+        await LoadMilk();
+        await LoadCash();
+    }
+
+    private async Task LoadKidding() => _kidding = await ForecastSvc.GetKiddingAsync();
+
+    private async Task LoadMilk()
+    {
+        _milk = await ForecastSvc.GetMilkAsync();
+        if (_milk == null) return;
+        var all = _milk.Historical.Concat(_milk.Projected).ToList();
+        _milkLabels = all.Select(d => d.Date.ToString("MMM d")).ToArray();
+        _milkSeries = new List<ChartSeries>
+        {
+            new() { Name = "Recent", Data = _milk.Historical.Select(d => d.Lbs).Concat(Enumerable.Repeat(double.NaN, _milk.Projected.Count)).ToArray() },
+            new() { Name = "Projected", Data = Enumerable.Repeat(double.NaN, _milk.Historical.Count).Concat(_milk.Projected.Select(d => d.Lbs)).ToArray() },
+        };
+    }
+
+    private async Task LoadCash()
+    {
+        _cash = await ForecastSvc.GetCashflowAsync();
+        if (_cash == null || _cash.Projected.Count == 0) return;
+        _cashLabels = _cash.Projected.Select(d => d.Date.ToString("MMM d")).ToArray();
+        _cashSeries = new List<ChartSeries>
+        {
+            new() { Name = "Cumulative net ($)", Data = _cash.Projected.Select(d => (double)d.CumulativeNet).ToArray() },
+        };
+    }
+}

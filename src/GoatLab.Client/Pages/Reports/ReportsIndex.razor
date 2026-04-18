@@ -1,0 +1,381 @@
+@page "/reports"
+@inject ReportsService ReportsSvc
+@inject CookieAuthStateProvider AuthState
+@inject NavigationManager Nav
+
+<PageTitle>Reports — GoatLab</PageTitle>
+
+@if (!FeatureEnabled)
+{
+    <MudPaper Class="polished-section" Elevation="0">
+        <div class="inline-empty">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" />
+            <MudText Typo="Typo.h6">Advanced Reports is a paid feature</MudText>
+            <MudText Typo="Typo.body2">Upgrade to Farm or Dairy to see P&amp;L, milk trends, kidding stats, mortality, parasite load, and health-spend reports.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/billing" StartIcon="@Icons.Material.Filled.Upgrade">See plans</MudButton>
+        </div>
+    </MudPaper>
+}
+else
+{
+    <div class="page-hero page-hero-purple">
+        <div class="page-hero-icon"><MudIcon Icon="@Icons.Material.Filled.BarChart" /></div>
+        <div class="page-hero-text">
+            <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Reports</MudText>
+            <MudText Typo="Typo.h4" Class="page-hero-title">Farm performance</MudText>
+            <MudText Typo="Typo.body2" Class="page-hero-sub">P&amp;L, milk, kidding, mortality, parasite load, and health spend.</MudText>
+        </div>
+    </div>
+
+    <MudPaper Class="polished-section" Elevation="0">
+        <MudGrid>
+            <MudItem xs="12" sm="4">
+                <MudDatePicker @bind-Date="_from" Label="From" Variant="Variant.Outlined" Editable />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudDatePicker @bind-Date="_to" Label="To" Variant="Variant.Outlined" Editable />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    <MudButton Size="Size.Small" OnClick="() => QuickRange(30)">30d</MudButton>
+                    <MudButton Size="Size.Small" OnClick="() => QuickRange(90)">90d</MudButton>
+                    <MudButton Size="Size.Small" OnClick="() => QuickRange(365)">1y</MudButton>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               OnClick="LoadActive" StartIcon="@Icons.Material.Filled.Refresh">Apply</MudButton>
+                </div>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    <MudTabs Elevation="0" Rounded ApplyEffectsToContainer PanelClass="pa-4" @bind-ActivePanelIndex="_activeTab">
+        <MudTabPanel Text="P&L" Icon="@Icons.Material.Filled.AttachMoney">
+            @if (_pnl == null) { <MudProgressCircular Indeterminate /> }
+            else
+            {
+                <div class="report-tiles">
+                    <div class="report-tile r-good"><MudText Typo="Typo.overline">Income</MudText><MudText Typo="Typo.h5">$@_pnl.Income.ToString("N2")</MudText></div>
+                    <div class="report-tile r-bad"><MudText Typo="Typo.overline">Expenses</MudText><MudText Typo="Typo.h5">$@_pnl.Expenses.ToString("N2")</MudText></div>
+                    <div class="@($"report-tile {(_pnl.Net >= 0 ? "r-good" : "r-bad")}")"><MudText Typo="Typo.overline">Net</MudText><MudText Typo="Typo.h5">@(_pnl.Net >= 0 ? "+" : "")$@_pnl.Net.ToString("N2")</MudText></div>
+                </div>
+
+                @if (_pnl.Monthly.Any())
+                {
+                    <MudPaper Class="polished-section" Elevation="0">
+                        <MudText Typo="Typo.h6">Monthly P&amp;L</MudText>
+                        <MudChart ChartType="ChartType.Line"
+                                  ChartSeries="@_pnlSeries" XAxisLabels="@_pnlLabels"
+                                  ChartOptions="@_chartOpts" Width="100%" Height="300px" />
+                    </MudPaper>
+                }
+
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudPaper Class="polished-section" Elevation="0">
+                            <MudText Typo="Typo.h6">Expenses by category</MudText>
+                            @if (!_pnl.ExpensesByCategory.Any()) { <MudText Typo="Typo.body2">No expenses.</MudText> }
+                            else
+                            {
+                                <MudSimpleTable Dense Hover>
+                                    <thead><tr><th>Category</th><th style="text-align:right;">Total</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var c in _pnl.ExpensesByCategory)
+                                        {
+                                            <tr><td>@c.Category</td><td style="text-align:right;">$@c.Total.ToString("N2")</td></tr>
+                                        }
+                                    </tbody>
+                                </MudSimpleTable>
+                            }
+                        </MudPaper>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudPaper Class="polished-section" Elevation="0">
+                            <MudText Typo="Typo.h6">Cost-per-goat (worst net first)</MudText>
+                            @if (!_pnl.CostPerGoat.Any()) { <MudText Typo="Typo.body2">No goat-attributed transactions in this window. Tag transactions with a goat for per-animal P&amp;L.</MudText> }
+                            else
+                            {
+                                <MudSimpleTable Dense Hover>
+                                    <thead><tr><th>Goat</th><th style="text-align:right;">Income</th><th style="text-align:right;">Expenses</th><th style="text-align:right;">Net</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var r in _pnl.CostPerGoat.Take(25))
+                                        {
+                                            <tr>
+                                                <td><a href="@($"/herd/{r.GoatId}/pnl")">@r.GoatName</a></td>
+                                                <td style="text-align:right;">$@r.Income.ToString("N2")</td>
+                                                <td style="text-align:right;">$@r.Expenses.ToString("N2")</td>
+                                                <td style="text-align:right;color:@(r.Net >= 0 ? "#2e7d32" : "#c62828");">@(r.Net >= 0 ? "+" : "")$@r.Net.ToString("N2")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </MudSimpleTable>
+                            }
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Milk" Icon="@Icons.Material.Filled.WaterDrop">
+            @if (_milk == null) { <MudProgressCircular Indeterminate /> }
+            else
+            {
+                <div class="report-tiles">
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Total (lbs)</MudText><MudText Typo="Typo.h5">@_milk.TotalLbs.ToString("N1")</MudText></div>
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Daily avg (lbs)</MudText><MudText Typo="Typo.h5">@_milk.DailyAverageLbs.ToString("N2")</MudText></div>
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Does logged</MudText><MudText Typo="Typo.h5">@_milk.TopProducers.Count</MudText></div>
+                </div>
+
+                @if (_milk.Daily.Any())
+                {
+                    <MudPaper Class="polished-section" Elevation="0">
+                        <MudText Typo="Typo.h6">Daily herd total</MudText>
+                        <MudChart ChartType="ChartType.Line" ChartSeries="@_milkSeries" XAxisLabels="@_milkLabels"
+                                  ChartOptions="@_chartOpts" Width="100%" Height="300px" />
+                    </MudPaper>
+                }
+
+                <MudPaper Class="polished-section" Elevation="0">
+                    <MudText Typo="Typo.h6">Top producers</MudText>
+                    @if (!_milk.TopProducers.Any()) { <MudText Typo="Typo.body2">No milk logs in this window.</MudText> }
+                    else
+                    {
+                        <MudSimpleTable Dense Hover>
+                            <thead><tr><th>Doe</th><th style="text-align:right;">Total (lbs)</th><th style="text-align:right;">Avg / day</th><th style="text-align:right;">Days</th></tr></thead>
+                            <tbody>
+                                @foreach (var r in _milk.TopProducers)
+                                {
+                                    <tr><td>@r.GoatName</td><td style="text-align:right;">@r.TotalLbs.ToString("N1")</td><td style="text-align:right;">@r.AverageLbs.ToString("N2")</td><td style="text-align:right;">@r.DaysRecorded</td></tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                </MudPaper>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Kidding" Icon="@Icons.Material.Filled.ChildFriendly">
+            @if (_kid == null) { <MudProgressCircular Indeterminate /> }
+            else
+            {
+                <div class="report-tiles">
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Kiddings</MudText><MudText Typo="Typo.h5">@_kid.KiddingCount</MudText></div>
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Kids born</MudText><MudText Typo="Typo.h5">@_kid.KidsBorn</MudText></div>
+                    <div class="report-tile r-good"><MudText Typo="Typo.overline">Kids alive</MudText><MudText Typo="Typo.h5">@_kid.KidsAlive</MudText></div>
+                    <div class="report-tile r-bad"><MudText Typo="Typo.overline">Kids died</MudText><MudText Typo="Typo.h5">@_kid.KidsDied</MudText></div>
+                    <div class="report-tile r-good"><MudText Typo="Typo.overline">Live-birth %</MudText><MudText Typo="Typo.h5">@((_kid.LiveBirthRate * 100).ToString("F1"))%</MudText></div>
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Avg / kidding</MudText><MudText Typo="Typo.h5">@_kid.AverageKidsPerKidding.ToString("F2")</MudText></div>
+                </div>
+
+                <MudPaper Class="polished-section" Elevation="0">
+                    <MudText Typo="Typo.h6">Litter size distribution</MudText>
+                    <MudSimpleTable Dense>
+                        <thead><tr><th>Litter size</th><th style="text-align:right;">Count</th></tr></thead>
+                        <tbody>
+                            <tr><td>Singles</td><td style="text-align:right;">@_kid.SingleCount</td></tr>
+                            <tr><td>Twins</td><td style="text-align:right;">@_kid.TwinCount</td></tr>
+                            <tr><td>Triplets+</td><td style="text-align:right;">@_kid.TripletPlusCount</td></tr>
+                        </tbody>
+                    </MudSimpleTable>
+                </MudPaper>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Mortality" Icon="@Icons.Material.Filled.Warning">
+            @if (_mort == null) { <MudProgressCircular Indeterminate /> }
+            else
+            {
+                <div class="report-tiles">
+                    <div class="report-tile r-bad"><MudText Typo="Typo.overline">Deceased</MudText><MudText Typo="Typo.h5">@_mort.DeceasedCount</MudText></div>
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Active at window start</MudText><MudText Typo="Typo.h5">@_mort.ActiveHerdAtStart</MudText></div>
+                </div>
+                <MudText Typo="Typo.caption" Color="Color.Secondary">Timestamps are approximate — Goat.UpdatedAt is used as a proxy. Any later edit to the record moves this stamp.</MudText>
+
+                <MudPaper Class="polished-section" Elevation="0">
+                    <MudText Typo="Typo.h6">Goats lost</MudText>
+                    @if (!_mort.Goats.Any()) { <MudText Typo="Typo.body2">No mortality in this window.</MudText> }
+                    else
+                    {
+                        <MudSimpleTable Dense Hover>
+                            <thead><tr><th>Goat</th><th>Approx. date</th></tr></thead>
+                            <tbody>
+                                @foreach (var g in _mort.Goats)
+                                {
+                                    <tr><td>@g.GoatName</td><td>@g.ChangedAt.ToString("MMM d, yyyy")</td></tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                </MudPaper>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Parasite" Icon="@Icons.Material.Filled.Coronavirus">
+            @if (_parasite == null) { <MudProgressCircular Indeterminate /> }
+            else
+            {
+                <div class="report-tiles">
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Scores logged</MudText><MudText Typo="Typo.h5">@_parasite.ScoreCount</MudText></div>
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Avg FAMACHA</MudText><MudText Typo="Typo.h5">@_parasite.AverageScore.ToString("F2")</MudText></div>
+                    <div class="report-tile r-bad"><MudText Typo="Typo.overline">In danger zone (4–5)</MudText><MudText Typo="Typo.h5">@_parasite.DangerZoneCount (@((_parasite.DangerZonePercent * 100).ToString("F0"))%)</MudText></div>
+                </div>
+
+                <MudPaper Class="polished-section" Elevation="0">
+                    <MudText Typo="Typo.h6">Worst-average goats</MudText>
+                    @if (!_parasite.WorstGoats.Any()) { <MudText Typo="Typo.body2">No FAMACHA scores in this window.</MudText> }
+                    else
+                    {
+                        <MudSimpleTable Dense Hover>
+                            <thead><tr><th>Goat</th><th style="text-align:right;">Avg</th><th style="text-align:right;">Latest</th><th>Latest date</th></tr></thead>
+                            <tbody>
+                                @foreach (var r in _parasite.WorstGoats)
+                                {
+                                    <tr><td>@r.GoatName</td><td style="text-align:right;">@r.AverageScore.ToString("F2")</td><td style="text-align:right;color:@(r.LatestScore >= 4 ? "#c62828" : "inherit");">@r.LatestScore</td><td>@r.LatestDate.ToString("MMM d, yyyy")</td></tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                </MudPaper>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="Health spend" Icon="@Icons.Material.Filled.LocalHospital">
+            @if (_health == null) { <MudProgressCircular Indeterminate /> }
+            else
+            {
+                <div class="report-tiles">
+                    <div class="report-tile r-bad"><MudText Typo="Typo.overline">Total spend</MudText><MudText Typo="Typo.h5">$@_health.TotalSpend.ToString("N2")</MudText></div>
+                    <div class="report-tile r-info"><MudText Typo="Typo.overline">Avg per active goat</MudText><MudText Typo="Typo.h5">$@_health.AveragePerGoat.ToString("N2")</MudText></div>
+                </div>
+
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudPaper Class="polished-section" Elevation="0">
+                            <MudText Typo="Typo.h6">By category</MudText>
+                            @if (!_health.ByCategory.Any()) { <MudText Typo="Typo.body2">No health spend in this window.</MudText> }
+                            else
+                            {
+                                <MudSimpleTable Dense Hover>
+                                    <thead><tr><th>Category</th><th style="text-align:right;">Total</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var c in _health.ByCategory) { <tr><td>@c.Category</td><td style="text-align:right;">$@c.Total.ToString("N2")</td></tr> }
+                                    </tbody>
+                                </MudSimpleTable>
+                            }
+                        </MudPaper>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudPaper Class="polished-section" Elevation="0">
+                            <MudText Typo="Typo.h6">By goat (most spent first)</MudText>
+                            @if (!_health.ByGoat.Any()) { <MudText Typo="Typo.body2">No goat-tagged health spend. Tag medical transactions with a goat for per-animal totals.</MudText> }
+                            else
+                            {
+                                <MudSimpleTable Dense Hover>
+                                    <thead><tr><th>Goat</th><th style="text-align:right;">Total</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var r in _health.ByGoat.Take(25)) { <tr><td>@r.GoatName</td><td style="text-align:right;">$@r.Total.ToString("N2")</td></tr> }
+                                    </tbody>
+                                </MudSimpleTable>
+                            }
+                        </MudPaper>
+                    </MudItem>
+                </MudGrid>
+            }
+        </MudTabPanel>
+    </MudTabs>
+}
+
+<style>
+.report-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.report-tile { background: var(--mud-palette-surface); border-radius: 10px; padding: 14px; border-left: 4px solid #888; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+.mud-theme-dark .report-tile { background: rgba(255,255,255,0.04); }
+.r-good { border-left-color: #2e7d32; }
+.r-bad { border-left-color: #c62828; }
+.r-info { border-left-color: #1565c0; }
+</style>
+
+@code {
+    private bool FeatureEnabled { get; set; }
+    private DateTime? _from = DateTime.UtcNow.Date.AddDays(-90);
+    private DateTime? _to = DateTime.UtcNow.Date;
+    private int _activeTab;
+    private int _loadedTab = -1;
+
+    private PnlReportDto? _pnl;
+    private MilkTrendsReportDto? _milk;
+    private KiddingReportDto? _kid;
+    private MortalityReportDto? _mort;
+    private ParasiteReportDto? _parasite;
+    private HealthSpendReportDto? _health;
+
+    private List<ChartSeries> _pnlSeries = new();
+    private string[] _pnlLabels = Array.Empty<string>();
+    private List<ChartSeries> _milkSeries = new();
+    private string[] _milkLabels = Array.Empty<string>();
+    private readonly ChartOptions _chartOpts = new() { YAxisTicks = 1, LineStrokeWidth = 2 };
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ = await AuthState.GetAuthenticationStateAsync();
+        FeatureEnabled = (AuthState.CurrentUser?.EnabledFeatures ?? Array.Empty<string>())
+            .Contains("AdvancedReports", StringComparer.OrdinalIgnoreCase);
+        if (FeatureEnabled) await LoadActive();
+    }
+
+    private async Task OnTabChanged(int newTab)
+    {
+        _activeTab = newTab;
+        await LoadActive();
+    }
+
+    private void QuickRange(int days)
+    {
+        _to = DateTime.UtcNow.Date;
+        _from = _to.Value.AddDays(-days);
+    }
+
+    private async Task LoadActive()
+    {
+        // Always reload the currently-active tab when Apply is hit.
+        _loadedTab = _activeTab;
+        switch (_activeTab)
+        {
+            case 0: await LoadPnl(); break;
+            case 1: await LoadMilk(); break;
+            case 2: await LoadKidding(); break;
+            case 3: await LoadMortality(); break;
+            case 4: await LoadParasite(); break;
+            case 5: await LoadHealth(); break;
+        }
+    }
+
+    private async Task LoadPnl()
+    {
+        _pnl = await ReportsSvc.GetPnlAsync(_from, _to);
+        if (_pnl != null && _pnl.Monthly.Any())
+        {
+            _pnlLabels = _pnl.Monthly.Select(m => $"{m.Year}-{m.Month:D2}").ToArray();
+            _pnlSeries = new List<ChartSeries>
+            {
+                new() { Name = "Income", Data = _pnl.Monthly.Select(m => (double)m.Income).ToArray() },
+                new() { Name = "Expenses", Data = _pnl.Monthly.Select(m => (double)m.Expenses).ToArray() },
+            };
+        }
+    }
+
+    private async Task LoadMilk()
+    {
+        _milk = await ReportsSvc.GetMilkTrendsAsync(_from, _to);
+        if (_milk != null && _milk.Daily.Any())
+        {
+            _milkLabels = _milk.Daily.Select(d => d.Date.ToString("MMM d")).ToArray();
+            _milkSeries = new List<ChartSeries>
+            {
+                new() { Name = "Lbs", Data = _milk.Daily.Select(d => d.Lbs).ToArray() },
+            };
+        }
+    }
+
+    private async Task LoadKidding() => _kid = await ReportsSvc.GetKiddingAsync(_from, _to);
+    private async Task LoadMortality() => _mort = await ReportsSvc.GetMortalityAsync(_from, _to);
+    private async Task LoadParasite() => _parasite = await ReportsSvc.GetParasiteAsync(_from, _to);
+    private async Task LoadHealth() => _health = await ReportsSvc.GetHealthSpendAsync(_from, _to);
+}

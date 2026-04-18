@@ -11,6 +11,7 @@ using GoatLab.Server.Services.Pdf;
 using GoatLab.Server.Services.Pedigree;
 using GoatLab.Server.Services.Plans;
 using GoatLab.Server.Services.Push;
+using GoatLab.Server.Services.Reports;
 using Fido2NetLib;
 using Hangfire;
 using Hangfire.SqlServer;
@@ -212,6 +213,8 @@ builder.Services.Configure<PushOptions>(builder.Configuration.GetSection(PushOpt
 builder.Services.AddScoped<PushService>();
 builder.Services.AddScoped<PdfService>();
 builder.Services.AddScoped<CoiCalculator>();
+builder.Services.AddScoped<ReportsService>();
+builder.Services.AddScoped<ForecastService>();
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 // Offsite database backup. No-op when Backup:Offsite:Enabled is false.

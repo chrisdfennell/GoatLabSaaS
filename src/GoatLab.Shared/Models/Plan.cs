@@ -25,6 +25,7 @@ public enum AppFeature
     PushNotifications = 15,
     PdfDocuments = 16,
     CoiCalculator = 17,
+    Forecasting = 18,
 }
 
 public class Plan
