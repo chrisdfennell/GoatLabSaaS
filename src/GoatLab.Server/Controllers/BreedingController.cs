@@ -1,5 +1,6 @@
 using GoatLab.Server.Data;
 using GoatLab.Server.Services.Plans;
+using GoatLab.Server.Services.Webhooks;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,12 @@ namespace GoatLab.Server.Controllers;
 public class BreedingController : ControllerBase
 {
     private readonly GoatLabDbContext _db;
-    public BreedingController(GoatLabDbContext db) => _db = db;
+    private readonly WebhookDispatcher _webhooks;
+    public BreedingController(GoatLabDbContext db, WebhookDispatcher webhooks)
+    {
+        _db = db;
+        _webhooks = webhooks;
+    }
 
     // --- Breeding Records ---
 
@@ -141,6 +147,14 @@ public class BreedingController : ControllerBase
                 await _db.SaveChangesAsync();
             }
         }
+
+        await _webhooks.DispatchAsync(WebhookEventTypes.KiddingRecorded, new
+        {
+            record.Id, record.BreedingRecordId, record.KiddingDate,
+            record.KidsBorn, record.KidsAlive, record.Outcome,
+            DoeId = breeding?.DoeId, BuckId = breeding?.BuckId
+        });
+
         return Ok(record);
     }
 

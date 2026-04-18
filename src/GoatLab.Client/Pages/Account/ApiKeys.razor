@@ -1,0 +1,126 @@
+@page "/account/api-keys"
+@inject ApiKeysService ApiKeysSvc
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject CookieAuthStateProvider AuthState
+
+<PageTitle>API Keys — GoatLab</PageTitle>
+
+@if (!FeatureEnabled)
+{
+    <MudPaper Class="polished-section" Elevation="0">
+        <div class="inline-empty">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" />
+            <MudText Typo="Typo.h6">API keys are a paid feature</MudText>
+            <MudText Typo="Typo.body2">Grant programmatic access to your farm data. Available on Farm and Dairy plans.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/billing" StartIcon="@Icons.Material.Filled.Upgrade">See plans</MudButton>
+        </div>
+    </MudPaper>
+}
+else
+{
+    <div class="page-hero page-hero-purple">
+        <div class="page-hero-icon"><MudIcon Icon="@Icons.Material.Filled.Key" /></div>
+        <div class="page-hero-text">
+            <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Developer</MudText>
+            <MudText Typo="Typo.h4" Class="page-hero-title">API keys</MudText>
+            <MudText Typo="Typo.body2" Class="page-hero-sub">Send <code>Authorization: Bearer gl_...</code> to any GoatLab endpoint to act as this tenant.</MudText>
+        </div>
+    </div>
+
+    <MudPaper Class="polished-section" Elevation="0">
+        <div class="polished-section-header">
+            <div class="polished-section-header-title">
+                <MudIcon Icon="@Icons.Material.Filled.VpnKey" />
+                <div>
+                    <MudText Typo="Typo.h6">Active keys (@(_keys?.Count ?? 0))</MudText>
+                    <MudText Typo="Typo.body2" Class="section-hint">The full key is shown once at creation — copy it immediately.</MudText>
+                </div>
+            </div>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateKey">Create key</MudButton>
+        </div>
+
+        @if (_keys is null) { <MudProgressCircular Indeterminate /> }
+        else if (_keys.Count == 0) { <MudText Typo="Typo.body2">No keys yet.</MudText> }
+        else
+        {
+            <MudSimpleTable Dense Hover>
+                <thead>
+                    <tr><th>Name</th><th>Prefix</th><th>Created</th><th>Last used</th><th>Expires</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var k in _keys)
+                    {
+                        <tr>
+                            <td>@k.Name</td>
+                            <td><code>@k.Prefix…</code></td>
+                            <td>@k.CreatedAt.ToString("yyyy-MM-dd")</td>
+                            <td>@(k.LastUsedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
+                            <td>@(k.ExpiresAt?.ToString("yyyy-MM-dd") ?? "never")</td>
+                            <td style="text-align:right;">
+                                <MudTooltip Text="Revoke">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => RevokeAsync(k.Id)" />
+                                </MudTooltip>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+    </MudPaper>
+}
+
+@code {
+    private bool FeatureEnabled { get; set; }
+    private List<ApiKeysService.ApiKeySummaryDto>? _keys;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ = await AuthState.GetAuthenticationStateAsync();
+        FeatureEnabled = (AuthState.CurrentUser?.EnabledFeatures ?? Array.Empty<string>())
+            .Contains("WebhooksAndApi", StringComparer.OrdinalIgnoreCase);
+        if (FeatureEnabled) await Reload();
+    }
+
+    private async Task Reload() => _keys = await ApiKeysSvc.ListAsync() ?? new();
+
+    private async Task CreateKey()
+    {
+        var name = await PromptName();
+        if (string.IsNullOrWhiteSpace(name)) return;
+        var created = await ApiKeysSvc.CreateAsync(name, null);
+        if (created is null)
+        {
+            Snackbar.Add("Failed to create key.", Severity.Error);
+            return;
+        }
+
+        // One-shot dialog showing the plaintext key. Users who dismiss without copying can't recover it.
+        var parameters = new DialogParameters
+        {
+            ["Key"] = created.PlaintextKey,
+        };
+        await Dialog.ShowAsync<ShowApiKeyDialog>("Your new API key", parameters);
+        await Reload();
+    }
+
+    private async Task<string?> PromptName()
+    {
+        var parameters = new DialogParameters();
+        var dlg = await Dialog.ShowAsync<ApiKeyNameDialog>("Name this key", parameters);
+        var r = await dlg.Result;
+        return r?.Canceled == false ? r.Data as string : null;
+    }
+
+    private async Task RevokeAsync(int id)
+    {
+        var ok = await Dialog.ShowMessageBox("Revoke this API key?",
+            "Any integration using it will immediately stop working. This can't be undone.",
+            yesText: "Revoke", cancelText: "Keep");
+        if (ok != true) return;
+        await ApiKeysSvc.RevokeAsync(id);
+        Snackbar.Add("Key revoked.", Severity.Info);
+        await Reload();
+    }
+}

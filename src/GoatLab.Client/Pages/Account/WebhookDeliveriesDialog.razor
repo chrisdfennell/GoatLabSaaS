@@ -1,0 +1,61 @@
+@* Read-only recent delivery history for a webhook. Useful for "did my endpoint receive it?" debugging. *@
+
+<MudDialog>
+    <DialogContent>
+        <div style="min-width:600px;">
+        @if (Deliveries.Count == 0)
+        {
+            <MudText Typo="Typo.body2">No deliveries yet.</MudText>
+        }
+        else
+        {
+            <MudSimpleTable Dense Hover>
+                <thead>
+                    <tr>
+                        <th>When</th>
+                        <th>Event</th>
+                        <th>Attempt</th>
+                        <th>Status</th>
+                        <th>Result</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var d in Deliveries)
+                    {
+                        <tr>
+                            <td style="font-size:0.85em;">@d.CreatedAt.ToLocalTime().ToString("MM-dd HH:mm:ss")</td>
+                            <td><code>@d.EventType</code></td>
+                            <td>@d.AttemptCount</td>
+                            <td>
+                                @if (d.StatusCode.HasValue)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="@(d.StatusCode.Value is >= 200 and < 300 ? Color.Success : Color.Error)">@d.StatusCode</MudChip>
+                                }
+                                else
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning">—</MudChip>
+                                }
+                            </td>
+                            <td style="font-size:0.85em;">
+                                @if (d.DeliveredAt.HasValue) { <span>Delivered</span> }
+                                else if (d.NextRetryAt.HasValue) { <span>Retry @d.NextRetryAt.Value.ToLocalTime().ToString("HH:mm")</span> }
+                                else { <span>@(d.Error ?? "Failed")</span> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Close">Close</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public List<WebhooksService.DeliveryDto> Deliveries { get; set; } = new();
+
+    private void Close() => MudDialog.Cancel();
+}

@@ -1,5 +1,6 @@
 using GoatLab.Server.Data;
 using GoatLab.Server.Services.Plans;
+using GoatLab.Server.Services.Webhooks;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,12 @@ namespace GoatLab.Server.Controllers;
 public class WaitlistController : ControllerBase
 {
     private readonly GoatLabDbContext _db;
-    public WaitlistController(GoatLabDbContext db) => _db = db;
+    private readonly WebhookDispatcher? _webhooks;
+    public WaitlistController(GoatLabDbContext db, WebhookDispatcher? webhooks = null)
+    {
+        _db = db;
+        _webhooks = webhooks;
+    }
 
     [HttpGet]
     public async Task<ActionResult<List<WaitlistEntry>>> GetAll([FromQuery] WaitlistStatus? status)
@@ -151,6 +157,15 @@ public class WaitlistController : ControllerBase
         entry.FulfilledSaleId = sale.Id;
         entry.FulfilledGoatId = goat.Id;
         await _db.SaveChangesAsync();
+
+        if (_webhooks is not null)
+        {
+            await _webhooks.DispatchAsync(WebhookEventTypes.SaleCreated, new
+            {
+                sale.Id, sale.SaleType, sale.Amount, sale.DepositAmount,
+                sale.PaymentStatus, sale.CustomerId, sale.GoatId, source = "waitlist",
+            });
+        }
 
         return CreatedAtAction("Get", "Sales", new { id = sale.Id }, sale);
     }

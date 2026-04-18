@@ -76,5 +76,7 @@ builder.Services.AddScoped<CoiService>();
 builder.Services.AddScoped<ReportsService>();
 builder.Services.AddScoped<ForecastService>();
 builder.Services.AddScoped<WaitlistService>();
+builder.Services.AddScoped<ApiKeysService>();
+builder.Services.AddScoped<WebhooksService>();
 
 await builder.Build().RunAsync();

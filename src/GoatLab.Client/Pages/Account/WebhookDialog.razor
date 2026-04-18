@@ -1,0 +1,86 @@
+@* Add/edit a webhook. Events render as checkboxes so users can't fat-finger names. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" Required />
+            </MudItem>
+            <MudItem xs="12" sm="6" Class="d-flex align-center">
+                <MudSwitch T="bool" @bind-Value="_isActive" Color="Color.Success" Label="Active" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_url" Label="URL" Variant="Variant.Outlined" HelperText="Full https:// URL" Required />
+            </MudItem>
+            <MudItem xs="12">
+                <MudText Typo="Typo.body2" Class="field-label">Subscribe to events</MudText>
+                <div style="display:flex;flex-wrap:wrap;gap:12px;">
+                    @foreach (var ev in AllEvents)
+                    {
+                        <MudCheckBox T="bool" Value="@_selected.Contains(ev)"
+                                     ValueChanged="@((bool v) => Toggle(ev, v))"
+                                     Label="@ev" Dense />
+                    }
+                </div>
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save" Disabled="@(!CanSave)">
+            @(IsEdit ? "Save" : "Create")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public bool IsEdit { get; set; }
+    [Parameter] public WebhooksService.CreateOrUpdateRequest Initial { get; set; } = new("", "", "", true);
+
+    // Mirrors WebhookEventTypes on the server; client can't reach the const list
+    // without a roundtrip, so we duplicate here — add new events in both places.
+    private static readonly string[] AllEvents =
+    {
+        "goat.created", "goat.updated", "goat.deleted",
+        "sale.created", "sale.updated",
+        "kidding.recorded", "medical.recorded",
+    };
+
+    private string _name = string.Empty;
+    private string _url = string.Empty;
+    private bool _isActive = true;
+    private HashSet<string> _selected = new();
+
+    protected override void OnInitialized()
+    {
+        _name = Initial.Name;
+        _url = Initial.Url;
+        _isActive = Initial.IsActive;
+        _selected = string.IsNullOrWhiteSpace(Initial.Events)
+            ? new HashSet<string>()
+            : Initial.Events.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                .Select(e => e.ToLowerInvariant()).ToHashSet();
+    }
+
+    private bool CanSave =>
+        !string.IsNullOrWhiteSpace(_name)
+        && Uri.TryCreate(_url, UriKind.Absolute, out var u)
+        && (u.Scheme == "http" || u.Scheme == "https")
+        && _selected.Count > 0;
+
+    private void Toggle(string ev, bool on)
+    {
+        if (on) _selected.Add(ev);
+        else _selected.Remove(ev);
+    }
+
+    private void Save()
+    {
+        var req = new WebhooksService.CreateOrUpdateRequest(
+            _name.Trim(), _url.Trim(), string.Join(",", _selected), _isActive);
+        MudDialog.Close(DialogResult.Ok(req));
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

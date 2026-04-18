@@ -1,0 +1,19 @@
+@* Tiny prompt to name a new API key. *@
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" HelperText="e.g. 'Zapier production' — shown in your key list." Immediate />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save" Disabled="@string.IsNullOrWhiteSpace(_name)">Create</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = null!;
+    private string _name = string.Empty;
+
+    private void Save() => MudDialog.Close(DialogResult.Ok(_name.Trim()));
+    private void Cancel() => MudDialog.Cancel();
+}

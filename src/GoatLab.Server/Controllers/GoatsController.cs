@@ -1,5 +1,6 @@
 using GoatLab.Server.Data;
 using GoatLab.Server.Services.Plans;
+using GoatLab.Server.Services.Webhooks;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,13 +15,21 @@ public class GoatsController : ControllerBase
     private readonly GoatLabDbContext _db;
     private readonly IWebHostEnvironment _env;
     private readonly IFeatureGate _featureGate;
+    private readonly WebhookDispatcher _webhooks;
 
-    public GoatsController(GoatLabDbContext db, IWebHostEnvironment env, IFeatureGate featureGate)
+    public GoatsController(GoatLabDbContext db, IWebHostEnvironment env, IFeatureGate featureGate, WebhookDispatcher webhooks)
     {
         _db = db;
         _env = env;
         _featureGate = featureGate;
+        _webhooks = webhooks;
     }
+
+    private object GoatSummary(Goat g) => new
+    {
+        g.Id, g.Name, g.EarTag, g.Breed, g.Gender, g.Status, g.DateOfBirth,
+        g.SireId, g.DamId, g.RegistrationNumber, g.IsListedForSale
+    };
 
     [HttpGet]
     public async Task<ActionResult<List<Goat>>> GetAll(
@@ -104,6 +113,7 @@ public class GoatsController : ControllerBase
         goat.UpdatedAt = DateTime.UtcNow;
         _db.Goats.Add(goat);
         await _db.SaveChangesAsync();
+        await _webhooks.DispatchAsync(WebhookEventTypes.GoatCreated, GoatSummary(goat));
         return CreatedAtAction(nameof(Get), new { id = goat.Id }, goat);
     }
 
@@ -139,6 +149,7 @@ public class GoatsController : ControllerBase
         existing.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
+        await _webhooks.DispatchAsync(WebhookEventTypes.GoatUpdated, GoatSummary(existing));
         return NoContent();
     }
 
@@ -148,8 +159,10 @@ public class GoatsController : ControllerBase
         var goat = await _db.Goats.FindAsync(id);
         if (goat is null) return NotFound();
 
+        var summary = GoatSummary(goat);
         _db.Goats.Remove(goat);
         await _db.SaveChangesAsync();
+        await _webhooks.DispatchAsync(WebhookEventTypes.GoatDeleted, summary);
         return NoContent();
     }
 

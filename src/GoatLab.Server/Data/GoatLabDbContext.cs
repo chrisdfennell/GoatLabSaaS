@@ -105,6 +105,11 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
     // Buyer waitlist (pre-sale reservations with optional deposits)
     public DbSet<WaitlistEntry> WaitlistEntries => Set<WaitlistEntry>();
 
+    // API keys + outbound webhooks + delivery history (all tenant-owned)
+    public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+    public DbSet<Webhook> Webhooks => Set<Webhook>();
+    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -188,6 +193,23 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
 
         modelBuilder.Entity<WaitlistEntry>()
             .HasIndex(w => new { w.TenantId, w.Status, w.Priority });
+
+        // ApiKey: unique hash for bearer lookup. Prefix indexed for UI filtering.
+        modelBuilder.Entity<ApiKey>()
+            .HasIndex(k => k.KeyHash).IsUnique();
+
+        // Webhook -> WebhookDelivery: cascade is fine, both are tenant-owned and
+        // the tenant-filter is already no-cascade, so SQL Server won't see a
+        // multi-path problem here.
+        modelBuilder.Entity<WebhookDelivery>()
+            .HasOne(d => d.Webhook)
+            .WithMany()
+            .HasForeignKey(d => d.WebhookId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Sweep index for the retry job — undelivered rows needing another try.
+        modelBuilder.Entity<WebhookDelivery>()
+            .HasIndex(d => new { d.DeliveredAt, d.AttemptCount, d.NextRetryAt });
 
         // Transaction -> Goat (optional, for cost-per-goat)
         modelBuilder.Entity<Transaction>()

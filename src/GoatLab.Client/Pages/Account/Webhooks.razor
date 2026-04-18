@@ -1,0 +1,177 @@
+@page "/account/webhooks"
+@inject WebhooksService WebhooksSvc
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+@inject CookieAuthStateProvider AuthState
+
+<PageTitle>Webhooks — GoatLab</PageTitle>
+
+@if (!FeatureEnabled)
+{
+    <MudPaper Class="polished-section" Elevation="0">
+        <div class="inline-empty">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" />
+            <MudText Typo="Typo.h6">Webhooks are a paid feature</MudText>
+            <MudText Typo="Typo.body2">Stream farm events to Zapier, n8n, or your own endpoint. Available on Farm and Dairy plans.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/billing" StartIcon="@Icons.Material.Filled.Upgrade">See plans</MudButton>
+        </div>
+    </MudPaper>
+}
+else
+{
+    <div class="page-hero page-hero-purple">
+        <div class="page-hero-icon"><MudIcon Icon="@Icons.Material.Filled.Webhook" /></div>
+        <div class="page-hero-text">
+            <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Developer</MudText>
+            <MudText Typo="Typo.h4" Class="page-hero-title">Webhooks</MudText>
+            <MudText Typo="Typo.body2" Class="page-hero-sub">Signed POSTs to your URL when farm events fire. Retries 3 times with backoff.</MudText>
+        </div>
+    </div>
+
+    <MudPaper Class="polished-section" Elevation="0">
+        <div class="polished-section-header">
+            <div class="polished-section-header-title">
+                <MudIcon Icon="@Icons.Material.Filled.SettingsEthernet" />
+                <div>
+                    <MudText Typo="Typo.h6">Endpoints (@(_hooks?.Count ?? 0))</MudText>
+                    <MudText Typo="Typo.body2" Class="section-hint">Signature header: <code>X-GoatLab-Signature: sha256=&lt;hex&gt;</code>.</MudText>
+                </div>
+            </div>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateHook">Add webhook</MudButton>
+        </div>
+
+        @if (_hooks is null) { <MudProgressCircular Indeterminate /> }
+        else if (_hooks.Count == 0) { <MudText Typo="Typo.body2">No webhooks yet.</MudText> }
+        else
+        {
+            <MudSimpleTable Dense Hover>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>URL</th>
+                        <th>Events</th>
+                        <th>Active</th>
+                        <th>Last delivery</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var h in _hooks)
+                    {
+                        <tr>
+                            <td>@h.Name</td>
+                            <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;"><code>@h.Url</code></td>
+                            <td style="font-size:0.85em;">@h.Events</td>
+                            <td>
+                                @if (h.IsActive) { <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Small" /> }
+                                else { <MudIcon Icon="@Icons.Material.Filled.PauseCircle" Color="Color.Default" Size="Size.Small" /> }
+                            </td>
+                            <td style="font-size:0.85em;">
+                                @if (h.LastDeliveredAt.HasValue)
+                                {
+                                    <span>@h.LastDeliveredAt.Value.ToLocalTime().ToString("MM-dd HH:mm")</span>
+                                    @if (h.LastStatusCode is int sc)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="@(sc is >= 200 and < 300 ? Color.Success : Color.Error)">@sc</MudChip>
+                                    }
+                                }
+                                else { <span>—</span> }
+                            </td>
+                            <td style="text-align:right;">
+                                <MudTooltip Text="Send test ping">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Send" Size="Size.Small" OnClick="() => TestAsync(h.Id)" />
+                                </MudTooltip>
+                                <MudTooltip Text="View deliveries">
+                                    <MudIconButton Icon="@Icons.Material.Filled.History" Size="Size.Small" OnClick="() => ShowDeliveries(h.Id)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Edit">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="() => EditAsync(h)" />
+                                </MudTooltip>
+                                <MudTooltip Text="Delete">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="() => DeleteAsync(h.Id)" />
+                                </MudTooltip>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+        }
+    </MudPaper>
+}
+
+@code {
+    private bool FeatureEnabled { get; set; }
+    private List<WebhooksService.WebhookDto>? _hooks;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _ = await AuthState.GetAuthenticationStateAsync();
+        FeatureEnabled = (AuthState.CurrentUser?.EnabledFeatures ?? Array.Empty<string>())
+            .Contains("WebhooksAndApi", StringComparer.OrdinalIgnoreCase);
+        if (FeatureEnabled) await Reload();
+    }
+
+    private async Task Reload() => _hooks = await WebhooksSvc.ListAsync() ?? new();
+
+    private async Task CreateHook()
+    {
+        var parameters = new DialogParameters
+        {
+            ["IsEdit"] = false,
+            ["Initial"] = new WebhooksService.CreateOrUpdateRequest("", "", "", true),
+        };
+        var dlg = await Dialog.ShowAsync<WebhookDialog>("Add webhook", parameters);
+        var r = await dlg.Result;
+        if (r?.Canceled == true || r?.Data is not WebhooksService.CreateOrUpdateRequest req) return;
+
+        var created = await WebhooksSvc.CreateAsync(req);
+        if (created is null)
+        {
+            Snackbar.Add("Failed to create webhook.", Severity.Error);
+            return;
+        }
+        await Dialog.ShowAsync<WebhookSecretDialog>("Webhook secret",
+            new DialogParameters { ["Secret"] = created.Secret });
+        await Reload();
+    }
+
+    private async Task EditAsync(WebhooksService.WebhookDto h)
+    {
+        var parameters = new DialogParameters
+        {
+            ["IsEdit"] = true,
+            ["Initial"] = new WebhooksService.CreateOrUpdateRequest(h.Name, h.Url, h.Events, h.IsActive),
+        };
+        var dlg = await Dialog.ShowAsync<WebhookDialog>("Edit webhook", parameters);
+        var r = await dlg.Result;
+        if (r?.Canceled == true || r?.Data is not WebhooksService.CreateOrUpdateRequest req) return;
+        await WebhooksSvc.UpdateAsync(h.Id, req);
+        Snackbar.Add("Webhook saved.", Severity.Success);
+        await Reload();
+    }
+
+    private async Task TestAsync(int id)
+    {
+        await WebhooksSvc.TestAsync(id);
+        Snackbar.Add("Test ping sent — check your endpoint.", Severity.Info);
+        await Task.Delay(500);
+        await Reload();
+    }
+
+    private async Task ShowDeliveries(int id)
+    {
+        var list = await WebhooksSvc.DeliveriesAsync(id) ?? new();
+        var parameters = new DialogParameters { ["Deliveries"] = list };
+        await Dialog.ShowAsync<WebhookDeliveriesDialog>("Recent deliveries", parameters);
+    }
+
+    private async Task DeleteAsync(int id)
+    {
+        var ok = await Dialog.ShowMessageBox("Delete webhook?",
+            "Event deliveries will stop immediately. This can't be undone.",
+            yesText: "Delete", cancelText: "Keep");
+        if (ok != true) return;
+        await WebhooksSvc.DeleteAsync(id);
+        await Reload();
+    }
+}

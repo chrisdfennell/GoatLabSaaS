@@ -1,5 +1,6 @@
 using GoatLab.Server.Data;
 using GoatLab.Server.Services.Plans;
+using GoatLab.Server.Services.Webhooks;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,12 @@ namespace GoatLab.Server.Controllers;
 public class HealthController : ControllerBase
 {
     private readonly GoatLabDbContext _db;
-    public HealthController(GoatLabDbContext db) => _db = db;
+    private readonly WebhookDispatcher _webhooks;
+    public HealthController(GoatLabDbContext db, WebhookDispatcher webhooks)
+    {
+        _db = db;
+        _webhooks = webhooks;
+    }
 
     // --- Medical Records ---
 
@@ -51,6 +57,11 @@ public class HealthController : ControllerBase
 
         _db.MedicalRecords.Add(record);
         await _db.SaveChangesAsync();
+        await _webhooks.DispatchAsync(WebhookEventTypes.MedicalRecorded, new
+        {
+            record.Id, record.GoatId, record.RecordType, record.Title,
+            record.Date, record.NextDueDate, record.Dosage, record.AdministeredBy
+        });
         return CreatedAtAction(nameof(GetRecord), new { id = record.Id }, record);
     }
 

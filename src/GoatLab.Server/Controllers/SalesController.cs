@@ -1,5 +1,6 @@
 using GoatLab.Server.Data;
 using GoatLab.Server.Services.Plans;
+using GoatLab.Server.Services.Webhooks;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,18 @@ namespace GoatLab.Server.Controllers;
 public class SalesController : ControllerBase
 {
     private readonly GoatLabDbContext _db;
-    public SalesController(GoatLabDbContext db) => _db = db;
+    private readonly WebhookDispatcher _webhooks;
+    public SalesController(GoatLabDbContext db, WebhookDispatcher webhooks)
+    {
+        _db = db;
+        _webhooks = webhooks;
+    }
+
+    private static object SaleSummary(Sale s) => new
+    {
+        s.Id, s.SaleType, s.SaleDate, s.Amount, s.DepositAmount, s.PaymentStatus,
+        s.CustomerId, s.GoatId, s.Description
+    };
 
     // --- Sales ---
 
@@ -53,6 +65,7 @@ public class SalesController : ControllerBase
         _db.Sales.Add(sale);
         await _db.SaveChangesAsync();
         await SyncLinkedTransactionAsync(sale);
+        await _webhooks.DispatchAsync(WebhookEventTypes.SaleCreated, SaleSummary(sale));
         return CreatedAtAction(nameof(Get), new { id = sale.Id }, sale);
     }
 
@@ -75,6 +88,7 @@ public class SalesController : ControllerBase
 
         await _db.SaveChangesAsync();
         await SyncLinkedTransactionAsync(existing);
+        await _webhooks.DispatchAsync(WebhookEventTypes.SaleUpdated, SaleSummary(existing));
         return NoContent();
     }
 

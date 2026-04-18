@@ -3,6 +3,7 @@ using GoatLab.Server.Data;
 using GoatLab.Server.Data.Auth;
 using GoatLab.Server.Services;
 using GoatLab.Server.Services.Alerts;
+using GoatLab.Server.Services.Auth;
 using GoatLab.Server.Services.Backup;
 using GoatLab.Server.Services.Billing;
 using GoatLab.Server.Services.Email;
@@ -12,6 +13,7 @@ using GoatLab.Server.Services.Pedigree;
 using GoatLab.Server.Services.Plans;
 using GoatLab.Server.Services.Push;
 using GoatLab.Server.Services.Reports;
+using GoatLab.Server.Services.Webhooks;
 using Fido2NetLib;
 using Hangfire;
 using Hangfire.SqlServer;
@@ -111,6 +113,14 @@ builder.Services
     .AddEntityFrameworkStores<GoatLabDbContext>()
     .AddDefaultTokenProviders();
 
+// API key bearer scheme. Coexists with the Identity cookie scheme (the default
+// for browser sessions). The global authorization policy below accepts either.
+// Callers send `Authorization: Bearer gl_<secret>`; ApiKeyAuthHandler hashes,
+// looks up the row, and produces a principal with the tenant_id claim.
+builder.Services
+    .AddAuthentication()
+    .AddScheme<ApiKeyAuthOptions, ApiKeyAuthHandler>(ApiKeyAuthOptions.SchemeName, _ => { });
+
 // IMemoryCache holds the short-lived WebAuthn challenge between register-start
 // and register-complete (and between login-start and login-complete).
 builder.Services.AddMemoryCache();
@@ -160,7 +170,12 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.AddControllers(options =>
 {
-    var policy = new AuthorizationPolicyBuilder()
+    // Global policy accepts either the Identity cookie OR an API key bearer.
+    // Controllers that must be cookie-only (e.g. minting API keys) opt out
+    // with an explicit [Authorize(AuthenticationSchemes = ...)] override.
+    var policy = new AuthorizationPolicyBuilder(
+            IdentityConstants.ApplicationScheme,
+            ApiKeyAuthOptions.SchemeName)
         .RequireAuthenticatedUser()
         .Build();
     options.Filters.Add(new AuthorizeFilter(policy));
@@ -223,6 +238,13 @@ builder.Services.AddScoped<IBackupService, BackupService>();
 
 // ADGA/AGS registry CSV import.
 builder.Services.AddScoped<RegistryImportService>();
+
+// Outbound webhooks. Dispatcher is scoped (shares the request's DbContext so
+// event emission participates in the same unit of work as the write that
+// triggered it). HttpClient is named "webhooks" with a 10s timeout applied
+// per-request in the dispatcher.
+builder.Services.AddHttpClient("webhooks");
+builder.Services.AddScoped<WebhookDispatcher>();
 
 // Hangfire. Recurring jobs live in Services/Jobs; registration happens after
 // the host is built so DI is available. SQL Server storage reuses the app's
@@ -380,6 +402,13 @@ if (hangfireEnabled)
         "alert-digest-daily",
         job => job.RunAsync(CancellationToken.None),
         "0 7 * * *");
+
+    // Webhook retry sweep. Runs every 5 minutes; picks up deliveries whose
+    // first attempt failed and whose backoff window has elapsed.
+    RecurringJob.AddOrUpdate<WebhookRetryJob>(
+        "webhook-retry",
+        job => job.RunAsync(CancellationToken.None),
+        "*/5 * * * *");
 }
 
 app.MapControllers();

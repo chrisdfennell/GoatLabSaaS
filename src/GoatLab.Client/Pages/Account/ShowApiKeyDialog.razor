@@ -1,0 +1,40 @@
+@* Shown ONCE right after a new API key is minted. After close the plaintext is lost. *@
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudAlert Severity="Severity.Warning" Class="mb-3">
+            Copy this key now — it will never be shown again. Store it in your secret manager or environment variables.
+        </MudAlert>
+        <MudTextField Value="@Key" ReadOnly Variant="Variant.Outlined" Label="Bearer token"
+                      Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.ContentCopy"
+                      OnAdornmentClick="CopyAsync" />
+        <MudText Typo="Typo.body2" Class="mt-3">Use it like:</MudText>
+        <pre style="padding:8px;border-radius:6px;background:rgba(0,0,0,0.06);overflow:auto;">curl -H "Authorization: Bearer @Key" \
+  https://your-goatlab/api/goats</pre>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close">I've saved it</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] MudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string Key { get; set; } = string.Empty;
+
+    private async Task CopyAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", Key);
+            Snackbar.Add("Copied to clipboard.", Severity.Success);
+        }
+        catch
+        {
+            Snackbar.Add("Clipboard blocked — select and copy manually.", Severity.Warning);
+        }
+    }
+
+    private void Close() => MudDialog.Close(DialogResult.Ok(true));
+}

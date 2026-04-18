@@ -27,6 +27,7 @@ public enum AppFeature
     CoiCalculator = 17,
     Forecasting = 18,
     BuyerWaitlist = 19,
+    WebhooksAndApi = 20,
 }
 
 public class Plan
