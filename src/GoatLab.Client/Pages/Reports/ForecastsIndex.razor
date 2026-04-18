@@ -73,8 +73,10 @@ else
                 {
                     <MudPaper Class="polished-section" Elevation="0">
                         <MudText Typo="Typo.h6">Recent + projected</MudText>
-                        <MudChart ChartType="ChartType.Line" ChartSeries="@_milkSeries" XAxisLabels="@_milkLabels"
-                                  ChartOptions="@_chartOpts" Width="100%" Height="300px" />
+                        <div class="tilted-xaxis">
+                            <MudChart ChartType="ChartType.Line" ChartSeries="@_milkSeries" XAxisLabels="@_milkLabels"
+                                      ChartOptions="@_chartOpts" Width="100%" Height="320px" />
+                        </div>
                     </MudPaper>
                 }
                 else
@@ -153,8 +155,10 @@ else
                 {
                     <MudPaper Class="polished-section" Elevation="0">
                         <MudText Typo="Typo.h6">Cumulative net projection</MudText>
-                        <MudChart ChartType="ChartType.Line" ChartSeries="@_cashSeries" XAxisLabels="@_cashLabels"
-                                  ChartOptions="@_chartOpts" Width="100%" Height="300px" />
+                        <div class="tilted-xaxis">
+                            <MudChart ChartType="ChartType.Line" ChartSeries="@_cashSeries" XAxisLabels="@_cashLabels"
+                                      ChartOptions="@_chartOpts" Width="100%" Height="320px" />
+                        </div>
                     </MudPaper>
                 }
             }
@@ -169,6 +173,17 @@ else
 .r-good { border-left-color: #2e7d32; }
 .r-bad { border-left-color: #c62828; }
 .r-info { border-left-color: #1565c0; }
+
+/* Rotate chart x-axis labels 45° and tuck them under the axis so 60–90 daily
+   dates don't mash into each other. MudBlazor 7.15 doesn't expose a rotation
+   option, so we patch the SVG text elements directly. */
+.tilted-xaxis .mud-charts-xaxis {
+    transform: rotate(-45deg);
+    transform-box: fill-box;
+    transform-origin: top right;
+    text-anchor: end;
+    font-size: 10px;
+}
 </style>
 
 @code {
@@ -211,7 +226,7 @@ else
         _milk = await ForecastSvc.GetMilkAsync();
         if (_milk == null) return;
         var all = _milk.Historical.Concat(_milk.Projected).ToList();
-        _milkLabels = all.Select(d => d.Date.ToString("MMM d")).ToArray();
+        _milkLabels = Downsample(all.Select(d => d.Date.ToString("MMM d")));
         _milkSeries = new List<ChartSeries>
         {
             new() { Name = "Recent", Data = _milk.Historical.Select(d => d.Lbs).Concat(Enumerable.Repeat(double.NaN, _milk.Projected.Count)).ToArray() },
@@ -223,10 +238,20 @@ else
     {
         _cash = await ForecastSvc.GetCashflowAsync();
         if (_cash == null || _cash.Projected.Count == 0) return;
-        _cashLabels = _cash.Projected.Select(d => d.Date.ToString("MMM d")).ToArray();
+        _cashLabels = Downsample(_cash.Projected.Select(d => d.Date.ToString("MMM d")));
         _cashSeries = new List<ChartSeries>
         {
             new() { Name = "Cumulative net ($)", Data = _cash.Projected.Select(d => (double)d.CumulativeNet).ToArray() },
         };
+    }
+
+    // Keep at most ~12 labels visible; blank the rest so MudChart still spaces
+    // data points correctly but the axis doesn't turn into a black smear.
+    private static string[] Downsample(IEnumerable<string> labels, int target = 12)
+    {
+        var arr = labels.ToArray();
+        if (arr.Length <= target) return arr;
+        var step = (int)Math.Ceiling(arr.Length / (double)target);
+        return arr.Select((l, i) => i % step == 0 ? l : string.Empty).ToArray();
     }
 }
