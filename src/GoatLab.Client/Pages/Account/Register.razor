@@ -18,7 +18,7 @@
                 We sent a confirmation link to <strong>@_pendingConfirmEmail</strong>.
                 Click it to finish setting up your account, then sign in.
             </MudText>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth Href="/login">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth Href="@LoginHref">
                 Go to sign in
             </MudButton>
         </div>
@@ -54,7 +54,7 @@
         </EditForm>
 
         <MudText Typo="Typo.body2" Class="mt-4" Align="Align.Center">
-            Already have an account? <MudLink Href="/login">Sign in</MudLink>
+            Already have an account? <MudLink Href="@LoginHref">Sign in</MudLink>
         </MudText>
     }
 </MudPaper>
@@ -64,6 +64,25 @@
     private string? _error;
     private bool _busy;
     private string? _pendingConfirmEmail;
+    private string? _returnUrl;
+
+    // Route preservation: /register?returnUrl=/transfer/XXX lets us hand the
+    // user back to the page they came from after they finish signing up.
+    // Only in-app relative paths are honored to prevent open-redirect abuse.
+    protected override void OnInitialized()
+    {
+        var uri = new Uri(Nav.Uri);
+        var qs = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var candidate = qs["returnUrl"];
+        if (!string.IsNullOrWhiteSpace(candidate) && candidate.StartsWith('/') && !candidate.StartsWith("//"))
+        {
+            _returnUrl = candidate;
+        }
+    }
+
+    private string LoginHref => string.IsNullOrEmpty(_returnUrl)
+        ? "/login"
+        : $"/login?returnUrl={Uri.EscapeDataString(_returnUrl)}";
 
     private async Task SubmitAsync()
     {
@@ -87,7 +106,7 @@
         }
 
         AuthState.NotifyUserChanged(result.User);
-        Nav.NavigateTo("/dashboard");
+        Nav.NavigateTo(_returnUrl ?? "/dashboard");
     }
 
     private class RegisterModel

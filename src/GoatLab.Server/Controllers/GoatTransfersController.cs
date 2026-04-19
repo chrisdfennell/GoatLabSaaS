@@ -4,6 +4,7 @@ using GoatLab.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace GoatLab.Server.Controllers;
 
@@ -23,6 +24,7 @@ public class GoatTransfersController : ControllerBase
     // Seller initiates (cookie auth — must be logged in inside the source tenant).
     [HttpPost]
     [Authorize(AuthenticationSchemes = "Identity.Application")]
+    [EnableRateLimiting("transfer")]
     public async Task<ActionResult<InitiateTransferResponse>> Initiate(
         [FromBody] InitiateTransferRequest req,
         CancellationToken ct)

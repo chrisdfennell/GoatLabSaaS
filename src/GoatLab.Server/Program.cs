@@ -309,6 +309,22 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
                 AutoReplenishment = true,
             }));
+
+    // Transfer-initiate: 5 per hour. Partition prefers the authenticated user id
+    // (so two users on the same office NAT aren't joint-throttled), falls back
+    // to IP for the edge case where cookie auth is resolving.
+    options.AddPolicy("transfer", ctx =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: ctx.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                ?? ctx.Connection.RemoteIpAddress?.ToString()
+                ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromHours(1),
+                QueueLimit = 0,
+                AutoReplenishment = true,
+            }));
 });
 
 var app = builder.Build();

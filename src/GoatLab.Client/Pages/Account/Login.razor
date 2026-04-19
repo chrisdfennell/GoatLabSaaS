@@ -52,7 +52,7 @@
 
         <div class="d-flex justify-space-between mt-4">
             <MudLink Href="/forgot-password" Typo="Typo.body2">Forgot your password?</MudLink>
-            <MudLink Href="/register" Typo="Typo.body2">Create an account</MudLink>
+            <MudLink Href="@RegisterHref" Typo="Typo.body2">Create an account</MudLink>
         </div>
     }
     else if (_step == LoginStep.TwoFactor)
@@ -100,11 +100,30 @@
     private string? _error;
     private bool _emailUnconfirmed;
     private bool _busy;
+    private string? _returnUrl;
 
     // 2FA state
     private string _totpCode = "";
     private bool _rememberMachine;
     private bool _hasPasskeys;
+
+    // Route preservation: /login?returnUrl=/transfer/XXX lets us hand the user
+    // back to the page they were trying to reach. Only in-app relative paths are
+    // honored to prevent open-redirect abuse.
+    protected override void OnInitialized()
+    {
+        var uri = new Uri(Nav.Uri);
+        var qs = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var candidate = qs["returnUrl"];
+        if (!string.IsNullOrWhiteSpace(candidate) && candidate.StartsWith('/') && !candidate.StartsWith("//"))
+        {
+            _returnUrl = candidate;
+        }
+    }
+
+    private string RegisterHref => string.IsNullOrEmpty(_returnUrl)
+        ? "/register"
+        : $"/register?returnUrl={Uri.EscapeDataString(_returnUrl)}";
 
     private async Task SubmitPasswordAsync()
     {
@@ -179,6 +198,21 @@
     private void CompleteLogin(CurrentUserDto user)
     {
         AuthState.NotifyUserChanged(user);
+
+        // Honor returnUrl if present and the user has a tenant context (or is a
+        // super-admin). For users still on the farm picker, preserve the returnUrl
+        // across the picker so they land on the intended page after selecting.
+        if (!string.IsNullOrEmpty(_returnUrl))
+        {
+            if (user.CurrentTenantId is not null || user.IsSuperAdmin)
+            {
+                Nav.NavigateTo(_returnUrl);
+                return;
+            }
+            Nav.NavigateTo($"/select-farm?returnUrl={Uri.EscapeDataString(_returnUrl)}");
+            return;
+        }
+
         if (user.CurrentTenantId is not null)
         {
             Nav.NavigateTo("/dashboard");

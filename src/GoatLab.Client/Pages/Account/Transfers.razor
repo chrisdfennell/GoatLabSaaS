@@ -1,0 +1,128 @@
+@page "/account/transfers"
+@using GoatLab.Shared.DTOs
+@inject GoatTransfersService TransfersSvc
+@inject NavigationManager Nav
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar
+
+<PageTitle>Transfers — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-blue">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Account</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Goat transfers</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">
+            Outgoing handoffs of goats to buyers who are also on GoatLab. Pending transfers can be cancelled any time before the buyer accepts.
+        </MudText>
+    </div>
+</div>
+
+@if (rows is null)
+{
+    <MudProgressLinear Indeterminate Color="Color.Primary" />
+}
+else if (rows.Count == 0)
+{
+    <MudPaper Class="pa-6 text-center" Outlined Elevation="0">
+        <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Style="font-size:3rem;color:#bbb;" />
+        <MudText Typo="Typo.h6" Class="mt-2">No transfers yet</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+            Open any goat and click <strong>Transfer to buyer</strong> to invite a buyer on GoatLab.
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/herd">Go to herd</MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Class="polished-section" Elevation="0">
+        <MudSimpleTable Hover Dense Striped>
+            <thead>
+                <tr>
+                    <th>Goat</th>
+                    <th>Buyer email</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Expires</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in rows.OrderByDescending(r => r.CreatedAt))
+                {
+                    <tr>
+                        <td>
+                            <MudLink Href="@($"/herd/{row.GoatId}")" Underline="Underline.Hover">@row.GoatName</MudLink>
+                        </td>
+                        <td>@row.BuyerEmail</td>
+                        <td>
+                            <MudChip T="string" Size="Size.Small" Color="@StatusColor(row.Status)" Variant="Variant.Filled">
+                                @row.Status
+                            </MudChip>
+                        </td>
+                        <td>@row.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")</td>
+                        <td>@row.ExpiresAt.ToLocalTime().ToString("MMM d, yyyy")</td>
+                        <td class="text-right">
+                            @if (string.Equals(row.Status, "Pending", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined"
+                                           StartIcon="@Icons.Material.Filled.Cancel"
+                                           OnClick="@(() => Cancel(row.Id, row.GoatName))">Cancel</MudButton>
+                            }
+                            else if (string.Equals(row.Status, "Accepted", StringComparison.OrdinalIgnoreCase) && row.AcceptedAt.HasValue)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    accepted @row.AcceptedAt.Value.ToLocalTime().ToString("MMM d")
+                                </MudText>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    </MudPaper>
+}
+
+@code {
+    private List<GoatTransferSummaryDto>? rows;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        try { rows = await TransfersSvc.ListAsync() ?? new(); }
+        catch (HttpRequestException ex) { Snackbar.Add(ex.Message, Severity.Error); rows = new(); }
+    }
+
+    private async Task Cancel(int transferId, string goatName)
+    {
+        var confirmed = await Dialog.ShowMessageBox(
+            title: "Cancel transfer?",
+            message: $"The magic link for {goatName} will stop working immediately. The buyer won't be able to accept.",
+            yesText: "Cancel transfer", cancelText: "Keep it");
+        if (confirmed != true) return;
+
+        try
+        {
+            await TransfersSvc.CancelAsync(transferId);
+            Snackbar.Add("Transfer cancelled.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private static Color StatusColor(string status) => status.ToLowerInvariant() switch
+    {
+        "pending" => Color.Info,
+        "accepted" => Color.Success,
+        "declined" => Color.Error,
+        "cancelled" => Color.Default,
+        "expired" => Color.Warning,
+        _ => Color.Default,
+    };
+}

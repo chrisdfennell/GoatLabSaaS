@@ -282,8 +282,24 @@ public class GoatTransferService
                 throw new UnauthorizedAccessException("You must be a member of the destination farm.");
 
             var toTenant = await _db.Tenants
+                .Include(t => t.Plan)
                 .FirstOrDefaultAsync(t => t.Id == toTenantId && t.DeletedAt == null && t.SuspendedAt == null, ct);
             if (toTenant is null) throw new InvalidOperationException("Destination farm is unavailable.");
+
+            // Plan-cap check: a Homestead buyer at 10/10 goats can't accept. Surface
+            // a clear message pointing at billing instead of silently failing the
+            // transaction. `FeatureGate.CanAddGoatAsync` is request-scoped to the
+            // current tenant, so we do the lookup manually against the destination.
+            if (toTenant.Plan is { MaxGoats: int cap })
+            {
+                var buyerGoatCount = await _db.Goats
+                    .CountAsync(g => g.TenantId == toTenantId, ct);
+                if (buyerGoatCount >= cap)
+                {
+                    throw new InvalidOperationException(
+                        $"Your '{toTenant.Plan.Name}' plan is at its {cap}-goat limit. Upgrade your plan before accepting this transfer.");
+                }
+            }
 
             var goat = await _db.Goats
                 .Include(g => g.Sire)

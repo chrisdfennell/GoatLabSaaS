@@ -976,7 +976,15 @@ else
                         <div class="inline-empty">
                             <MudIcon Icon="@Icons.Material.Filled.Pets" />
                             <MudText Typo="Typo.body1">No eligible sires</MudText>
-                            <MudText Typo="Typo.body2">Add at least one non-external male goat to your herd to get mate recommendations.</MudText>
+                            <MudText Typo="Typo.body2" Class="mb-3">
+                                Mate matching needs at least one <strong>intact male</strong> in your herd
+                                (not marked external, not sold, not deceased).
+                                External-only sires in your pedigree don't count here.
+                            </MudText>
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.Add" Href="/herd/add">
+                                Add a buck
+                            </MudButton>
                         </div>
                     }
                     else

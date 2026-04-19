@@ -184,6 +184,55 @@ public class GoatTransferServiceTests
     }
 
     [Fact]
+    public async Task Accept_fails_when_buyer_plan_is_at_goat_cap()
+    {
+        var (db, svc, _) = SetupFixture();
+        try
+        {
+            // Homestead plan (id 1 in the seed) caps at 10 goats. Put the buyer on
+            // Homestead and fill them up — the transfer should be rejected with
+            // the upgrade-required message instead of silently succeeding.
+            var buyer = db.Context.Tenants.Single(t => t.Id == BuyerTenantId);
+            buyer.PlanId = 1; // Homestead cap=10
+
+            for (var i = 0; i < 10; i++)
+            {
+                db.Context.Goats.Add(new Goat
+                {
+                    TenantId = BuyerTenantId,
+                    Name = $"Filler{i}",
+                    Gender = Gender.Female,
+                });
+            }
+            db.Context.TenantMembers.Add(new TenantMember
+            {
+                TenantId = BuyerTenantId, UserId = "buyer", Role = TenantRole.Owner,
+            });
+            db.Context.SaveChanges();
+
+            var goatId = AddGoat(db, SellerTenantId, "Incoming");
+            var init = await svc.InitiateAsync(goatId, "b@example.com", null, null, "seller", "https://x", default);
+
+            db.Tenant.TenantId = BuyerTenantId;
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                svc.AcceptAsync(init!.PlaintextToken, BuyerTenantId, "buyer", default));
+
+            Assert.Contains("10-goat limit", ex.Message);
+            Assert.Contains("Upgrade", ex.Message);
+
+            // Goat stays with the seller.
+            var stillThere = db.Context.Goats.IgnoreQueryFilters().Single(g => g.Id == goatId);
+            Assert.Equal(SellerTenantId, stillThere.TenantId);
+
+            // Transfer stays Pending — the buyer can retry after upgrading.
+            var transfer = db.Context.GoatTransfers.Single();
+            Assert.Equal(GoatTransferStatus.Pending, transfer.Status);
+        }
+        finally { db.Dispose(); }
+    }
+
+    [Fact]
     public async Task Decline_marks_row_declined()
     {
         var (db, svc, _) = SetupFixture();
