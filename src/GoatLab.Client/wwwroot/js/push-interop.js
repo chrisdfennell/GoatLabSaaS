@@ -1,6 +1,18 @@
 // Web Push interop for Blazor. Mirrors the shape of webauthn-interop.js —
 // each method is a thin wrapper around the browser's PushManager API and
 // returns plain values so the Blazor side can stay typed.
+
+// Service worker registration. Blazor's publish pipeline renames
+// service-worker.published.js → service-worker.js, so the same path works in
+// dev and prod. Without this, push-interop's `navigator.serviceWorker.ready`
+// hangs forever and the "Enable on this device" button appears to do nothing.
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js', { scope: '/' })
+            .catch(err => console.warn('[goatPush] service worker registration failed:', err));
+    });
+}
+
 window.goatPush = {
     isSupported: function () {
         return ('serviceWorker' in navigator) && ('PushManager' in window);
@@ -24,7 +36,15 @@ window.goatPush = {
     // JSON string (.NET parses it). Throws on user denial.
     subscribe: async function (vapidPublicKey) {
         if (!this.isSupported()) throw new Error('push-not-supported');
-        const reg = await navigator.serviceWorker.ready;
+
+        // Belt-and-suspenders: if the SW registration never became active
+        // (HTTPS restriction, script 404, etc.) we'd hang here forever. A
+        // 5-second race produces a clear error instead.
+        const reg = await Promise.race([
+            navigator.serviceWorker.ready,
+            new Promise((_, rej) => setTimeout(
+                () => rej(new Error('service-worker-not-ready')), 5000)),
+        ]);
 
         if (Notification.permission === 'default') {
             const result = await Notification.requestPermission();

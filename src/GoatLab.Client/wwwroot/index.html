@@ -118,6 +118,7 @@
     <script src="js/webauthn-interop.js"></script>
     <script src="js/push-interop.js"></script>
     <script src="js/app.js"></script>
-    <service-worker src="service-worker.js" />
+    <!-- Service worker is registered programmatically in push-interop.js so the
+         push flow has a guaranteed registration to await. -->
 </body>
 </html>
