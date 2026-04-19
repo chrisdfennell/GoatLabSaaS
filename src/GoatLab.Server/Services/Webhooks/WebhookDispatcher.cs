@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using GoatLab.Server.Data;
+using GoatLab.Server.Services;
 using GoatLab.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,23 +27,53 @@ public class WebhookDispatcher
     public const int MaxAttempts = 3;
 
     private readonly GoatLabDbContext _db;
+    private readonly ITenantContext _tenantContext;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<WebhookDispatcher> _logger;
 
-    public WebhookDispatcher(GoatLabDbContext db, IHttpClientFactory httpFactory, ILogger<WebhookDispatcher> logger)
+    public WebhookDispatcher(
+        GoatLabDbContext db,
+        ITenantContext tenantContext,
+        IHttpClientFactory httpFactory,
+        ILogger<WebhookDispatcher> logger)
     {
         _db = db;
+        _tenantContext = tenantContext;
         _httpFactory = httpFactory;
         _logger = logger;
     }
 
-    public async Task DispatchAsync(string eventType, object payload, CancellationToken ct = default)
+    // Default overload: fires to the current tenant (query filter scopes _db.Webhooks).
+    public Task DispatchAsync(string eventType, object payload, CancellationToken ct = default)
+        => DispatchInternalAsync(eventType, payload, specificTenantId: null, ct);
+
+    // Explicit-tenant overload: used by cross-tenant flows like transfers where
+    // we need to notify both the seller and the buyer's webhooks. Bypasses the
+    // query filter and filters by TenantId manually.
+    public Task DispatchToTenantAsync(int tenantId, string eventType, object payload, CancellationToken ct = default)
+        => DispatchInternalAsync(eventType, payload, specificTenantId: tenantId, ct);
+
+    private async Task DispatchInternalAsync(string eventType, object payload, int? specificTenantId, CancellationToken ct)
     {
-        // Filter to tenant webhooks subscribed to this event. Tenant filter is
-        // automatic via GoatLabDbContext.
-        var candidates = await _db.Webhooks
-            .Where(w => w.IsActive)
-            .ToListAsync(ct);
+        List<Webhook> candidates;
+        if (specificTenantId is int tid)
+        {
+            var bypassWas = _tenantContext.BypassFilter;
+            _tenantContext.BypassFilter = true;
+            try
+            {
+                candidates = await _db.Webhooks.IgnoreQueryFilters()
+                    .Where(w => w.IsActive && w.TenantId == tid)
+                    .ToListAsync(ct);
+            }
+            finally { _tenantContext.BypassFilter = bypassWas; }
+        }
+        else
+        {
+            candidates = await _db.Webhooks
+                .Where(w => w.IsActive)
+                .ToListAsync(ct);
+        }
 
         candidates = candidates
             .Where(w => SubscriptionIncludes(w.Events, eventType))

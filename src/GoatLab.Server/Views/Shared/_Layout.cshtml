@@ -1,0 +1,236 @@
+@{
+    var title = ViewData["Title"] as string ?? "GoatLab";
+    var description = ViewData["Description"] as string ?? "GoatLab — goat herd management for homesteaders and dairy farms.";
+    var canonical = ViewData["Canonical"] as string ?? $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.Path}";
+    var ogImage = ViewData["OgImage"] as string;
+    var jsonLd = ViewData["JsonLd"] as string;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@title</title>
+    <meta name="description" content="@description" />
+    <link rel="canonical" href="@canonical" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="@title" />
+    <meta property="og:description" content="@description" />
+    <meta property="og:url" content="@canonical" />
+    @if (!string.IsNullOrEmpty(ogImage))
+    {
+        <meta property="og:image" content="@ogImage" />
+    }
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="@title" />
+    <meta name="twitter:description" content="@description" />
+
+    <link rel="icon" href="/favicon.png" type="image/png" />
+
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #1a2421;
+            background: #fff;
+            line-height: 1.5;
+        }
+        a { color: #2e7d32; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        header.site-header {
+            background: #fff;
+            border-bottom: 1px solid #e0e0e0;
+            padding: 14px 0;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        header.site-header .inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header.site-header .brand {
+            font-weight: 800;
+            font-size: 1.25rem;
+            color: #1b5e20;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        header.site-header nav a {
+            margin-left: 20px;
+            font-weight: 500;
+            color: #1a2421;
+        }
+        .cta-button {
+            display: inline-block;
+            background: #2e7d32;
+            color: #fff !important;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        .cta-button:hover { background: #1b5e20; text-decoration: none; }
+
+        main { max-width: 1100px; margin: 0 auto; padding: 32px 20px 48px; }
+        h1 { font-size: 2.25rem; font-weight: 800; margin: 0 0 12px 0; color: #1a2421; }
+        h2 { font-size: 1.5rem; font-weight: 700; }
+        .eyebrow { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; color: #2e7d32; font-weight: 600; }
+        .lede { font-size: 1.05rem; color: #4a5a51; margin-bottom: 28px; }
+
+        footer.site-footer {
+            border-top: 1px solid #e0e0e0;
+            padding: 24px 20px;
+            text-align: center;
+            color: #6b7a70;
+            font-size: 0.9rem;
+        }
+        footer.site-footer a { color: #6b7a70; margin: 0 8px; }
+
+        .breeds-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 12px;
+        }
+        .breed-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 16px;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            text-decoration: none;
+            color: inherit;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+        }
+        .breed-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(46,125,50,0.12);
+            border-color: #2e7d32;
+            text-decoration: none;
+        }
+        .breed-card .icon { font-size: 2.2rem; line-height: 1; }
+        .breed-card .body { flex: 1; min-width: 0; }
+        .breed-card .name { font-weight: 700; font-size: 1.1rem; color: #1a2421; }
+        .breed-card .meta { font-size: 0.88rem; color: #6b7a70; margin-top: 2px; }
+        .breed-card .arrow { color: #999; font-size: 1.2rem; }
+
+        .breadcrumbs {
+            font-size: 0.85rem;
+            color: #6b7a70;
+            margin-bottom: 12px;
+        }
+        .breadcrumbs a { color: #6b7a70; }
+        .breadcrumbs .sep { margin: 0 6px; color: #ccc; }
+
+        .farms-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+        .farm-card {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .farm-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+            text-decoration: none;
+        }
+        .farm-card .photo {
+            aspect-ratio: 16 / 9;
+            background: #f5f5f5;
+            overflow: hidden;
+        }
+        .farm-card .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .farm-card .photo.empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #bbb;
+            font-size: 3rem;
+        }
+        .farm-card .body { padding: 14px; }
+        .farm-card .name { font-weight: 700; font-size: 1.1rem; margin: 0; }
+        .farm-card .location { font-size: 0.88rem; color: #6b7a70; margin-top: 2px; }
+        .farm-card .footer {
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .chip {
+            display: inline-block;
+            padding: 3px 10px;
+            border: 1px solid #2e7d32;
+            color: #2e7d32;
+            border-radius: 12px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+        .price {
+            color: #2e7d32;
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 20px;
+            border: 1px dashed #ccc;
+            border-radius: 10px;
+            color: #6b7a70;
+        }
+        .empty-state .icon { font-size: 3rem; color: #bbb; margin-bottom: 8px; }
+    </style>
+
+    @if (!string.IsNullOrEmpty(jsonLd))
+    {
+        @Html.Raw($"<script type=\"application/ld+json\">{jsonLd}</script>")
+    }
+</head>
+<body>
+    <header class="site-header">
+        <div class="inner">
+            <a href="/" class="brand">
+                <span>🐐</span>
+                <span>GoatLab</span>
+            </a>
+            <nav>
+                <a href="/breeds">Browse breeders</a>
+                <a href="/login">Sign in</a>
+                <a href="/register" class="cta-button">Start free</a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        @RenderBody()
+    </main>
+
+    <footer class="site-footer">
+        <div>
+            <a href="/">GoatLab</a>
+            <a href="/breeds">Browse breeders</a>
+            <a href="/terms">Terms</a>
+            <a href="/privacy">Privacy</a>
+        </div>
+        <div style="margin-top: 8px; opacity: 0.7;">© @DateTime.UtcNow.Year GoatLab. Made for goat people.</div>
+    </footer>
+</body>
+</html>

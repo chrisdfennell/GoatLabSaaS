@@ -180,7 +180,10 @@ builder.Services.AddAuthorization(options =>
         .RequireClaim(SuperAdminPolicy.ClaimType, "true"));
 });
 
-builder.Services.AddControllers(options =>
+// AddControllersWithViews (not plain AddControllers) so MVC Razor views work.
+// We use them only for the public /breeds pages — every other controller is
+// pure Web API. The view infrastructure adds ~0 runtime cost when unused.
+builder.Services.AddControllersWithViews(options =>
 {
     // Global policy accepts either the Identity cookie OR an API key bearer.
     // Controllers that must be cookie-only (e.g. minting API keys) opt out

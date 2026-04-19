@@ -53,3 +53,6 @@ tools/mkcert.exe
 ## Stripe CLI binary (downloaded per developer)
 tools/stripe.exe
 
+
+# Serilog file sink output
+src/GoatLab.Server/logs/

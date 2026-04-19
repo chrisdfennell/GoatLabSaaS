@@ -1,0 +1,62 @@
+@model IReadOnlyList<BreedSummaryDto>
+@{
+    ViewData["Title"] = "Browse goats for sale by breed — GoatLab";
+    ViewData["Description"] = "Find goats for sale across GoatLab breeders, organized by breed. Nigerian Dwarf, Boer, Nubian, LaMancha, and more.";
+
+    // JSON-LD: CollectionPage pointing at every breed detail page. Helps search
+    // engines understand this is an index of sub-pages.
+    var origin = $"{Context.Request.Scheme}://{Context.Request.Host}";
+    var items = string.Join(",", Model.Select((b, i) => $@"{{
+      ""@type"": ""ListItem"",
+      ""position"": {i + 1},
+      ""name"": ""{System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(b.DisplayName)}"",
+      ""url"": ""{origin}/breeds/{b.BreedSlug}""
+    }}"));
+    ViewData["JsonLd"] = $@"{{
+  ""@context"": ""https://schema.org"",
+  ""@type"": ""CollectionPage"",
+  ""name"": ""Goats for sale by breed"",
+  ""description"": ""{ViewData["Description"]}"",
+  ""url"": ""{origin}/breeds"",
+  ""mainEntity"": {{
+    ""@type"": ""ItemList"",
+    ""itemListElement"": [{items}]
+  }}
+}}";
+}
+
+<div class="eyebrow">Directory</div>
+<h1>Goats for sale by breed</h1>
+<p class="lede">
+    Listings aggregated across every farm on GoatLab that opts in to the public directory.
+    Pick a breed to browse the farms raising them.
+</p>
+
+@if (Model.Count == 0)
+{
+    <div class="empty-state">
+        <div class="icon">🐐</div>
+        <h2 style="margin: 4px 0;">No listings yet</h2>
+        <p>
+            Be the first — <a href="/register">create a GoatLab farm</a>, list a goat, and opt in to the public directory.
+        </p>
+    </div>
+}
+else
+{
+    <div class="breeds-grid">
+        @foreach (var b in Model)
+        {
+            <a class="breed-card" href="/breeds/@b.BreedSlug">
+                <div class="icon">🐐</div>
+                <div class="body">
+                    <div class="name">@b.DisplayName</div>
+                    <div class="meta">
+                        @b.ListingCount listing@(b.ListingCount == 1 ? "" : "s") · @b.FarmCount farm@(b.FarmCount == 1 ? "" : "s")
+                    </div>
+                </div>
+                <div class="arrow">›</div>
+            </a>
+        }
+    </div>
+}

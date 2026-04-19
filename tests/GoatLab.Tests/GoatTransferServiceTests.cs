@@ -1,4 +1,6 @@
+using System.Net;
 using GoatLab.Server.Services.Transfers;
+using GoatLab.Server.Services.Webhooks;
 using GoatLab.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -327,6 +329,73 @@ public class GoatTransferServiceTests
             // Transfer stays Pending — the buyer can retry after upgrading.
             var transfer = db.Context.GoatTransfers.Single();
             Assert.Equal(GoatTransferStatus.Pending, transfer.Status);
+        }
+        finally { db.Dispose(); }
+    }
+
+    [Fact]
+    public async Task Accept_dispatches_webhooks_to_both_tenants()
+    {
+        var db = new TestDb();
+        db.SeedDefaultPlans();
+        db.Context.Tenants.AddRange(
+            new Tenant { Id = SellerTenantId, Name = "Seller Farm", Slug = "seller", PlanId = 3 },
+            new Tenant { Id = BuyerTenantId, Name = "Buyer Farm", Slug = "buyer", PlanId = 3 });
+        db.Context.SaveChanges();
+        try
+        {
+            // Seller subscribes to both initiated + accepted; buyer only to accepted
+            // (buyer has no reason to hear about initiate since it's not on their side).
+            db.Context.Webhooks.Add(new Webhook
+            {
+                TenantId = SellerTenantId, Name = "Seller hook",
+                Url = "https://seller.test/hook", Secret = "s1",
+                Events = "goat.transfer.initiated,goat.transfer.accepted", IsActive = true,
+            });
+            db.Context.Webhooks.Add(new Webhook
+            {
+                TenantId = BuyerTenantId, Name = "Buyer hook",
+                Url = "https://buyer.test/hook", Secret = "s2",
+                Events = "goat.transfer.accepted", IsActive = true,
+            });
+            db.Context.TenantMembers.Add(new TenantMember
+            {
+                TenantId = BuyerTenantId, UserId = "buyer", Role = TenantRole.Owner,
+            });
+            db.Context.SaveChanges();
+
+            // Stub HTTP factory — both tenants' webhooks hit this, we count calls.
+            var hookCalls = new List<string>();
+            var http = new StubHttpClientFactory((req, _) =>
+            {
+                hookCalls.Add(req.RequestUri!.ToString());
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("ok"),
+                });
+            });
+
+            db.Tenant.TenantId = SellerTenantId;
+            var webhooks = new WebhookDispatcher(db.Context, db.Tenant, http, NullLogger<WebhookDispatcher>.Instance);
+            var email = new CapturingEmailSender();
+            var svc = new GoatTransferService(
+                db.Context, db.Tenant, email,
+                NullLogger<GoatTransferService>.Instance, webhooks);
+
+            var goatId = AddGoat(db, SellerTenantId, "Bella");
+            var init = await svc.InitiateAsync(goatId, "b@example.com", null, null, "seller", "https://x", default);
+
+            // Initiate fires one webhook (to seller).
+            Assert.Single(hookCalls, u => u.Contains("seller.test"));
+            Assert.DoesNotContain(hookCalls, u => u.Contains("buyer.test"));
+            hookCalls.Clear();
+
+            db.Tenant.TenantId = BuyerTenantId;
+            await svc.AcceptAsync(init!.PlaintextToken, BuyerTenantId, "buyer", default);
+
+            // Accept fires to BOTH tenants (fan-out).
+            Assert.Contains(hookCalls, u => u.Contains("seller.test"));
+            Assert.Contains(hookCalls, u => u.Contains("buyer.test"));
         }
         finally { db.Dispose(); }
     }

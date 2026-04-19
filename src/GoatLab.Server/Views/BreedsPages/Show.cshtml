@@ -1,0 +1,95 @@
+@model IReadOnlyList<BreedFarmDto>
+@{
+    var displayName = ViewData["DisplayName"] as string ?? "Breed";
+    var slug = ViewData["BreedSlug"] as string ?? "";
+    ViewData["Title"] = $"{displayName} breeders — GoatLab";
+    ViewData["Description"] = $"{displayName} goats for sale from GoatLab breeders. Browse farms, see starting prices, and contact sellers directly.";
+
+    var origin = $"{Context.Request.Scheme}://{Context.Request.Host}";
+    ViewData["Canonical"] = $"{origin}/breeds/{slug}";
+
+    // JSON-LD: ItemList of BreederOrganization entries, each mapped to its
+    // public farm page. Allows Google to render breeder farms as structured
+    // sub-results.
+    var items = string.Join(",", Model.Select((f, i) =>
+    {
+        var farmUrl = $"{origin}/pub/{f.FarmSlug}";
+        var locJson = string.IsNullOrEmpty(f.Location)
+            ? ""
+            : $@", ""address"": {{ ""@type"": ""PostalAddress"", ""addressLocality"": ""{System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(f.Location!)}"" }}";
+        return $@"{{
+      ""@type"": ""ListItem"",
+      ""position"": {i + 1},
+      ""item"": {{
+        ""@type"": ""Organization"",
+        ""name"": ""{System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(f.FarmName)}"",
+        ""url"": ""{farmUrl}""{locJson}
+      }}
+    }}";
+    }));
+    ViewData["JsonLd"] = $@"{{
+  ""@context"": ""https://schema.org"",
+  ""@type"": ""CollectionPage"",
+  ""name"": ""{System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(displayName)} breeders"",
+  ""description"": ""{ViewData["Description"]}"",
+  ""url"": ""{ViewData["Canonical"]}"",
+  ""mainEntity"": {{
+    ""@type"": ""ItemList"",
+    ""itemListElement"": [{items}]
+  }}
+}}";
+}
+
+<div class="breadcrumbs">
+    <a href="/breeds">Breeds</a>
+    <span class="sep">›</span>
+    <span>@displayName</span>
+</div>
+
+<div class="eyebrow">Breed directory</div>
+<h1>@displayName breeders</h1>
+
+@if (Model.Count == 0)
+{
+    <div class="empty-state">
+        <div class="icon">🔍</div>
+        <h2 style="margin: 4px 0;">No @displayName farms listed right now.</h2>
+        <p><a href="/breeds" class="cta-button" style="display:inline-block;margin-top:12px;">Browse all breeds</a></p>
+    </div>
+}
+else
+{
+    <p class="lede">
+        @Model.Count farm@(Model.Count == 1 ? "" : "s") listed. Click a farm to view their current @displayName goats.
+    </p>
+
+    <div class="farms-grid">
+        @foreach (var f in Model)
+        {
+            <a class="farm-card" href="/pub/@f.FarmSlug">
+                @if (!string.IsNullOrEmpty(f.HeroPhotoUrl))
+                {
+                    <div class="photo"><img src="@f.HeroPhotoUrl" alt="@f.FarmName" loading="lazy" /></div>
+                }
+                else
+                {
+                    <div class="photo empty">🐐</div>
+                }
+                <div class="body">
+                    <h2 class="name">@f.FarmName</h2>
+                    @if (!string.IsNullOrEmpty(f.Location))
+                    {
+                        <div class="location">📍 @f.Location</div>
+                    }
+                    <div class="footer">
+                        <span class="chip">@f.ListingCount @displayName</span>
+                        @if (f.StartingPriceCents.HasValue)
+                        {
+                            <span class="price">from $@((f.StartingPriceCents.Value / 100m).ToString("N0"))</span>
+                        }
+                    </div>
+                </div>
+            </a>
+        }
+    </div>
+}

@@ -68,7 +68,7 @@ public class WebhookDispatcherTests
             };
         });
 
-        var dispatcher = new WebhookDispatcher(db.Context, http, NullLogger<WebhookDispatcher>.Instance);
+        var dispatcher = new WebhookDispatcher(db.Context, db.Tenant, http, NullLogger<WebhookDispatcher>.Instance);
         await dispatcher.DispatchAsync("goat.created", new { id = 7, name = "Clover" });
 
         Assert.NotNull(captured);
@@ -102,7 +102,7 @@ public class WebhookDispatcherTests
                 Content = new StringContent("boom"),
             }));
 
-        var dispatcher = new WebhookDispatcher(db.Context, http, NullLogger<WebhookDispatcher>.Instance);
+        var dispatcher = new WebhookDispatcher(db.Context, db.Tenant, http, NullLogger<WebhookDispatcher>.Instance);
         await dispatcher.DispatchAsync("goat.created", new { id = 1 });
 
         var delivery = Assert.Single(db.Context.WebhookDeliveries);
@@ -121,7 +121,7 @@ public class WebhookDispatcherTests
         var http = new StubHttpClientFactory((req, ct) =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
 
-        var dispatcher = new WebhookDispatcher(db.Context, http, NullLogger<WebhookDispatcher>.Instance);
+        var dispatcher = new WebhookDispatcher(db.Context, db.Tenant, http, NullLogger<WebhookDispatcher>.Instance);
         await dispatcher.DispatchAsync("goat.created", new { id = 1 });
 
         Assert.Empty(db.Context.WebhookDeliveries);

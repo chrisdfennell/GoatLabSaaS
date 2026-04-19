@@ -1000,6 +1000,7 @@ else
                                     <th>Live-birth</th>
                                     <th>Litter</th>
                                     <th>Daughter milk</th>
+                                    <th></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -1007,7 +1008,7 @@ else
                                 {
                                     var r = mateRecs[i];
                                     var rank = i + 1;
-                                    <tr style="cursor:pointer;" @onclick="@(() => Nav.NavigateTo($"/herd/{r.BuckId}"))">
+                                    <tr>
                                         <td>
                                             @if (rank == 1)
                                             {
@@ -1018,7 +1019,7 @@ else
                                                 <MudText Typo="Typo.caption" Color="Color.Secondary">#@rank</MudText>
                                             }
                                         </td>
-                                        <td>
+                                        <td style="cursor:pointer;" @onclick="@(() => Nav.NavigateTo($"/herd/{r.BuckId}"))">
                                             <MudText Typo="Typo.body2" Style="font-weight:600;">@r.BuckName</MudText>
                                             <MudText Typo="Typo.caption" Color="Color.Secondary">
                                                 @(r.EarTag is not null ? $"#{r.EarTag} · " : "")@(r.Breed ?? "—")
@@ -1038,10 +1039,18 @@ else
                                         <td>@(r.LiveBirthRate is double lbr ? (lbr * 100).ToString("F0") + "%" : "—")</td>
                                         <td>@(r.AvgLitterSize is double ls ? ls.ToString("F1") : "—")</td>
                                         <td>@(r.DaughterMilkDailyAvgLbs is double milk ? milk.ToString("F1") + " lb/d" : "—")</td>
+                                        <td>
+                                            <MudTooltip Text="Start a BreedingRecord for this pair">
+                                                <MudIconButton Icon="@Icons.Material.Filled.Favorite"
+                                                               Color="Color.Primary"
+                                                               Size="Size.Small"
+                                                               OnClick="@(() => Nav.NavigateTo($"/breeding?doeId={Id}&buckId={r.BuckId}"))" />
+                                            </MudTooltip>
+                                        </td>
                                     </tr>
                                     <tr>
                                         <td></td>
-                                        <td colspan="7" style="padding-top:0;padding-bottom:12px;">
+                                        <td colspan="8" style="padding-top:0;padding-bottom:12px;">
                                             <MudText Typo="Typo.caption" Color="Color.Secondary">@r.Rationale</MudText>
                                         </td>
                                     </tr>

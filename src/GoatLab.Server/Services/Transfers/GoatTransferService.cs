@@ -2,6 +2,7 @@ using GoatLab.Server.Data;
 using GoatLab.Server.Services;
 using GoatLab.Server.Services.ApiKeys;
 using GoatLab.Server.Services.Email;
+using GoatLab.Server.Services.Webhooks;
 using GoatLab.Shared.DTOs;
 using GoatLab.Shared.Models;
 using Microsoft.EntityFrameworkCore;
@@ -33,17 +34,20 @@ public class GoatTransferService
     private readonly GoatLabDbContext _db;
     private readonly ITenantContext _tenantContext;
     private readonly IAppEmailSender _email;
+    private readonly WebhookDispatcher? _webhooks;
     private readonly ILogger<GoatTransferService> _logger;
 
     public GoatTransferService(
         GoatLabDbContext db,
         ITenantContext tenantContext,
         IAppEmailSender email,
-        ILogger<GoatTransferService> logger)
+        ILogger<GoatTransferService> logger,
+        WebhookDispatcher? webhooks = null)
     {
         _db = db;
         _tenantContext = tenantContext;
         _email = email;
+        _webhooks = webhooks;
         _logger = logger;
     }
 
@@ -112,6 +116,15 @@ public class GoatTransferService
         {
             _logger.LogWarning(ex, "Transfer invite email failed for transfer {Id}", transfer.Id);
         }
+
+        await TryDispatchAsync(fromTenantId, WebhookEventTypes.GoatTransferInitiated, new
+        {
+            transferId = transfer.Id,
+            goatId = goat.Id,
+            goatName = goat.Name,
+            buyerEmail = transfer.BuyerEmail,
+            expiresAt = transfer.ExpiresAt,
+        }, ct);
 
         return new InitiateTransferResponse(transfer.Id, acceptUrl, plaintext);
     }
@@ -250,6 +263,15 @@ public class GoatTransferService
             {
                 _logger.LogWarning(ex, "Transfer-declined email failed for transfer {Id}", transfer.Id);
             }
+
+            await TryDispatchAsync(transfer.FromTenantId, WebhookEventTypes.GoatTransferDeclined, new
+            {
+                transferId = transfer.Id,
+                goatId = transfer.GoatId,
+                goatName = transfer.Goat.Name,
+                declineReason = transfer.DeclineReason,
+                declinedAt = transfer.DeclinedAt,
+            }, ct);
         }
         return true;
     }
@@ -397,6 +419,21 @@ public class GoatTransferService
                 _logger.LogWarning(ex, "Transfer-accepted email failed for transfer {Id}", transfer.Id);
             }
 
+            // 7. Webhook fan-out to BOTH tenants. Seller's integrations want to
+            //    know the handoff completed; buyer's integrations want to know a
+            //    new goat arrived. Both get the same payload shape.
+            var acceptedPayload = new
+            {
+                transferId = transfer.Id,
+                goatId = goat.Id,
+                goatName,
+                fromTenantId,
+                toTenantId,
+                acceptedAt = transfer.AcceptedAt,
+            };
+            await TryDispatchAsync(fromTenantId, WebhookEventTypes.GoatTransferAccepted, acceptedPayload, ct);
+            await TryDispatchAsync(toTenantId, WebhookEventTypes.GoatTransferAccepted, acceptedPayload, ct);
+
             return new AcceptTransferResponse(toTenantId, goat.Id);
         }
         finally { _tenantContext.BypassFilter = false; }
@@ -476,6 +513,23 @@ public class GoatTransferService
         _db.Goats.Add(stub);
         await _db.SaveChangesAsync(ct);
         return stub.Id;
+    }
+
+    // Fire-and-forget webhook dispatch. Swallows failures so an outbound-webhook
+    // outage never blocks the transfer flow from completing. `_webhooks` is
+    // nullable so tests that construct the service without the full DI graph
+    // still work.
+    private async Task TryDispatchAsync(int tenantId, string eventType, object payload, CancellationToken ct)
+    {
+        if (_webhooks is null) return;
+        try
+        {
+            await _webhooks.DispatchToTenantAsync(tenantId, eventType, payload, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Webhook dispatch for {EventType} to tenant {Tenant} failed", eventType, tenantId);
+        }
     }
 
     private async Task<string?> LookupSellerEmailAsync(string userId, CancellationToken ct) =>
