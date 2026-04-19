@@ -19,6 +19,14 @@ window.webAuthn = {
         }
 
         const credential = await navigator.credentials.create({ publicKey: options });
+
+        // Fido2NetLib v4 marks `response.transports` as required — the browser
+        // exposes these via getTransports() on AuthenticatorAttestationResponse.
+        // Older browsers/authenticators may not implement it; default to [].
+        const transports = (typeof credential.response.getTransports === 'function')
+            ? (credential.response.getTransports() || [])
+            : [];
+
         return {
             id: credential.id,
             rawId: bufferToBase64url(credential.rawId),
@@ -26,6 +34,7 @@ window.webAuthn = {
             response: {
                 attestationObject: bufferToBase64url(credential.response.attestationObject),
                 clientDataJSON: bufferToBase64url(credential.response.clientDataJSON),
+                transports: transports,
             },
             extensions: credential.getClientExtensionResults(),
         };
