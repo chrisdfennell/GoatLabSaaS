@@ -71,6 +71,33 @@ public class PdfService
         return new HealthCertificateDocument(goat, vaccinations, latestWeight, latestFamacha, tenantName).GeneratePdf();
     }
 
+    public async Task<byte[]?> GenerateQrSheetAsync(
+        IReadOnlyList<int> goatIds,
+        string tenantName,
+        string originUrl,
+        CancellationToken cancellationToken = default)
+    {
+        if (goatIds.Count == 0) return null;
+
+        var goats = await _db.Goats
+            .Where(g => goatIds.Contains(g.Id))
+            .ToListAsync(cancellationToken);
+        if (goats.Count == 0) return null;
+
+        var ordered = goatIds
+            .Select(id => goats.FirstOrDefault(g => g.Id == id))
+            .Where(g => g is not null)
+            .Cast<Goat>()
+            .ToList();
+
+        var baseUrl = originUrl.TrimEnd('/');
+        var rows = ordered
+            .Select(g => new Templates.QrSheetRow(g.Id, g.Name, g.EarTag, g.Breed, g.DateOfBirth, $"{baseUrl}/herd/{g.Id}"))
+            .ToList();
+
+        return new Templates.QrSheetDocument(rows, tenantName).GeneratePdf();
+    }
+
     /// <summary>Caller-side helper: load the current tenant's display name once.</summary>
     public async Task<string> GetTenantNameAsync(int tenantId, CancellationToken cancellationToken = default)
     {

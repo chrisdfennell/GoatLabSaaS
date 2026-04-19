@@ -107,6 +107,9 @@ else
                        StartIcon="@Icons.Material.Filled.HealthAndSafety"
                        Href="@($"/api/documents/goats/{Id}/health-certificate.pdf")" Target="_blank">Health Cert PDF</MudButton>
             <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                       StartIcon="@Icons.Material.Filled.QrCode2"
+                       Href="@($"/api/documents/qr-sheet.pdf?ids={Id}")" Target="_blank">QR Tag</MudButton>
+            <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
                        StartIcon="@Icons.Material.Filled.Delete" OnClick="DeleteGoat">Delete</MudButton>
         </div>
     </div>

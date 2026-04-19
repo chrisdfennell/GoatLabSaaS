@@ -1,4 +1,5 @@
 using GoatLab.Server.Data;
+using GoatLab.Server.Services.Billing;
 using GoatLab.Shared.DTOs;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -18,8 +19,13 @@ namespace GoatLab.Server.Controllers;
 public class PublicController : ControllerBase
 {
     private readonly GoatLabDbContext _db;
+    private readonly IBillingService _billing;
 
-    public PublicController(GoatLabDbContext db) => _db = db;
+    public PublicController(GoatLabDbContext db, IBillingService billing)
+    {
+        _db = db;
+        _billing = billing;
+    }
 
     [HttpGet("farms/{slug}/goats")]
     public async Task<ActionResult<IReadOnlyList<PublicGoatListItemDto>>> List(string slug, CancellationToken ct)
@@ -59,6 +65,8 @@ public class PublicController : ControllerBase
             .FirstOrDefaultAsync(g => g.Id == goatId && g.TenantId == tenant.Id && g.IsListedForSale, ct);
         if (goat is null) return NotFound();
 
+        var depositCents = ComputeDepositCents(tenant, goat);
+
         var dto = new PublicGoatDto(
             goat.Id,
             goat.Name,
@@ -81,10 +89,63 @@ public class PublicController : ControllerBase
                 .ThenBy(p => p.UploadedAt)
                 .Select(p => new PublicGoatPhotoDto("/" + p.FilePath, p.Caption, p.IsPrimary))
                 .ToList(),
-            BuildPedigreeNode(goat));
+            BuildPedigreeNode(goat),
+            depositCents);
 
         Response.Headers.CacheControl = "public, max-age=300";
         return Ok(dto);
+    }
+
+    [HttpPost("farms/{slug}/goats/{goatId:int}/reserve")]
+    public async Task<ActionResult<RedirectUrlDto>> Reserve(
+        string slug,
+        int goatId,
+        [FromBody] PublicReservationRequest req,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.BuyerEmail) || string.IsNullOrWhiteSpace(req.BuyerName))
+            return BadRequest(new { error = "Email and name are required." });
+
+        var tenant = await GetPublicTenantAsync(slug, ct);
+        if (tenant is null) return NotFound();
+
+        var goat = await _db.Goats.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(g => g.Id == goatId && g.TenantId == tenant.Id && g.IsListedForSale, ct);
+        if (goat is null) return NotFound();
+
+        var depositCents = ComputeDepositCents(tenant, goat);
+        if (depositCents is null or <= 0)
+            return BadRequest(new { error = "This farm is not accepting online deposits for this listing." });
+
+        var origin = RequestOrigin();
+        var url = await _billing.CreateDepositCheckoutSessionAsync(
+            tenant,
+            goat,
+            depositCents.Value,
+            req,
+            origin,
+            ct);
+
+        return new RedirectUrlDto(url);
+    }
+
+    public record RedirectUrlDto(string Url);
+
+    private string RequestOrigin()
+    {
+        var origin = Request.Headers["Origin"].ToString();
+        if (!string.IsNullOrEmpty(origin)) return origin;
+        return $"{Request.Scheme}://{Request.Host}";
+    }
+
+    private static int? ComputeDepositCents(Tenant tenant, Goat goat)
+    {
+        if (tenant.PublicDepositPercent <= 0) return null;
+        if (goat.AskingPriceCents is not > 0) return null;
+        var pct = Math.Clamp(tenant.PublicDepositPercent, 1, 100);
+        var cents = (int)Math.Round(goat.AskingPriceCents.Value * (pct / 100.0));
+        // Stripe minimum is 50 cents USD. Below that we won't offer the flow.
+        return cents < 50 ? null : cents;
     }
 
     private async Task<Tenant?> GetPublicTenantAsync(string slug, CancellationToken ct)

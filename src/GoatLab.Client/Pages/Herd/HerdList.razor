@@ -18,6 +18,9 @@
                    Href="/herd/weigh-in">Weigh-In</MudButton>
         <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PictureAsPdf"
                    Href="/herd/report">Report</MudButton>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.QrCode2"
+                   Disabled="@(goats == null || goats.Count == 0)"
+                   Href="@QrSheetHref" Target="_blank">QR Tags</MudButton>
         <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.FileUpload"
                    OnClick="OpenImportDialogAsync">Import</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
@@ -219,6 +222,10 @@ else
     }
 
     private void GoToGoat(int id) => Nav.NavigateTo($"/herd/{id}");
+
+    private string QrSheetHref => goats is { Count: > 0 }
+        ? $"/api/documents/qr-sheet.pdf?ids={string.Join(",", goats.Select(g => g.Id))}"
+        : "#";
 
     private void OnRowClicked(TableRowClickEventArgs<Goat> args)
     {

@@ -27,7 +27,7 @@
 {
     <div class="polished-section"><MudProgressCircular Indeterminate /></div>
 }
-else if (Counts.Overdue == 0 && Counts.Famacha == 0 && Counts.Bcs == 0 && Counts.WeightLoss == 0 && Counts.Sick == 0 && Counts.ExpiringMeds == 0)
+else if (Counts.Overdue == 0 && Counts.Famacha == 0 && Counts.Bcs == 0 && Counts.WeightLoss == 0 && Counts.Sick == 0 && Counts.ExpiringMeds == 0 && (activeWithdrawals?.Count ?? 0) == 0)
 {
     <MudPaper Class="polished-section" Elevation="0">
         <div class="inline-empty">
@@ -47,6 +47,7 @@ else
         @RenderTile("Weight loss", Counts.WeightLoss, "#6a1b9a", Icons.Material.Filled.TrendingDown)
         @RenderTile("Sick / At vet", Counts.Sick, "#b71c1c", Icons.Material.Filled.Sick)
         @RenderTile("Expiring meds", Counts.ExpiringMeds, "#ef6c00", Icons.Material.Filled.MedicalServices)
+        @RenderTile("Active withdrawals", activeWithdrawals?.Count ?? 0, "#6a1b9a", Icons.Material.Filled.NoDrinks)
     </div>
 
     <MudGrid>
@@ -260,6 +261,46 @@ else
                 </MudPaper>
             </MudItem>
         }
+
+        @if (activeWithdrawals is { Count: > 0 })
+        {
+            <MudItem xs="12" md="6">
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.NoDrinks" Style="color:#6a1b9a;" />
+                            <div>
+                                <MudText Typo="Typo.h6">Active withdrawals</MudText>
+                                <MudText Typo="Typo.body2" Class="section-hint">Milk and meat holds in effect. Sales and milk logs are blocked until the end date.</MudText>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hd-list">
+                        @foreach (var w in activeWithdrawals)
+                        {
+                            var color = w.Kind == "milk" ? "#0277bd" : "#6a1b9a";
+                            var icon = w.Kind == "milk" ? Icons.Material.Filled.LocalDrink : Icons.Material.Filled.Restaurant;
+                            var daysLeft = Math.Max(0, (int)Math.Ceiling((w.EndsAt - DateTime.UtcNow).TotalDays));
+                            <div class="hd-row" style="@($"border-left-color:{color};")"
+                                 @onclick="@(() => Nav.NavigateTo($"/herd/{w.GoatId}"))">
+                                <div>
+                                    <div class="hd-row-name">
+                                        <MudIcon Icon="@icon" Size="Size.Small" Style="@($"color:{color};vertical-align:text-bottom;margin-right:4px;")" />
+                                        @w.GoatName — @(w.Kind == "milk" ? "Milk" : "Meat") hold
+                                    </div>
+                                    <div class="hd-row-detail">
+                                        @(w.Medication ?? "Medication") · administered @w.Administered.ToLocalTime().ToString("MMM d") · ends @w.EndsAt.ToLocalTime().ToString("MMM d")
+                                    </div>
+                                </div>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Filled">
+                                    @daysLeft d left
+                                </MudChip>
+                            </div>
+                        }
+                    </div>
+                </MudPaper>
+            </MudItem>
+        }
     </MudGrid>
 }
 
@@ -304,12 +345,17 @@ else
 
 @code {
     private HealthDashboardData? dashboard;
+    private List<ActiveWithdrawalRow>? activeWithdrawals;
 
     private DashboardCounts Counts => dashboard?.Counts ?? new DashboardCounts();
 
     protected override async Task OnInitializedAsync()
     {
-        dashboard = await HealthSvc.GetDashboardAsync();
+        var dashTask = HealthSvc.GetDashboardAsync();
+        var wdTask = HealthSvc.GetActiveWithdrawalsAsync();
+        await Task.WhenAll(dashTask, wdTask);
+        dashboard = dashTask.Result;
+        activeWithdrawals = wdTask.Result;
     }
 
     private RenderFragment RenderTile(string label, int count, string color, string icon) => __builder =>

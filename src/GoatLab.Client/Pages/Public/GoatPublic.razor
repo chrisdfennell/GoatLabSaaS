@@ -3,6 +3,8 @@
 @layout GoatLab.Client.Layout.LandingLayout
 @using GoatLab.Shared.DTOs
 @inject HttpClient Http
+@inject IDialogService Dialog
+@inject NavigationManager Nav
 
 <PageTitle>@(goat?.Name ?? "Goat") for sale — @(goat?.FarmName ?? "GoatLab")</PageTitle>
 
@@ -27,6 +29,18 @@ else
 {
     <div class="public-goat">
         <div class="container">
+            @if (depositStatus == "success")
+            {
+                <MudAlert Severity="Severity.Success" Class="mb-3" Icon="@Icons.Material.Filled.CheckCircle" Variant="Variant.Filled">
+                    <strong>Deposit received.</strong> @(goat.FarmName) has been notified and will reach out to finalize pickup.
+                </MudAlert>
+            }
+            else if (depositStatus == "cancel")
+            {
+                <MudAlert Severity="Severity.Info" Class="mb-3" Icon="@Icons.Material.Filled.Info" Variant="Variant.Outlined">
+                    Reservation was cancelled — no payment was taken.
+                </MudAlert>
+            }
             <div class="public-goat-header">
                 <div>
                     <MudText Typo="Typo.overline" Color="Color.Primary" Style="letter-spacing:2px;">For sale</MudText>
@@ -103,6 +117,17 @@ else
                                 Contact seller
                             </MudButton>
                         }
+                        @if (goat.DepositCents is int deposit && deposit > 0)
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Success" FullWidth Class="mt-2"
+                                       StartIcon="@Icons.Material.Filled.BookmarkAdd"
+                                       OnClick="OpenReserveDialog">
+                                Reserve with $@((deposit / 100m).ToString("N0")) deposit
+                            </MudButton>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1" Style="display:block;text-align:center;">
+                                Secure payment via Stripe · applied to purchase price
+                            </MudText>
+                        }
                     </MudPaper>
 
                     @if (!string.IsNullOrEmpty(goat.Registry) || !string.IsNullOrEmpty(goat.RegistrationNumber))
@@ -151,9 +176,14 @@ else
 
     private PublicGoatDto? goat;
     private bool loading = true;
+    private string? depositStatus;
 
     protected override async Task OnInitializedAsync()
     {
+        var uri = new Uri(Nav.Uri);
+        var qs = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        depositStatus = qs["deposit"];
+
         try
         {
             goat = await Http.GetFromJsonAsync<PublicGoatDto>($"api/public/farms/{Slug}/goats/{GoatId}");
@@ -165,6 +195,26 @@ else
         finally
         {
             loading = false;
+        }
+    }
+
+    private async Task OpenReserveDialog()
+    {
+        if (goat?.DepositCents is not int cents || cents <= 0) return;
+
+        var parameters = new DialogParameters
+        {
+            [nameof(ReserveWithDepositDialog.Slug)] = Slug,
+            [nameof(ReserveWithDepositDialog.GoatId)] = GoatId,
+            [nameof(ReserveWithDepositDialog.GoatName)] = goat.Name,
+            [nameof(ReserveWithDepositDialog.DepositCents)] = cents,
+        };
+        var dlg = await Dialog.ShowAsync<ReserveWithDepositDialog>("Reserve with deposit", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dlg.Result;
+        if (result is { Canceled: false, Data: string url } && !string.IsNullOrEmpty(url))
+        {
+            Nav.NavigateTo(url, forceLoad: true);
         }
     }
 

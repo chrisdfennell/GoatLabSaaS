@@ -49,4 +49,34 @@ public class DocumentsController : ControllerBase
         if (bytes is null) return NotFound();
         return File(bytes, "application/pdf", $"health-certificate-{id}.pdf");
     }
+
+    // Comma-separated ids keep this a plain GET so the client can hyperlink to it.
+    [HttpGet("qr-sheet.pdf")]
+    public async Task<IActionResult> QrSheet([FromQuery] string? ids, CancellationToken cancellationToken)
+    {
+        if (_tenant.TenantId is not int tid) return Unauthorized();
+        if (string.IsNullOrWhiteSpace(ids))
+            return BadRequest(new { error = "Provide at least one goat id in the 'ids' query (comma-separated)." });
+
+        var goatIds = ids.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(s => int.TryParse(s, out var n) ? n : (int?)null)
+            .Where(n => n.HasValue)
+            .Select(n => n!.Value)
+            .Distinct()
+            .ToArray();
+        if (goatIds.Length == 0)
+            return BadRequest(new { error = "No valid goat ids supplied." });
+
+        var name = await _pdf.GetTenantNameAsync(tid, cancellationToken);
+        var bytes = await _pdf.GenerateQrSheetAsync(goatIds, name, RequestOrigin(), cancellationToken);
+        if (bytes is null) return NotFound();
+        return File(bytes, "application/pdf", "qr-ear-tags.pdf");
+    }
+
+    private string RequestOrigin()
+    {
+        var origin = Request.Headers["Origin"].ToString();
+        if (!string.IsNullOrEmpty(origin)) return origin;
+        return $"{Request.Scheme}://{Request.Host}";
+    }
 }

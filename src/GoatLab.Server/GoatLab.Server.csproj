@@ -48,6 +48,9 @@
          license is free under $1M revenue / 10 employees. -->
     <PackageReference Include="QuestPDF" Version="2024.12.3" />
 
+    <!-- QR code rendering for printable ear-tag sheets (MIT). -->
+    <PackageReference Include="QRCoder" Version="1.6.0" />
+
     <!-- Web Push (VAPID) for browser notifications -->
     <PackageReference Include="WebPush" Version="1.0.12" />
   </ItemGroup>

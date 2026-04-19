@@ -98,6 +98,14 @@ public class Tenant
     [MaxLength(120)]
     public string? PublicContactEmail { get; set; }
 
+    /// <summary>
+    /// Percentage (0–100) of a goat's AskingPriceCents collected as a Stripe
+    /// one-time payment when a buyer clicks "Reserve with deposit" on the
+    /// public listing page. 0 (default) disables the reservation flow and the
+    /// listing only shows the Contact button. Requires PublicProfileEnabled.
+    /// </summary>
+    public int PublicDepositPercent { get; set; }
+
     public ICollection<TenantMember> Members { get; set; } = new List<TenantMember>();
 }
 

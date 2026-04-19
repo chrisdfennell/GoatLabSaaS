@@ -37,6 +37,7 @@ public class TenantSettingsController : ControllerBase
         bool AlertEmailEnabled,
         bool PublicProfileEnabled,
         string? PublicContactEmail,
+        int PublicDepositPercent,
         DateTime CreatedAt);
 
     public record UpdateSettingsInput(
@@ -45,7 +46,8 @@ public class TenantSettingsController : ControllerBase
         TenantUnits Units,
         bool AlertEmailEnabled,
         bool PublicProfileEnabled,
-        string? PublicContactEmail);
+        string? PublicContactEmail,
+        int PublicDepositPercent);
 
     [HttpGet]
     public async Task<ActionResult<TenantSettingsDto>> Get(CancellationToken ct)
@@ -53,7 +55,7 @@ public class TenantSettingsController : ControllerBase
         if (_tenantContext.TenantId is not int tenantId) return NotFound();
         var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct);
         if (tenant is null) return NotFound();
-        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.AlertEmailEnabled, tenant.PublicProfileEnabled, tenant.PublicContactEmail, tenant.CreatedAt);
+        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.AlertEmailEnabled, tenant.PublicProfileEnabled, tenant.PublicContactEmail, tenant.PublicDepositPercent, tenant.CreatedAt);
     }
 
     [HttpPut]
@@ -77,10 +79,11 @@ public class TenantSettingsController : ControllerBase
         tenant.AlertEmailEnabled = input.AlertEmailEnabled;
         tenant.PublicProfileEnabled = input.PublicProfileEnabled;
         tenant.PublicContactEmail = string.IsNullOrWhiteSpace(input.PublicContactEmail) ? null : input.PublicContactEmail.Trim();
+        tenant.PublicDepositPercent = Math.Clamp(input.PublicDepositPercent, 0, 100);
         tenant.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
-        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.AlertEmailEnabled, tenant.PublicProfileEnabled, tenant.PublicContactEmail, tenant.CreatedAt);
+        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.AlertEmailEnabled, tenant.PublicProfileEnabled, tenant.PublicContactEmail, tenant.PublicDepositPercent, tenant.CreatedAt);
     }
 
     private async Task<bool> IsOwnerAsync(int tenantId, CancellationToken ct)

@@ -50,6 +50,20 @@ public class HealthService
     // Withdrawal status for a goat
     public Task<WithdrawalStatus?> GetWithdrawalAsync(int goatId) =>
         _api.GetAsync<WithdrawalStatus>($"api/health/withdrawal/{goatId}");
+
+    // Tenant-wide active milk/meat withdrawals — for dashboard + compliance view.
+    public Task<List<ActiveWithdrawalRow>?> GetActiveWithdrawalsAsync() =>
+        _api.GetAsync<List<ActiveWithdrawalRow>>("api/health/withdrawal/active");
+}
+
+public class ActiveWithdrawalRow
+{
+    public int GoatId { get; set; }
+    public string GoatName { get; set; } = string.Empty;
+    public string Kind { get; set; } = string.Empty; // "milk" or "meat"
+    public DateTime EndsAt { get; set; }
+    public string? Medication { get; set; }
+    public DateTime Administered { get; set; }
 }
 
 public class WithdrawalStatus

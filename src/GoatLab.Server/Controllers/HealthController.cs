@@ -150,6 +150,48 @@ public class HealthController : ControllerBase
         });
     }
 
+    // Tenant-wide active-withdrawal roll-up for the dashboard banner and the
+    // /health page. One row per (goat, kind) still in effect. Query filters
+    // already scope to the caller's tenant via ITenantOwned.
+    [HttpGet("withdrawal/active")]
+    public async Task<ActionResult<List<ActiveWithdrawalRow>>> GetActiveWithdrawals()
+    {
+        var now = DateTime.UtcNow;
+        var records = await _db.MedicalRecords
+            .Where(r => r.MilkWithdrawalEndsAt > now || r.MeatWithdrawalEndsAt > now)
+            .Include(r => r.Goat)
+            .Include(r => r.Medication)
+            .ToListAsync();
+
+        var rows = new List<ActiveWithdrawalRow>();
+        foreach (var group in records.GroupBy(r => r.GoatId))
+        {
+            var goatName = group.First().Goat?.Name ?? $"#{group.Key}";
+
+            var milk = group.Where(r => r.MilkWithdrawalEndsAt > now)
+                .OrderByDescending(r => r.MilkWithdrawalEndsAt).FirstOrDefault();
+            if (milk is not null)
+                rows.Add(new ActiveWithdrawalRow(group.Key, goatName, "milk",
+                    milk.MilkWithdrawalEndsAt!.Value, milk.Medication?.Name, milk.Date));
+
+            var meat = group.Where(r => r.MeatWithdrawalEndsAt > now)
+                .OrderByDescending(r => r.MeatWithdrawalEndsAt).FirstOrDefault();
+            if (meat is not null)
+                rows.Add(new ActiveWithdrawalRow(group.Key, goatName, "meat",
+                    meat.MeatWithdrawalEndsAt!.Value, meat.Medication?.Name, meat.Date));
+        }
+
+        return rows.OrderBy(r => r.EndsAt).ToList();
+    }
+
+    public record ActiveWithdrawalRow(
+        int GoatId,
+        string GoatName,
+        string Kind,
+        DateTime EndsAt,
+        string? Medication,
+        DateTime Administered);
+
     [HttpDelete("records/{id}")]
     public async Task<IActionResult> DeleteRecord(int id)
     {

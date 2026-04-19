@@ -18,7 +18,20 @@ public record PublicGoatDto(
     string? FarmLocation,
     string? FarmContactEmail,
     IReadOnlyList<PublicGoatPhotoDto> Photos,
-    PublicPedigreeNodeDto? Pedigree
+    PublicPedigreeNodeDto? Pedigree,
+    // Non-null when the farm has a deposit percent configured and the goat has
+    // an asking price. Clients show a "Reserve with deposit" CTA that POSTs to
+    // /api/public/farms/{slug}/goats/{id}/reserve to start Stripe Checkout.
+    int? DepositCents
+);
+
+// Request body for the public reservation endpoint. Email + name are required
+// so we can provision a Customer row on deposit success.
+public record PublicReservationRequest(
+    string BuyerEmail,
+    string BuyerName,
+    string? BuyerPhone,
+    string? Notes
 );
 
 public record PublicGoatPhotoDto(string Url, string? Caption, bool IsPrimary);
