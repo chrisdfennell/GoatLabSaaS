@@ -16,6 +16,9 @@ public class GoatTransfersService
     public Task CancelAsync(int id) =>
         _api.DeleteAsync($"api/transfers/{id}");
 
+    public Task ResendAsync(int id) =>
+        _api.PostAsync<object, object>($"api/transfers/{id}/resend", new { });
+
     // Anon preview uses HttpClient directly so it doesn't pick up the auth cookie hostile path.
     // ApiService.GetAsync goes through the same HttpClient anyway — both are fine.
     public Task<GoatTransferPreviewDto?> PreviewByTokenAsync(string token) =>

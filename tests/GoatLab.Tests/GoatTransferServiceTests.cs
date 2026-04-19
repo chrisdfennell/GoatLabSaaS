@@ -77,6 +77,105 @@ public class GoatTransferServiceTests
     }
 
     [Fact]
+    public async Task Accept_creates_seller_alert_and_moves_lactation_records()
+    {
+        var (db, svc, _) = SetupFixture();
+        try
+        {
+            var goatId = AddGoat(db, SellerTenantId, "Bella");
+            var lactation = new Lactation
+            {
+                TenantId = SellerTenantId, GoatId = goatId,
+                FreshenDate = DateTime.UtcNow.AddMonths(-3),
+                LactationNumber = 2,
+            };
+            db.Context.Lactations.Add(lactation);
+            db.Context.SaveChanges();
+            db.Context.MilkTestDays.Add(new MilkTestDay
+            {
+                TenantId = SellerTenantId,
+                LactationId = lactation.Id,
+                TestDate = DateTime.UtcNow.AddDays(-7),
+                TotalLbs = 8.2,
+            });
+            db.Context.TenantMembers.Add(new TenantMember
+            {
+                TenantId = BuyerTenantId, UserId = "buyer", Role = TenantRole.Owner,
+            });
+            db.Context.SaveChanges();
+
+            var init = await svc.InitiateAsync(goatId, "b@example.com", null, null,
+                sellerUserId: "seller", origin: "https://x", ct: default);
+
+            db.Tenant.TenantId = BuyerTenantId;
+            await svc.AcceptAsync(init!.PlaintextToken, BuyerTenantId, "buyer", default);
+
+            db.Context.ChangeTracker.Clear();
+
+            // Lactation + MilkTestDay moved with the goat.
+            var lac = db.Context.Lactations.IgnoreQueryFilters().Single(l => l.GoatId == goatId);
+            Assert.Equal(BuyerTenantId, lac.TenantId);
+            var testDay = db.Context.MilkTestDays.IgnoreQueryFilters().Single();
+            Assert.Equal(BuyerTenantId, testDay.TenantId);
+
+            // Seller got an in-app Alert.
+            var alert = db.Context.Alerts.IgnoreQueryFilters().Single();
+            Assert.Equal(SellerTenantId, alert.TenantId);
+            Assert.Equal(AlertType.GoatTransferAccepted, alert.Type);
+            Assert.Equal("GoatTransfer", alert.EntityType);
+            Assert.Equal("/account/transfers", alert.DeepLink);
+            Assert.Contains("Bella", alert.Title);
+        }
+        finally { db.Dispose(); }
+    }
+
+    [Fact]
+    public async Task Resend_rotates_token_and_sends_fresh_email()
+    {
+        var (db, svc, email) = SetupFixture();
+        try
+        {
+            var goatId = AddGoat(db, SellerTenantId, "Bella");
+            var init = await svc.InitiateAsync(goatId, "b@example.com", null, expiryDays: 14,
+                sellerUserId: "seller", origin: "https://x", ct: default);
+
+            var originalHash = db.Context.GoatTransfers.Single().TokenHash;
+            email.Sent.Clear(); // drop the initial invite so we only count the resend
+
+            var ok = await svc.ResendAsync(init!.TransferId, "https://x", default);
+            Assert.True(ok);
+
+            db.Context.ChangeTracker.Clear();
+            var transfer = db.Context.GoatTransfers.Single();
+            Assert.NotEqual(originalHash, transfer.TokenHash); // token rotated
+
+            // One invite email was sent on resend.
+            var sent = Assert.Single(email.Sent);
+            Assert.Equal("b@example.com", sent.To);
+            Assert.Contains("Bella", sent.Subject);
+        }
+        finally { db.Dispose(); }
+    }
+
+    [Fact]
+    public async Task Resend_rejects_non_pending_transfers()
+    {
+        var (db, svc, _) = SetupFixture();
+        try
+        {
+            var goatId = AddGoat(db, SellerTenantId, "Bella");
+            var init = await svc.InitiateAsync(goatId, "b@example.com", null, null, "seller", "https://x", default);
+
+            // Cancel first; now it's in a terminal state.
+            await svc.CancelAsync(init!.TransferId, default);
+
+            var ok = await svc.ResendAsync(init.TransferId, "https://x", default);
+            Assert.False(ok);
+        }
+        finally { db.Dispose(); }
+    }
+
+    [Fact]
     public async Task Accept_moves_goat_and_records_to_buyer_tenant_and_creates_pedigree_stubs()
     {
         var (db, svc, email) = SetupFixture();

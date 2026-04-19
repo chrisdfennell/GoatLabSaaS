@@ -341,6 +341,14 @@ public class GoatTransferService
             await _db.GoatDocuments.IgnoreQueryFilters()
                 .Where(r => r.GoatId == goat.Id && r.TenantId == fromTenantId)
                 .ExecuteUpdateAsync(u => u.SetProperty(x => x.TenantId, toTenantId), ct);
+            // Lactation + MilkTestDay for dairy completeness. Lactation rows are
+            // per-goat; TestDay rows cascade via LactationId (no GoatId filter).
+            await _db.Lactations.IgnoreQueryFilters()
+                .Where(r => r.GoatId == goat.Id && r.TenantId == fromTenantId)
+                .ExecuteUpdateAsync(u => u.SetProperty(x => x.TenantId, toTenantId), ct);
+            await _db.MilkTestDays.IgnoreQueryFilters()
+                .Where(r => r.Lactation!.GoatId == goat.Id && r.TenantId == fromTenantId)
+                .ExecuteUpdateAsync(u => u.SetProperty(x => x.TenantId, toTenantId), ct);
 
             // 3. Move the goat itself and retarget pedigree FKs.
             goat.TenantId = toTenantId;
@@ -357,10 +365,26 @@ public class GoatTransferService
             transfer.AcceptedByUserId = buyerUserId;
             transfer.ToTenantId = toTenantId;
 
+            // 5. In-app alert to the seller so they see it in the bell even
+            //    before checking email. Explicit TenantId bypasses the stamping
+            //    behavior (StampTenantId only fills TenantId=0 rows).
+            _db.Alerts.Add(new Alert
+            {
+                TenantId = fromTenantId,
+                Type = AlertType.GoatTransferAccepted,
+                Severity = AlertSeverity.Info,
+                Title = $"{toTenant.Name} accepted the transfer of {goatName}",
+                Body = "The goat's full record has moved to their herd.",
+                EntityType = "GoatTransfer",
+                EntityId = transfer.Id,
+                DeepLink = "/account/transfers",
+                CreatedAt = DateTime.UtcNow,
+            });
+
             await _db.SaveChangesAsync(ct);
             await txn.CommitAsync(ct);
 
-            // 5. Email seller.
+            // 6. Email seller.
             try
             {
                 var (subject, html, text) = EmailTemplates.GoatTransferAccepted(toTenant.Name, goatName);
@@ -376,6 +400,52 @@ public class GoatTransferService
             return new AcceptTransferResponse(toTenantId, goat.Id);
         }
         finally { _tenantContext.BypassFilter = false; }
+    }
+
+    // ---------- Resend ----------
+    //
+    // Seller-triggered from /account/transfers: re-sends the original invite
+    // email. The token doesn't change (magic link keeps working); the expiry
+    // is bumped back to +DefaultExpiryDays if the remaining window is under
+    // 3 days so a late-resend gives the buyer enough time to respond.
+    public async Task<bool> ResendAsync(int transferId, string origin, CancellationToken ct)
+    {
+        if (_tenantContext.TenantId is not int fromTenantId) return false;
+
+        var transfer = await _db.GoatTransfers
+            .Include(t => t.Goat)
+            .FirstOrDefaultAsync(t => t.Id == transferId && t.FromTenantId == fromTenantId, ct);
+        if (transfer is null) return false;
+        if (transfer.Status != GoatTransferStatus.Pending) return false;
+        if (transfer.Goat is null) return false;
+
+        // We don't store plaintext tokens — if the seller has the link handy
+        // they can share it directly. For email-resend, we have to mint a new
+        // token because we only kept the hash. Rotating is safer anyway: if
+        // the original email leaked, the prior link stops working.
+        var plaintext = TokenPrefix + Base64UrlRandom(32);
+        transfer.TokenHash = ApiKeyGenerator.HashPlaintext(plaintext);
+        transfer.TokenPrefix = plaintext.Substring(0, 12);
+
+        if ((transfer.ExpiresAt - DateTime.UtcNow).TotalDays < 3)
+            transfer.ExpiresAt = DateTime.UtcNow.AddDays(DefaultExpiryDays);
+
+        await _db.SaveChangesAsync(ct);
+
+        var acceptUrl = $"{origin.TrimEnd('/')}/transfer/{plaintext}";
+        var sellerTenantName = (await _db.Tenants.IgnoreQueryFilters()
+            .Where(t => t.Id == fromTenantId).Select(t => t.Name).FirstOrDefaultAsync(ct)) ?? "A farm";
+        try
+        {
+            var (subject, html, text) = EmailTemplates.GoatTransferInvite(
+                sellerTenantName, transfer.Goat.Name, acceptUrl, transfer.ExpiresAt, transfer.Message);
+            await _email.SendAsync(transfer.BuyerEmail, subject, html, text, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Transfer resend email failed for transfer {Id}", transfer.Id);
+        }
+        return true;
     }
 
     // ---------- Helpers ----------

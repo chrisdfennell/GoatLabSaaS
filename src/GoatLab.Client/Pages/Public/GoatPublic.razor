@@ -149,6 +149,23 @@ else
                         </MudPaper>
                     }
 
+                    <MudPaper Class="pa-4 mb-3" Outlined Elevation="0"
+                              Style="background:linear-gradient(135deg,#f1f8e9 0%,#e8f5e9 100%);border-color:#c5e1a5;">
+                        <div class="d-flex align-start" style="gap:10px;">
+                            <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Style="color:#2e7d32;flex-shrink:0;" />
+                            <div>
+                                <MudText Typo="Typo.subtitle2" Style="font-weight:700;color:#1b5e20;">Already on GoatLab?</MudText>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                                    If you buy @goat.Name, ask @goat.FarmName to transfer the record to your herd.
+                                    Full pedigree, medical history, weights, and photos move over instantly — no re-entry.
+                                </MudText>
+                                <MudButton Variant="Variant.Text" Color="Color.Primary" Size="Size.Small" Class="mt-1"
+                                           EndIcon="@Icons.Material.Filled.ArrowForward"
+                                           Href="/register">Start a free farm</MudButton>
+                            </div>
+                        </div>
+                    </MudPaper>
+
                     <MudPaper Class="pa-3" Outlined Elevation="0" Style="text-align:center;">
                         <MudText Typo="Typo.caption" Color="Color.Secondary">Powered by</MudText>
                         <MudLink Href="/" Style="font-weight:600;">GoatLab</MudLink>

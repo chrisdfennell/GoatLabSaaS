@@ -67,9 +67,14 @@ else
                         <td class="text-right">
                             @if (string.Equals(row.Status, "Pending", StringComparison.OrdinalIgnoreCase))
                             {
-                                <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined"
-                                           StartIcon="@Icons.Material.Filled.Cancel"
-                                           OnClick="@(() => Cancel(row.Id, row.GoatName))">Cancel</MudButton>
+                                <div class="d-flex justify-end" style="gap:6px;">
+                                    <MudButton Size="Size.Small" Color="Color.Primary" Variant="Variant.Outlined"
+                                               StartIcon="@Icons.Material.Filled.Send"
+                                               OnClick="@(() => Resend(row.Id, row.BuyerEmail))">Resend</MudButton>
+                                    <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined"
+                                               StartIcon="@Icons.Material.Filled.Cancel"
+                                               OnClick="@(() => Cancel(row.Id, row.GoatName))">Cancel</MudButton>
+                                </div>
                             }
                             else if (string.Equals(row.Status, "Accepted", StringComparison.OrdinalIgnoreCase) && row.AcceptedAt.HasValue)
                             {
@@ -94,6 +99,20 @@ else
     {
         try { rows = await TransfersSvc.ListAsync() ?? new(); }
         catch (HttpRequestException ex) { Snackbar.Add(ex.Message, Severity.Error); rows = new(); }
+    }
+
+    private async Task Resend(int transferId, string buyerEmail)
+    {
+        try
+        {
+            await TransfersSvc.ResendAsync(transferId);
+            Snackbar.Add($"Invite re-sent to {buyerEmail}.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (HttpRequestException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
     }
 
     private async Task Cancel(int transferId, string goatName)

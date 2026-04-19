@@ -10,6 +10,7 @@ public enum AlertType
     KiddingUpcoming = 3,
     LowFeedStock = 4,
     WeightDrop = 5,
+    GoatTransferAccepted = 6,
 }
 
 public enum AlertSeverity

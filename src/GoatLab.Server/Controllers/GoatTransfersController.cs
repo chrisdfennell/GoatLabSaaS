@@ -69,6 +69,15 @@ public class GoatTransfersController : ControllerBase
         return ok ? NoContent() : NotFound();
     }
 
+    [HttpPost("{id:int}/resend")]
+    [Authorize(AuthenticationSchemes = "Identity.Application")]
+    [EnableRateLimiting("transfer")]
+    public async Task<IActionResult> Resend(int id, CancellationToken ct)
+    {
+        var ok = await _svc.ResendAsync(id, RequestOrigin(), ct);
+        return ok ? NoContent() : NotFound();
+    }
+
     // ---------- Buyer-side (magic-link token) ----------
 
     // Anon: preview what's on offer. Callers must know the plaintext token.
