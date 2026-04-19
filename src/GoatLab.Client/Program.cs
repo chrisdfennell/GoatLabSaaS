@@ -73,6 +73,8 @@ builder.Services.AddScoped<ConfigService>();
 builder.Services.AddScoped<AlertsService>();
 builder.Services.AddScoped<PushService>();
 builder.Services.AddScoped<CoiService>();
+builder.Services.AddScoped<MateRecommendationsService>();
+builder.Services.AddScoped<GoatTransfersService>();
 builder.Services.AddScoped<ReportsService>();
 builder.Services.AddScoped<ForecastService>();
 builder.Services.AddScoped<WaitlistService>();

@@ -240,6 +240,8 @@ builder.Services.Configure<PushOptions>(builder.Configuration.GetSection(PushOpt
 builder.Services.AddScoped<PushService>();
 builder.Services.AddScoped<PdfService>();
 builder.Services.AddScoped<CoiCalculator>();
+builder.Services.AddScoped<GoatLab.Server.Services.Pedigree.MateRecommendationService>();
+builder.Services.AddScoped<GoatLab.Server.Services.Transfers.GoatTransferService>();
 builder.Services.AddScoped<ReportsService>();
 builder.Services.AddScoped<ForecastService>();
 builder.Services.AddScoped<GoatLab.Server.Services.Health.WithdrawalService>();

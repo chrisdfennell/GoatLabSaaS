@@ -1,0 +1,90 @@
+@page "/breeds"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@layout GoatLab.Client.Layout.LandingLayout
+@using GoatLab.Shared.DTOs
+@inject HttpClient Http
+
+<PageTitle>Browse goats for sale by breed — GoatLab</PageTitle>
+<HeadContent>
+    <meta name="description" content="Find goats for sale across GoatLab breeders, organized by breed. Nigerian Dwarf, Boer, Nubian, LaMancha, and more." />
+</HeadContent>
+
+<div class="breeds-index">
+    <div class="container">
+        <MudText Typo="Typo.overline" Color="Color.Primary" Style="letter-spacing:2px;">Directory</MudText>
+        <MudText Typo="Typo.h3" Style="font-weight:700;margin:0 0 8px 0;">Goats for sale by breed</MudText>
+        <MudText Typo="Typo.body1" Color="Color.Secondary" Class="mb-5">
+            Listings aggregated across every farm on GoatLab that opts in to the public directory.
+            Pick a breed to browse the farms raising them.
+        </MudText>
+
+        @if (loading)
+        {
+            <MudProgressCircular Indeterminate Color="Color.Primary" />
+        }
+        else if (breeds is null || breeds.Count == 0)
+        {
+            <MudPaper Class="pa-6 text-center" Outlined Elevation="0">
+                <MudIcon Icon="@Icons.Material.Filled.Pets" Style="font-size:3rem;color:#bbb;" />
+                <MudText Typo="Typo.body1" Class="mt-3">No listings yet.</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+                    Be the first — <MudLink Href="/register">create a GoatLab farm</MudLink>, list a goat, and opt in to the public directory.
+                </MudText>
+            </MudPaper>
+        }
+        else
+        {
+            <div class="breeds-grid">
+                @foreach (var b in breeds)
+                {
+                    <a class="breed-card" href="@($"/breeds/{b.BreedSlug}")">
+                        <div class="breed-card-icon">
+                            <MudIcon Icon="@Icons.Material.Filled.Pets" Style="font-size:2.2rem;color:#2e7d32;" />
+                        </div>
+                        <div class="breed-card-body">
+                            <MudText Typo="Typo.h6" Style="margin:0;">@b.DisplayName</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary">
+                                @b.ListingCount listing@(b.ListingCount == 1 ? "" : "s") · @b.FarmCount farm@(b.FarmCount == 1 ? "" : "s")
+                            </MudText>
+                        </div>
+                        <div class="breed-card-arrow">
+                            <MudIcon Icon="@Icons.Material.Filled.ChevronRight" Style="color:#999;" />
+                        </div>
+                    </a>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+.breeds-index { padding: 32px 0; }
+.breeds-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-top: 24px; }
+.breed-card { display: flex; align-items: center; gap: 14px; padding: 16px; background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; text-decoration: none; color: inherit; transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
+.breed-card:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(46,125,50,0.12); border-color: #2e7d32; }
+.mud-theme-dark .breed-card { background: #1e1e1e; border-color: #333; }
+.breed-card-icon { flex-shrink: 0; }
+.breed-card-body { flex: 1; min-width: 0; }
+.breed-card-arrow { flex-shrink: 0; }
+</style>
+
+@code {
+    private List<BreedSummaryDto>? breeds;
+    private bool loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            breeds = await Http.GetFromJsonAsync<List<BreedSummaryDto>>("api/public/breeds");
+        }
+        catch (HttpRequestException)
+        {
+            breeds = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+}

@@ -112,6 +112,9 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Webhook> Webhooks => Set<Webhook>();
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
 
+    // Cross-tenant goat transfers (seller hands a goat to buyer, taking history with it).
+    public DbSet<GoatTransfer> GoatTransfers => Set<GoatTransfer>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -235,6 +238,32 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
         // Sweep index for the retry job — undelivered rows needing another try.
         modelBuilder.Entity<WebhookDelivery>()
             .HasIndex(d => new { d.DeliveredAt, d.AttemptCount, d.NextRetryAt });
+
+        // GoatTransfer — cross-tenant. Restrict deletes on FromTenant/ToTenant
+        // so a tenant soft-delete doesn't silently vanish transfer history.
+        // Goat FK cascade is fine (if the seller hard-deletes the goat, the
+        // Pending transfer should go with it).
+        modelBuilder.Entity<GoatTransfer>()
+            .HasOne(t => t.FromTenant)
+            .WithMany()
+            .HasForeignKey(t => t.FromTenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<GoatTransfer>()
+            .HasOne(t => t.ToTenant)
+            .WithMany()
+            .HasForeignKey(t => t.ToTenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<GoatTransfer>()
+            .HasOne(t => t.Goat)
+            .WithMany()
+            .HasForeignKey(t => t.GoatId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<GoatTransfer>()
+            .HasIndex(t => t.TokenHash).IsUnique();
+        modelBuilder.Entity<GoatTransfer>()
+            .HasIndex(t => new { t.FromTenantId, t.Status, t.CreatedAt });
+        modelBuilder.Entity<GoatTransfer>()
+            .HasIndex(t => new { t.Status, t.ExpiresAt });
 
         // Transaction -> Goat (optional, for cost-per-goat)
         modelBuilder.Entity<Transaction>()

@@ -1,0 +1,102 @@
+@using GoatLab.Shared.DTOs
+@inject GoatTransfersService Transfers
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <div class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Class="mr-2" />
+            <MudText Typo="Typo.h6">Transfer @GoatName to a buyer on GoatLab</MudText>
+        </div>
+    </TitleContent>
+    <DialogContent>
+        @if (result is null)
+        {
+            <MudText Typo="Typo.body2" Class="mb-3">
+                When the buyer is also on GoatLab, accepting this transfer moves <strong>@GoatName</strong>'s
+                full record — pedigree, medical history, weights, photos — straight into their herd.
+                Your own sales, finance entries, and breeding records stay put.
+            </MudText>
+
+            <MudTextField @bind-Value="buyerEmail" Label="Buyer's email" InputType="InputType.Email" Variant="Variant.Outlined" Required Class="mb-2" />
+            <MudTextField @bind-Value="message" Label="Message (optional)" Lines="3" MaxLength="1000" Variant="Variant.Outlined" Class="mb-2" />
+            <MudNumericField @bind-Value="expiryDays" Label="Link expires after" Min="1" Max="60" Variant="Variant.Outlined"
+                             Adornment="Adornment.End" AdornmentText="days" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2 d-block">
+                The buyer gets a magic link by email. They'll need a GoatLab account to accept.
+            </MudText>
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Success" Class="mb-3" Icon="@Icons.Material.Filled.CheckCircle">
+                Transfer created. We emailed the buyer — copy the link below as a backup.
+            </MudAlert>
+
+            <MudTextField Value="result.AcceptUrl" ReadOnly Variant="Variant.Outlined" Label="Transfer link"
+                          Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.ContentCopy"
+                          OnAdornmentClick="CopyLink" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2 d-block">
+                This is the only time the full link is shown. After you close this dialog, only the first 12 characters remain visible.
+            </MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (result is null)
+        {
+            <MudButton OnClick="Cancel" Disabled="busy">Cancel</MudButton>
+            <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                       StartIcon="@Icons.Material.Filled.Send" OnClick="Submit" Disabled="busy">
+                @(busy ? "Sending..." : "Send transfer")
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Done">Done</MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] public MudDialogInstance Dialog { get; set; } = default!;
+    [Parameter] public int GoatId { get; set; }
+    [Parameter] public string GoatName { get; set; } = string.Empty;
+
+    private string buyerEmail = string.Empty;
+    private string? message;
+    private int expiryDays = 14;
+    private bool busy;
+    private InitiateTransferResponse? result;
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(buyerEmail))
+        {
+            Snackbar.Add("Buyer email is required.", Severity.Warning);
+            return;
+        }
+        busy = true;
+        try
+        {
+            result = await Transfers.InitiateAsync(new InitiateTransferRequest(GoatId, buyerEmail.Trim(), message, expiryDays));
+            if (result is null)
+            {
+                Snackbar.Add("Could not create the transfer. Check the goat and try again.", Severity.Error);
+            }
+        }
+        catch (HttpRequestException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { busy = false; }
+    }
+
+    private async Task CopyLink()
+    {
+        if (result is null) return;
+        await Task.CompletedTask;
+        Snackbar.Add("Link copied — paste it to the buyer if the email doesn't arrive.", Severity.Info);
+    }
+
+    private void Cancel() => Dialog.Cancel();
+    private void Done() => Dialog.Close(DialogResult.Ok(true));
+}

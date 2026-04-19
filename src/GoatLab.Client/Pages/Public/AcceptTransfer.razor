@@ -1,0 +1,231 @@
+@page "/transfer/{Token}"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@layout GoatLab.Client.Layout.LandingLayout
+@using GoatLab.Shared.DTOs
+@using GoatLab.Shared.Models
+@inject GoatTransfersService Transfers
+@inject CookieAuthStateProvider AuthState
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Goat transfer — GoatLab</PageTitle>
+
+@if (loading)
+{
+    <MudContainer MaxWidth="MaxWidth.Small" Class="py-8 text-center">
+        <MudProgressCircular Indeterminate Color="Color.Primary" />
+    </MudContainer>
+}
+else if (preview is null)
+{
+    <MudContainer MaxWidth="MaxWidth.Small" Class="py-8 text-center">
+        <MudIcon Icon="@Icons.Material.Filled.LinkOff" Style="font-size:4rem;color:#bbb;" />
+        <MudText Typo="Typo.h5" Class="mt-3">Link not found</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-2">
+            This transfer link is invalid, expired, or already used.
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-4" Href="/">Back to GoatLab</MudButton>
+    </MudContainer>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="py-6">
+        @if (!string.Equals(preview.Status, "Pending", StringComparison.OrdinalIgnoreCase))
+        {
+            <MudAlert Severity="@StatusSeverity" Class="mb-4" Variant="Variant.Filled">
+                This transfer is <strong>@preview.Status</strong>.
+            </MudAlert>
+        }
+
+        <MudPaper Class="pa-6 mb-4" Outlined Elevation="0">
+            <MudText Typo="Typo.overline" Color="Color.Primary" Style="letter-spacing:2px;">Transfer offer</MudText>
+            <MudText Typo="Typo.h4" Style="font-weight:700;">@preview.GoatName</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                from <strong>@preview.SellerFarmName</strong>
+            </MudText>
+
+            <MudGrid>
+                @if (!string.IsNullOrEmpty(preview.PrimaryPhotoUrl))
+                {
+                    <MudItem xs="12" md="4">
+                        <img src="@preview.PrimaryPhotoUrl" alt="@preview.GoatName" style="width:100%;border-radius:8px;" />
+                    </MudItem>
+                }
+                <MudItem xs="12" md="@(string.IsNullOrEmpty(preview.PrimaryPhotoUrl) ? 12 : 8)">
+                    <MudSimpleTable Dense Bordered="false" Striped>
+                        <tbody>
+                            <tr><td><strong>Breed</strong></td><td>@(preview.Breed ?? "—")</td></tr>
+                            <tr><td><strong>Sex</strong></td><td>@preview.Gender</td></tr>
+                            <tr><td><strong>DOB</strong></td><td>@(preview.DateOfBirth?.ToString("MMM d, yyyy") ?? "—")</td></tr>
+                            @if (!string.IsNullOrEmpty(preview.EarTag))
+                            {
+                                <tr><td><strong>Ear tag</strong></td><td>#@preview.EarTag</td></tr>
+                            }
+                            @if (!string.IsNullOrEmpty(preview.RegistrationNumber))
+                            {
+                                <tr><td><strong>Reg #</strong></td><td>@preview.RegistrationNumber</td></tr>
+                            }
+                            <tr><td><strong>Sire</strong></td><td>@(preview.SireName ?? "Unknown")</td></tr>
+                            <tr><td><strong>Dam</strong></td><td>@(preview.DamName ?? "Unknown")</td></tr>
+                        </tbody>
+                    </MudSimpleTable>
+                </MudItem>
+            </MudGrid>
+
+            @if (!string.IsNullOrWhiteSpace(preview.Message))
+            {
+                <MudText Typo="Typo.subtitle2" Class="mt-4 mb-1">Message from @preview.SellerFarmName</MudText>
+                <MudPaper Class="pa-3" Outlined Elevation="0" Style="background:#f6fbf6;white-space:pre-wrap;">@preview.Message</MudPaper>
+            }
+        </MudPaper>
+
+        <MudPaper Class="pa-5 mb-4" Outlined Elevation="0">
+            <MudText Typo="Typo.h6" Class="mb-2">What transfers</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                When you accept, these records move from @preview.SellerFarmName into your farm. Pedigree links to sire and dam are preserved as reference entries.
+            </MudText>
+            <MudGrid>
+                <MudItem xs="6" md="3">@RenderStat(Icons.Material.Filled.MedicalServices, preview.MedicalRecordCount, "Medical records")</MudItem>
+                <MudItem xs="6" md="3">@RenderStat(Icons.Material.Filled.Scale, preview.WeightRecordCount, "Weight records")</MudItem>
+                <MudItem xs="6" md="3">@RenderStat(Icons.Material.Filled.LocalDrink, preview.MilkLogCount, "Milk logs")</MudItem>
+                <MudItem xs="6" md="3">@RenderStat(Icons.Material.Filled.Image, preview.PhotoCount, "Photos")</MudItem>
+            </MudGrid>
+        </MudPaper>
+
+        @if (string.Equals(preview.Status, "Pending", StringComparison.OrdinalIgnoreCase))
+        {
+            @if (!IsAuthenticated)
+            {
+                <MudAlert Severity="Severity.Info" Class="mb-3">
+                    You'll need a GoatLab account to accept. <MudLink Href="@($"/login?returnUrl=/transfer/{Token}")">Sign in</MudLink>
+                    or <MudLink Href="@($"/register?returnUrl=/transfer/{Token}")">create a free account</MudLink>.
+                </MudAlert>
+            }
+            else if (OwnedTenants.Count == 0)
+            {
+                <MudAlert Severity="Severity.Warning" Class="mb-3">
+                    You need to create a farm before you can receive a transfer.
+                    <MudLink Href="/onboarding">Set up your farm</MudLink> first.
+                </MudAlert>
+            }
+            else
+            {
+                <MudPaper Class="pa-5" Outlined Elevation="0">
+                    <MudText Typo="Typo.h6" Class="mb-2">Accept into which farm?</MudText>
+                    <MudSelect T="int?" @bind-Value="selectedTenantId" Label="Destination farm" Variant="Variant.Outlined"
+                               Class="mb-3">
+                        @foreach (var m in OwnedTenants)
+                        {
+                            <MudSelectItem T="int?" Value="@((int?)m.TenantId)">@m.Name (@m.Role)</MudSelectItem>
+                        }
+                    </MudSelect>
+
+                    <div class="d-flex gap-2 justify-end">
+                        <MudButton Color="Color.Error" Variant="Variant.Outlined" OnClick="OpenDecline" Disabled="busy">Decline</MudButton>
+                        <MudButton Color="Color.Success" Variant="Variant.Filled"
+                                   StartIcon="@Icons.Material.Filled.CheckCircle"
+                                   OnClick="Accept" Disabled="busy || selectedTenantId is null">
+                            @(busy ? "Transferring..." : "Accept transfer")
+                        </MudButton>
+                    </div>
+
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3 d-block">
+                        Link expires @preview.ExpiresAt.ToLocalTime().ToString("MMM d, yyyy").
+                    </MudText>
+                </MudPaper>
+            }
+        }
+    </MudContainer>
+}
+
+@code {
+    [Parameter] public string Token { get; set; } = string.Empty;
+
+    private GoatTransferPreviewDto? preview;
+    private bool loading = true;
+    private bool busy;
+    private int? selectedTenantId;
+
+    private bool IsAuthenticated => AuthState.CurrentUser is not null;
+
+    private IReadOnlyList<TenantMembershipDto> OwnedTenants =>
+        AuthState.CurrentUser?.Memberships?
+            .Where(m => m.Role == TenantRole.Owner || m.Role == TenantRole.Manager)
+            .ToList()
+        ?? (IReadOnlyList<TenantMembershipDto>)Array.Empty<TenantMembershipDto>();
+
+    private Severity StatusSeverity => preview?.Status?.ToLowerInvariant() switch
+    {
+        "accepted" => Severity.Success,
+        "declined" => Severity.Error,
+        "cancelled" => Severity.Warning,
+        "expired" => Severity.Warning,
+        _ => Severity.Info,
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            preview = await Transfers.PreviewByTokenAsync(Token);
+            if (preview is not null && OwnedTenants.Count == 1)
+            {
+                selectedTenantId = OwnedTenants[0].TenantId;
+            }
+        }
+        catch (HttpRequestException)
+        {
+            preview = null;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task Accept()
+    {
+        if (selectedTenantId is null) return;
+        busy = true;
+        try
+        {
+            var result = await Transfers.AcceptAsync(Token, selectedTenantId.Value);
+            if (result is null)
+            {
+                Snackbar.Add("The transfer couldn't be accepted. It may have expired.", Severity.Error);
+                return;
+            }
+            Snackbar.Add("Transfer complete — the goat is now in your herd.", Severity.Success);
+            Nav.NavigateTo($"/herd/{result.GoatId}");
+        }
+        catch (HttpRequestException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { busy = false; }
+    }
+
+    private async Task OpenDecline()
+    {
+        busy = true;
+        try
+        {
+            await Transfers.DeclineAsync(Token, null);
+            Snackbar.Add("Transfer declined — the seller has been notified.", Severity.Info);
+            preview = preview with { Status = "Declined" };
+        }
+        finally { busy = false; }
+    }
+
+    // Small inline stat tile.
+    private RenderFragment RenderStat(string icon, int count, string label) => __builder =>
+    {
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
+            <MudIcon Icon="@icon" Style="color:#2e7d32;" />
+            <div>
+                <div style="font-size:1.3rem;font-weight:700;line-height:1;">@count</div>
+                <div style="font-size:0.75rem;color:#6b7a70;margin-top:2px;">@label</div>
+            </div>
+        </div>
+    };
+}

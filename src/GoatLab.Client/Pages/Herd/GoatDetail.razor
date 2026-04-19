@@ -6,6 +6,8 @@
 @inject SalesService SalesSvc
 @inject ShowService ShowSvc
 @inject CoiService Coi
+@inject MateRecommendationsService MateRecs
+@inject GoatTransfersService Transfers
 @inject CookieAuthStateProvider AuthState
 @inject NavigationManager Nav
 @inject IDialogService Dialog
@@ -109,6 +111,8 @@ else
             <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
                        StartIcon="@Icons.Material.Filled.QrCode2"
                        Href="@($"/api/documents/qr-sheet.pdf?ids={Id}")" Target="_blank">QR Tag</MudButton>
+            <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                       StartIcon="@Icons.Material.Filled.SwapHoriz" OnClick="OpenTransferDialog">Transfer to buyer</MudButton>
             <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
                        StartIcon="@Icons.Material.Filled.Delete" OnClick="DeleteGoat">Delete</MudButton>
         </div>
@@ -945,6 +949,102 @@ else
             </MudTabPanel>
         }
 
+        @* ===== MATE RECOMMENDATIONS TAB (does only, CoI plan gate shared with Inbreeding) ===== *@
+        @if (CoiEnabled && goat.Gender == Gender.Female)
+        {
+            <MudTabPanel Text="Mate matches" Icon="@Icons.Material.Filled.Favorite">
+                <MudPaper Class="polished-section" Elevation="0">
+                    <div class="polished-section-header">
+                        <div class="polished-section-header-title">
+                            <MudIcon Icon="@Icons.Material.Filled.Favorite" Style="color:#c2185b;" />
+                            <div>
+                                <MudText Typo="Typo.h6">Recommended sires for @goat.Name</MudText>
+                                <MudText Typo="Typo.body2" Class="section-hint">
+                                    Composite score blends projected COI (70 pts) with proven production:
+                                    live-birth rate, litter size, and daughters' milk output (30 pts).
+                                </MudText>
+                            </div>
+                        </div>
+                    </div>
+
+                    @if (mateRecsLoading)
+                    {
+                        <MudProgressLinear Indeterminate Color="Color.Primary" />
+                    }
+                    else if (mateRecs is null || mateRecs.Count == 0)
+                    {
+                        <div class="inline-empty">
+                            <MudIcon Icon="@Icons.Material.Filled.Pets" />
+                            <MudText Typo="Typo.body1">No eligible sires</MudText>
+                            <MudText Typo="Typo.body2">Add at least one non-external male goat to your herd to get mate recommendations.</MudText>
+                        </div>
+                    }
+                    else
+                    {
+                        <MudSimpleTable Dense Hover Striped>
+                            <thead>
+                                <tr>
+                                    <th style="width:30px;"></th>
+                                    <th>Sire</th>
+                                    <th>Score</th>
+                                    <th>Proj. COI</th>
+                                    <th>Kiddings</th>
+                                    <th>Live-birth</th>
+                                    <th>Litter</th>
+                                    <th>Daughter milk</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @for (var i = 0; i < mateRecs.Count; i++)
+                                {
+                                    var r = mateRecs[i];
+                                    var rank = i + 1;
+                                    <tr style="cursor:pointer;" @onclick="@(() => Nav.NavigateTo($"/herd/{r.BuckId}"))">
+                                        <td>
+                                            @if (rank == 1)
+                                            {
+                                                <MudIcon Icon="@Icons.Material.Filled.EmojiEvents" Style="color:#f9a825;" Size="Size.Small" />
+                                            }
+                                            else
+                                            {
+                                                <MudText Typo="Typo.caption" Color="Color.Secondary">#@rank</MudText>
+                                            }
+                                        </td>
+                                        <td>
+                                            <MudText Typo="Typo.body2" Style="font-weight:600;">@r.BuckName</MudText>
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                                @(r.EarTag is not null ? $"#{r.EarTag} · " : "")@(r.Breed ?? "—")
+                                            </MudText>
+                                        </td>
+                                        <td>
+                                            <MudChip T="string" Size="Size.Small" Color="@ScoreColor(r.CompositeScore)" Variant="Variant.Filled">
+                                                @r.CompositeScore.ToString("F0")
+                                            </MudChip>
+                                        </td>
+                                        <td>
+                                            <MudChip T="string" Size="Size.Small" Color="@CoiColor(r.ProjectedCoi)" Variant="Variant.Outlined">
+                                                @FormatCoi(r.ProjectedCoi)
+                                            </MudChip>
+                                        </td>
+                                        <td>@r.KiddingsSired</td>
+                                        <td>@(r.LiveBirthRate is double lbr ? (lbr * 100).ToString("F0") + "%" : "—")</td>
+                                        <td>@(r.AvgLitterSize is double ls ? ls.ToString("F1") : "—")</td>
+                                        <td>@(r.DaughterMilkDailyAvgLbs is double milk ? milk.ToString("F1") + " lb/d" : "—")</td>
+                                    </tr>
+                                    <tr>
+                                        <td></td>
+                                        <td colspan="7" style="padding-top:0;padding-bottom:12px;">
+                                            <MudText Typo="Typo.caption" Color="Color.Secondary">@r.Rationale</MudText>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </MudSimpleTable>
+                    }
+                </MudPaper>
+            </MudTabPanel>
+        }
+
         @* ===== DOCUMENTS TAB ===== *@
         <MudTabPanel Text="Documents" Icon="@Icons.Material.Filled.Folder">
             <MudPaper Class="polished-section" Elevation="0">
@@ -1134,6 +1234,11 @@ else
     private CoiResultDto? mateCoiResult;
     private bool mateCoiLoading;
 
+    // Mate recommendations tab state — lazy loaded on tab click.
+    private List<MateRecommendationDto>? mateRecs;
+    private bool mateRecsLoading;
+    private bool mateRecsLoaded;
+
     private bool CoiEnabled => AuthState.CurrentUser?.EnabledFeatures?
         .Contains("CoiCalculator", StringComparer.OrdinalIgnoreCase) == true;
 
@@ -1150,7 +1255,46 @@ else
         _ => MudBlazor.Color.Error,
     };
 
+    private static MudBlazor.Color ScoreColor(double score) => score switch
+    {
+        >= 80 => MudBlazor.Color.Success,
+        >= 60 => MudBlazor.Color.Primary,
+        >= 40 => MudBlazor.Color.Warning,
+        _ => MudBlazor.Color.Error,
+    };
+
     private static string FormatCoi(double coi) => $"{(coi * 100):F2}%";
+
+    private async Task OpenTransferDialog()
+    {
+        if (goat is null) return;
+        var parameters = new DialogParameters
+        {
+            [nameof(TransferGoatDialog.GoatId)] = Id,
+            [nameof(TransferGoatDialog.GoatName)] = goat.Name,
+        };
+        await Dialog.ShowAsync<TransferGoatDialog>("Transfer goat to buyer", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+    }
+
+    private async Task EnsureMateRecommendations()
+    {
+        if (mateRecsLoaded || mateRecsLoading) return;
+        mateRecsLoading = true;
+        try
+        {
+            mateRecs = await MateRecs.GetForDoeAsync(Id, 10) ?? new();
+            mateRecsLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Could not load mate recommendations: {ex.Message}", Severity.Warning);
+        }
+        finally
+        {
+            mateRecsLoading = false;
+        }
+    }
 
     private string PublicLink
     {
@@ -1245,6 +1389,10 @@ else
         if (CoiEnabled)
         {
             _ = LoadCoiAsync();
+            if (goat is { Gender: Gender.Female })
+            {
+                _ = EnsureMateRecommendations();
+            }
         }
     }
 

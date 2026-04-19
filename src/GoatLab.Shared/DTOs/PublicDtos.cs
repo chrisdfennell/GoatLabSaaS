@@ -55,3 +55,18 @@ public record PublicGoatListItemDto(
     int? AskingPriceCents,
     string? PrimaryPhotoUrl
 );
+
+// Breed directory — groups public listings across all tenants by normalized breed.
+public record BreedSummaryDto(
+    string BreedSlug,
+    string DisplayName,
+    int FarmCount,
+    int ListingCount);
+
+public record BreedFarmDto(
+    string FarmSlug,
+    string FarmName,
+    string? Location,
+    int ListingCount,
+    int? StartingPriceCents,
+    string? HeroPhotoUrl);

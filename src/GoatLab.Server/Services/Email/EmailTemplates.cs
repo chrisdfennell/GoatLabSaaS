@@ -125,6 +125,57 @@ public static class EmailTemplates
         Text: $"Hi {customerName},\n\n{farmName} has shared a live view of your reservation with you. Open:\n{portalUrl}\n\nThe link works until {expiresAt:MMMM d, yyyy}."
     );
 
+    public static (string Subject, string Html, string Text) GoatTransferInvite(
+        string sellerFarm,
+        string goatName,
+        string acceptUrl,
+        DateTime expiresAt,
+        string? message) =>
+    (
+        Subject: $"{System.Net.WebUtility.HtmlEncode(sellerFarm)} is transferring {System.Net.WebUtility.HtmlEncode(goatName)} to you on {Brand}",
+        Html: $@"<div style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:0 auto;padding:24px;color:#1a2421;"">
+  <h2 style=""color:#2e7d32;margin-bottom:8px;"">A goat is being transferred to you</h2>
+  <p><strong>{System.Net.WebUtility.HtmlEncode(sellerFarm)}</strong> wants to hand <strong>{System.Net.WebUtility.HtmlEncode(goatName)}</strong> over to your herd on {Brand}.</p>
+  <p>When you accept, the goat's full record — pedigree links, medical history, weights, photos — moves straight into one of your farms. No re-typing, nothing lost.</p>
+  {(string.IsNullOrWhiteSpace(message) ? "" : $@"<blockquote style=""border-left:3px solid #2e7d32;margin:16px 0;padding:8px 16px;color:#444;background:#f6fbf6;border-radius:0 6px 6px 0;"">{System.Net.WebUtility.HtmlEncode(message)}</blockquote>")}
+  <p style=""margin:32px 0;"">
+    <a href=""{acceptUrl}""
+       style=""display:inline-block;background:#2e7d32;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;"">Review transfer</a>
+  </p>
+  <p style=""font-size:13px;color:#6b7a70;"">This link expires on <strong>{expiresAt:MMMM d, yyyy}</strong>. You'll need a {Brand} account to accept — sign up for free if you don't have one yet.</p>
+  <p style=""font-size:13px;color:#6b7a70;"">If the button doesn't work, paste this link into your browser:<br/>
+    <span style=""word-break:break-all;"">{acceptUrl}</span>
+  </p>
+</div>",
+        Text: $"{sellerFarm} is transferring {goatName} to you on {Brand}. Open the link to review:\n{acceptUrl}\n\nExpires {expiresAt:MMMM d, yyyy}."
+    );
+
+    public static (string Subject, string Html, string Text) GoatTransferAccepted(
+        string buyerFarm,
+        string goatName) =>
+    (
+        Subject: $"{System.Net.WebUtility.HtmlEncode(buyerFarm)} accepted the transfer of {System.Net.WebUtility.HtmlEncode(goatName)}",
+        Html: $@"<div style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:0 auto;padding:24px;color:#1a2421;"">
+  <h2 style=""color:#2e7d32;margin-bottom:8px;"">Transfer complete</h2>
+  <p><strong>{System.Net.WebUtility.HtmlEncode(buyerFarm)}</strong> has accepted the transfer of <strong>{System.Net.WebUtility.HtmlEncode(goatName)}</strong>. The goat's record (with its health, weight, and milk history) is now part of their herd on {Brand}.</p>
+  <p style=""font-size:13px;color:#6b7a70;"">Your sales, finance entries, and breeding records referencing this goat remain on your side untouched — only the live record moved.</p>
+</div>",
+        Text: $"{buyerFarm} accepted the transfer of {goatName}. The record now lives in their herd."
+    );
+
+    public static (string Subject, string Html, string Text) GoatTransferDeclined(
+        string goatName,
+        string? reason) =>
+    (
+        Subject: $"Transfer of {System.Net.WebUtility.HtmlEncode(goatName)} was declined",
+        Html: $@"<div style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:0 auto;padding:24px;color:#1a2421;"">
+  <h2 style=""color:#c62828;margin-bottom:8px;"">Transfer declined</h2>
+  <p>The buyer declined the transfer of <strong>{System.Net.WebUtility.HtmlEncode(goatName)}</strong>. The goat stays in your herd as before.</p>
+  {(string.IsNullOrWhiteSpace(reason) ? "" : $@"<blockquote style=""border-left:3px solid #c62828;margin:16px 0;padding:8px 16px;color:#444;background:#fdf3f3;border-radius:0 6px 6px 0;"">{System.Net.WebUtility.HtmlEncode(reason)}</blockquote>")}
+</div>",
+        Text: $"Transfer of {goatName} was declined.{(string.IsNullOrWhiteSpace(reason) ? "" : $"\nReason: {reason}")}"
+    );
+
     public static (string Subject, string Html, string Text) PasswordReset(string displayName, string resetUrl) =>
     (
         Subject: $"Reset your {Brand} password",

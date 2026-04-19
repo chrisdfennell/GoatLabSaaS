@@ -15,6 +15,10 @@ public static class WebhookEventTypes
     public const string KiddingRecorded = "kidding.recorded";
     public const string MedicalRecorded = "medical.recorded";
 
+    public const string GoatTransferInitiated = "goat.transfer.initiated";
+    public const string GoatTransferAccepted = "goat.transfer.accepted";
+    public const string GoatTransferDeclined = "goat.transfer.declined";
+
     public const string Ping = "ping"; // sent by the "Test" button on the UI
 
     public static readonly IReadOnlyList<string> All = new[]
@@ -22,5 +26,6 @@ public static class WebhookEventTypes
         GoatCreated, GoatUpdated, GoatDeleted,
         SaleCreated, SaleUpdated,
         KiddingRecorded, MedicalRecorded,
+        GoatTransferInitiated, GoatTransferAccepted, GoatTransferDeclined,
     };
 }
