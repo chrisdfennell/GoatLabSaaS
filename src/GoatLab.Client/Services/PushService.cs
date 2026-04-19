@@ -39,7 +39,10 @@ public class PushService
         string? userAgent = null;
         try { userAgent = await _js.InvokeAsync<string?>("eval", "navigator.userAgent"); } catch { }
 
-        await _api.PostAsync("api/push/subscribe", new PushSubscribeRequest(endpoint, p256dh, auth, userAgent));
+        // Push endpoints return 204 No Content — must call the fire-and-forget
+        // overload (noReturn: true) or ReadFromJsonAsync blows up on empty body
+        // with an "Expected JSON tokens at Path: $" error.
+        await _api.PostAsync("api/push/subscribe", new PushSubscribeRequest(endpoint, p256dh, auth, userAgent), noReturn: true);
         return true;
     }
 
@@ -48,7 +51,7 @@ public class PushService
         var endpoint = await CurrentEndpointAsync();
         await _js.InvokeVoidAsync("goatPush.unsubscribe");
         if (!string.IsNullOrEmpty(endpoint))
-            await _api.PostAsync<object>("api/push/unsubscribe", new { endpoint });
+            await _api.PostAsync<object>("api/push/unsubscribe", new { endpoint }, noReturn: true);
     }
 
     public Task<List<PushSubscriptionDto>?> ListSubscriptionsAsync()
@@ -56,5 +59,5 @@ public class PushService
 
     public Task RemoveSubscriptionAsync(int id) => _api.DeleteAsync($"api/push/subscriptions/{id}");
 
-    public Task SendTestAsync() => _api.PostAsync<object>("api/push/test", new { });
+    public Task SendTestAsync() => _api.PostAsync<object>("api/push/test", new { }, noReturn: true);
 }
