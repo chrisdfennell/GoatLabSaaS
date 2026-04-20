@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using GoatLab.Server.Data;
 using GoatLab.Server.Services;
@@ -56,7 +57,11 @@ public class ApiKeysController : ControllerBase
         return keys;
     }
 
-    public record CreateRequest([property: System.ComponentModel.DataAnnotations.Required] string Name, DateTime? ExpiresAt);
+    // Validation attributes on positional-record parameters must NOT use the
+    // `[property: ...]` target — ASP.NET Core model metadata throws
+    // InvalidOperationException at bind time if they do. The attribute must
+    // live on the parameter itself (default target).
+    public record CreateRequest([Required] string Name, DateTime? ExpiresAt);
 
     [HttpPost]
     public async Task<ActionResult<CreatedKeyDto>> Create([FromBody] CreateRequest req)
