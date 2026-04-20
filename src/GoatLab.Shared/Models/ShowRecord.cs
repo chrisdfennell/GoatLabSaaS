@@ -10,7 +10,7 @@ public class ShowRecord : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int GoatId { get; set; }
-    public Goat Goat { get; set; } = null!;
+    public Goat? Goat { get; set; }
 
     public DateTime ShowDate { get; set; }
 

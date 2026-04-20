@@ -10,7 +10,7 @@ public class MedicineCabinetItem : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int MedicationId { get; set; }
-    public Medication Medication { get; set; } = null!;
+    public Medication? Medication { get; set; }
 
     public double Quantity { get; set; }
 

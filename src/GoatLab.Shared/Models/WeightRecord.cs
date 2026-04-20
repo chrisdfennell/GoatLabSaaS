@@ -10,7 +10,7 @@ public class WeightRecord : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int GoatId { get; set; }
-    public Goat Goat { get; set; } = null!;
+    public Goat? Goat { get; set; }
 
     /// <summary>Weight in pounds</summary>
     public double Weight { get; set; }

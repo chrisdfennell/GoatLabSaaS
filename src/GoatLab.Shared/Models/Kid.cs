@@ -10,7 +10,7 @@ public class Kid : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int KiddingRecordId { get; set; }
-    public KiddingRecord KiddingRecord { get; set; } = null!;
+    public KiddingRecord? KiddingRecord { get; set; }
 
     [MaxLength(100)]
     public string? Name { get; set; }

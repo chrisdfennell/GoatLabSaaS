@@ -10,7 +10,7 @@ public class MilkLog : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int GoatId { get; set; }
-    public Goat Goat { get; set; } = null!;
+    public Goat? Goat { get; set; }
 
     public DateTime Date { get; set; }
 

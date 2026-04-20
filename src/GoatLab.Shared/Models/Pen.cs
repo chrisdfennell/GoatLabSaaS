@@ -13,7 +13,7 @@ public class Pen : ITenantOwned
     public string Name { get; set; } = string.Empty;
 
     public int BarnId { get; set; }
-    public Barn Barn { get; set; } = null!;
+    public Barn? Barn { get; set; }
 
     public int Capacity { get; set; }
 

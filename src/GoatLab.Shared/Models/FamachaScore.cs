@@ -10,7 +10,7 @@ public class FamachaScore : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int GoatId { get; set; }
-    public Goat Goat { get; set; } = null!;
+    public Goat? Goat { get; set; }
 
     /// <summary>FAMACHA score 1–5 (1=red/healthy, 5=white/severe anemia)</summary>
     public int Score { get; set; }

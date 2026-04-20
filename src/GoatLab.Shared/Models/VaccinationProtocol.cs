@@ -40,7 +40,7 @@ public class ProtocolDose : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int VaccinationProtocolId { get; set; }
-    public VaccinationProtocol VaccinationProtocol { get; set; } = null!;
+    public VaccinationProtocol? VaccinationProtocol { get; set; }
 
     [Required, MaxLength(150)]
     public string Title { get; set; } = string.Empty;

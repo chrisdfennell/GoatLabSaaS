@@ -10,7 +10,7 @@ public class KiddingRecord : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int BreedingRecordId { get; set; }
-    public BreedingRecord BreedingRecord { get; set; } = null!;
+    public BreedingRecord? BreedingRecord { get; set; }
 
     public DateTime KiddingDate { get; set; }
 

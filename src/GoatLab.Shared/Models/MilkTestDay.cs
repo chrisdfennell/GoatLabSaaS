@@ -15,7 +15,7 @@ public class MilkTestDay : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int LactationId { get; set; }
-    public Lactation Lactation { get; set; } = null!;
+    public Lactation? Lactation { get; set; }
 
     /// <summary>Denormalized for easy per-goat queries.</summary>
     public int GoatId { get; set; }

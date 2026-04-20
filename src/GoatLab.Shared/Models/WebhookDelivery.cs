@@ -13,7 +13,7 @@ public class WebhookDelivery : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int WebhookId { get; set; }
-    public Webhook Webhook { get; set; } = null!;
+    public Webhook? Webhook { get; set; }
 
     [Required, MaxLength(100)]
     public string EventType { get; set; } = string.Empty;

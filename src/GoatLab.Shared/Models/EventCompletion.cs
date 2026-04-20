@@ -15,7 +15,7 @@ public class EventCompletion : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int CalendarEventId { get; set; }
-    public CalendarEvent CalendarEvent { get; set; } = null!;
+    public CalendarEvent? CalendarEvent { get; set; }
 
     /// <summary>The date of the occurrence being marked complete (date portion only).</summary>
     public DateTime OccurrenceDate { get; set; }

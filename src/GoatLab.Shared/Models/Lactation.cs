@@ -10,7 +10,7 @@ public class Lactation : ITenantOwned
     public Tenant? Tenant { get; set; }
 
     public int GoatId { get; set; }
-    public Goat Goat { get; set; } = null!;
+    public Goat? Goat { get; set; }
 
     /// <summary>Freshening date — day the doe kidded and milk recording started.</summary>
     public DateTime FreshenDate { get; set; }
