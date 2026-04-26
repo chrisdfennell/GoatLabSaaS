@@ -1,24 +1,28 @@
 @page "/privacy"
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @layout GoatLab.Client.Layout.LandingLayout
+@inject LegalSettingsService Legal
 
 <PageTitle>Privacy Policy — GoatLab</PageTitle>
 
 <section class="legal-page">
     <div class="container">
-        <MudAlert Severity="Severity.Warning" Class="mb-6">
-            <strong>Draft, not legal advice.</strong> This document is a starting-point draft pending
-            attorney review. Bracketed items <code>[LIKE THIS]</code> are placeholders for the lawyer
-            to finalize. Do not rely on these terms for any binding purpose until the version
-            without bracketed placeholders is published here.
-        </MudAlert>
+        @if (_settings is null || !_settings.Approved)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-6">
+                <strong>Draft, not legal advice.</strong> This document is a starting-point draft pending
+                attorney review. Bracketed items <code>[LIKE THIS]</code> are placeholders for the lawyer
+                to finalize. Do not rely on these terms for any binding purpose until the version
+                without bracketed placeholders is published here.
+            </MudAlert>
+        }
 
         <h1>Privacy Policy</h1>
         <p class="effective">Last updated: @DateTime.UtcNow.ToString("MMMM yyyy")</p>
 
         <h2>1. Who we are and what this policy covers</h2>
         <p>
-            This Privacy Policy describes how <strong>[LEGAL ENTITY NAME]</strong> (operating as
+            This Privacy Policy describes how <strong>@LegalSettingsService.Or(_settings?.EntityName, "LEGAL ENTITY NAME")</strong> (operating as
             <strong>"GoatLab"</strong>, <strong>"we"</strong>, <strong>"us"</strong>,
             <strong>"our"</strong>) collects, uses, shares, and protects personal information about
             you (<strong>"you"</strong>, <strong>"user"</strong>) when you use our software service
@@ -248,7 +252,7 @@
 
         <h2>6. International data transfers</h2>
         <p>
-            GoatLab is operated from the <strong>[OPERATOR LOCATION — likely USA]</strong>. Our
+            GoatLab is operated from the <strong>@LegalSettingsService.Or(_settings?.GoverningLawState, "OPERATOR LOCATION — likely USA")</strong>. Our
             primary hosting infrastructure is in the <strong>European Union (Lithuania)</strong>.
             Some sub-processors (Stripe, Sentry, Google) are headquartered in the United States. By
             using the Service you consent to the transfer of your data to these jurisdictions.
@@ -301,7 +305,7 @@
             for cross-context behavioral advertising).
         </p>
         <p>
-            To exercise any right, email us at <a href="mailto:[CONTACT EMAIL]">[CONTACT EMAIL]</a>.
+            To exercise any right, email us at <a href="mailto:@LegalSettingsService.Or(_settings?.ContactEmail, "CONTACT EMAIL")">@LegalSettingsService.Or(_settings?.ContactEmail, "CONTACT EMAIL")</a>.
             We will respond within <strong>30 days</strong>.
         </p>
 
@@ -371,9 +375,9 @@
 
         <h2>14. Contact</h2>
         <p>For privacy questions, requests, or complaints, email us at:</p>
-        <p><strong><a href="mailto:[CONTACT EMAIL]">[CONTACT EMAIL]</a></strong></p>
+        <p><strong><a href="mailto:@LegalSettingsService.Or(_settings?.ContactEmail, "CONTACT EMAIL")">@LegalSettingsService.Or(_settings?.ContactEmail, "CONTACT EMAIL")</a></strong></p>
         <p>Or by mail at:</p>
-        <p><strong>[BUSINESS ADDRESS]</strong></p>
+        <p><strong>@LegalSettingsService.Or(_settings?.BusinessAddress, "BUSINESS ADDRESS")</strong></p>
         <p>
             If you are in the EEA, UK, or Switzerland and believe your local data-protection
             authority would be the appropriate venue for a complaint, you may also contact them
@@ -398,3 +402,12 @@
     .legal-table th, .legal-table td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; vertical-align: top; }
     .legal-table th { background: #f7f7f7; font-weight: 600; }
 </style>
+
+@code {
+    private GoatLab.Shared.DTOs.LegalSettingsDto? _settings;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _settings = await Legal.GetAsync();
+    }
+}

@@ -254,6 +254,11 @@ QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 builder.Services.Configure<BackupOptions>(builder.Configuration.GetSection(BackupOptions.SectionName));
 builder.Services.AddScoped<IBackupService, BackupService>();
 
+// Lawyer-fillable Terms/Privacy values. All fields optional — pages fall back
+// to bracketed placeholders when unset. See LegalOptions.cs for env var names.
+builder.Services.Configure<GoatLab.Server.Services.Legal.LegalOptions>(
+    builder.Configuration.GetSection(GoatLab.Server.Services.Legal.LegalOptions.SectionName));
+
 // ADGA/AGS registry CSV import.
 builder.Services.AddScoped<RegistryImportService>();
 

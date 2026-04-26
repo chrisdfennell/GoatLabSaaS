@@ -90,6 +90,16 @@ services:
       Push__VapidPrivateKey: "${PUSH_VAPID_PRIVATE_KEY:-}"
       Push__Subject: "${PUSH_SUBJECT:-mailto:admin@goatlab.local}"
       Identity__RequireConfirmedEmail: "${IDENTITY_REQUIRE_CONFIRMED_EMAIL:-false}"
+      Legal__EntityName: "${LEGAL_ENTITY_NAME:-}"
+      Legal__EntityType: "${LEGAL_ENTITY_TYPE:-}"
+      Legal__State: "${LEGAL_STATE:-}"
+      Legal__BusinessAddress: "${LEGAL_BUSINESS_ADDRESS:-}"
+      Legal__ContactEmail: "${LEGAL_CONTACT_EMAIL:-}"
+      Legal__GoverningLawState: "${LEGAL_GOVERNING_LAW_STATE:-}"
+      Legal__GoverningLawCounty: "${LEGAL_GOVERNING_LAW_COUNTY:-}"
+      Legal__GoverningLawCity: "${LEGAL_GOVERNING_LAW_CITY:-}"
+      Legal__DisputeResolution: "${LEGAL_DISPUTE_RESOLUTION:-}"
+      Legal__Approved: "${LEGAL_APPROVED:-false}"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]

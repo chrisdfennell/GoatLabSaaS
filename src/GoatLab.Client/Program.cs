@@ -80,5 +80,6 @@ builder.Services.AddScoped<ForecastService>();
 builder.Services.AddScoped<WaitlistService>();
 builder.Services.AddScoped<ApiKeysService>();
 builder.Services.AddScoped<WebhooksService>();
+builder.Services.AddScoped<LegalSettingsService>();
 
 await builder.Build().RunAsync();

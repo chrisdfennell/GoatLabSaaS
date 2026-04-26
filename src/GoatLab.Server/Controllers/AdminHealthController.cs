@@ -1,7 +1,9 @@
 using GoatLab.Server.Data;
 using GoatLab.Server.Services;
+using GoatLab.Server.Services.Backup;
 using GoatLab.Server.Services.Billing;
 using GoatLab.Server.Services.Email;
+using GoatLab.Server.Services.Jobs;
 using Hangfire;
 using Hangfire.Storage;
 using Microsoft.AspNetCore.Authorization;
@@ -23,6 +25,7 @@ public class AdminHealthController : ControllerBase
     private readonly IAppEmailSender _emailSender;
     private readonly IOptions<SmtpOptions> _smtp;
     private readonly IOptions<StripeOptions> _stripe;
+    private readonly IOptions<BackupOptions> _backup;
     private readonly IConfiguration _config;
 
     public AdminHealthController(
@@ -30,12 +33,14 @@ public class AdminHealthController : ControllerBase
         IAppEmailSender emailSender,
         IOptions<SmtpOptions> smtp,
         IOptions<StripeOptions> stripe,
+        IOptions<BackupOptions> backup,
         IConfiguration config)
     {
         _db = db;
         _emailSender = emailSender;
         _smtp = smtp;
         _stripe = stripe;
+        _backup = backup;
         _config = config;
     }
 
@@ -104,6 +109,12 @@ public class AdminHealthController : ControllerBase
             sentryConfigured ? "ok" : "warn",
             sentryConfigured ? "DSN configured" : "No Sentry:Dsn — error events are not sent"));
 
+        // Offsite backup. Stamps written by BackupService on success/failure;
+        // we map them to ok/warn/error so a stale or failed backup is loud on
+        // this page even though the Hangfire job itself "ran" (it ran, then
+        // returned early because Enabled=false or the upload threw).
+        checks.Add(BuildOffsiteBackupCheck());
+
         // Hangfire: recurring-job registry + last run.
         try
         {
@@ -128,5 +139,96 @@ public class AdminHealthController : ControllerBase
         }
 
         return new HealthReportDto(checks, jobs, DateTime.UtcNow);
+    }
+
+    public record RunBackupResultDto(bool Queued, string? JobId, string? Message);
+
+    // Manual fire of the offsite backup. Enqueues a Hangfire background job so
+    // the controller returns immediately — a real BACKUP DATABASE on a
+    // production-sized DB takes minutes, not seconds. The returned JobId can
+    // be inspected at /admin/jobs.
+    [HttpPost("backup/run")]
+    public ActionResult<RunBackupResultDto> RunBackupNow()
+    {
+        if (!_backup.Value.Enabled)
+        {
+            return BadRequest(new RunBackupResultDto(false, null,
+                "Offsite backup is disabled. Set BACKUP_OFFSITE_ENABLED=true and configure bucket credentials first."));
+        }
+        if (string.IsNullOrWhiteSpace(_backup.Value.Bucket) || string.IsNullOrWhiteSpace(_backup.Value.AccessKey))
+        {
+            return BadRequest(new RunBackupResultDto(false, null,
+                "Offsite backup is misconfigured — missing bucket or access key."));
+        }
+
+        var jobId = BackgroundJob.Enqueue<DatabaseBackupJob>(job => job.RunAsync(CancellationToken.None));
+        return new RunBackupResultDto(true, jobId, "Backup queued. Check /admin/jobs or refresh this page in a few minutes.");
+    }
+
+    // Builds the offsite-backup health card. Read-only; uses _db.AppSettings
+    // rows that BackupService stamps on every success/failure.
+    private CheckDto BuildOffsiteBackupCheck()
+    {
+        if (!_backup.Value.Enabled)
+        {
+            return new CheckDto("Offsite backup", "warn",
+                "Disabled — set Backup:Offsite:Enabled=true (env BACKUP_OFFSITE_ENABLED=true) and configure bucket credentials. " +
+                "Without offsite backups, a host failure is unrecoverable.");
+        }
+
+        var settings = _db.AppSettings
+            .Where(s => s.Key == BackupStatusKeys.LastSuccessAt
+                     || s.Key == BackupStatusKeys.LastFileName
+                     || s.Key == BackupStatusKeys.LastSizeBytes
+                     || s.Key == BackupStatusKeys.LastError
+                     || s.Key == BackupStatusKeys.LastErrorAt)
+            .ToDictionary(s => s.Key, s => s.Value);
+
+        DateTime? lastSuccess = TryParseUtc(settings.GetValueOrDefault(BackupStatusKeys.LastSuccessAt));
+        DateTime? lastError = TryParseUtc(settings.GetValueOrDefault(BackupStatusKeys.LastErrorAt));
+        var lastFile = settings.GetValueOrDefault(BackupStatusKeys.LastFileName);
+        var lastSize = settings.GetValueOrDefault(BackupStatusKeys.LastSizeBytes);
+        var lastErrMsg = settings.GetValueOrDefault(BackupStatusKeys.LastError);
+
+        var bucketLabel = $"s3://{_backup.Value.Bucket}/{_backup.Value.Prefix.TrimEnd('/')}";
+
+        // Brand-new install — enabled but never ran.
+        if (lastSuccess is null && lastError is null)
+        {
+            return new CheckDto("Offsite backup", "warn",
+                $"Configured for {bucketLabel} but has not run yet. Daily at 04:00 UTC, or click \"Run now\".");
+        }
+
+        // Most recent activity was a failure that hasn't recovered.
+        if (lastError is not null && (lastSuccess is null || lastError > lastSuccess))
+        {
+            var ageHours = (int)(DateTime.UtcNow - lastError.Value).TotalHours;
+            return new CheckDto("Offsite backup", "error",
+                $"Last attempt failed {ageHours}h ago: {lastErrMsg}. Target: {bucketLabel}.");
+        }
+
+        // Last success exists. Stale if older than 36h (job runs daily).
+        var age = DateTime.UtcNow - lastSuccess!.Value;
+        var sizeText = long.TryParse(lastSize, out var bytes) ? FormatBytes(bytes) : "?";
+        var detail = $"Last success: {lastSuccess.Value:yyyy-MM-dd HH:mm} UTC ({(int)age.TotalHours}h ago). " +
+                     $"File: {lastFile} ({sizeText}). Target: {bucketLabel}.";
+
+        return age.TotalHours > 36
+            ? new CheckDto("Offsite backup", "error", "Stale — " + detail)
+            : new CheckDto("Offsite backup", "ok", detail);
+    }
+
+    private static DateTime? TryParseUtc(string? raw)
+        => DateTime.TryParse(raw, null, System.Globalization.DateTimeStyles.RoundtripKind, out var dt)
+            ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
+            : null;
+
+    private static string FormatBytes(long bytes)
+    {
+        const long mb = 1024 * 1024;
+        if (bytes >= 1024 * mb) return $"{bytes / (double)(1024 * mb):F1} GB";
+        if (bytes >= mb) return $"{bytes / (double)mb:F1} MB";
+        if (bytes >= 1024) return $"{bytes / 1024.0:F1} KB";
+        return $"{bytes} B";
     }
 }

@@ -1,12 +1,17 @@
 @page "/admin/health"
 @inject AdminHealthService HealthApi
+@inject ISnackbar Snackbar
 
 <PageTitle>System health — Admin — GoatLab</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
-    <div class="d-flex align-center mb-4">
+    <div class="d-flex align-center mb-4 flex-wrap" style="gap:8px;">
         <MudText Typo="Typo.h4">System health</MudText>
         <MudSpacer />
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                   StartIcon="@Icons.Material.Filled.CloudUpload" OnClick="RunBackupAsync" Disabled="_busy">
+            Run offsite backup now
+        </MudButton>
         <MudButton Variant="Variant.Outlined" Color="Color.Primary"
                    StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync" Disabled="_busy">
             Refresh
@@ -93,6 +98,20 @@
     {
         _busy = true;
         try { _report = await HealthApi.GetAsync(); }
+        finally { _busy = false; }
+    }
+
+    private async Task RunBackupAsync()
+    {
+        _busy = true;
+        try
+        {
+            var (ok, message) = await HealthApi.RunBackupAsync();
+            Snackbar.Add(message, ok ? Severity.Success : Severity.Warning);
+            // Re-fetch after a short delay so the "Last success" line moves to "queued just now".
+            // Server-side Hangfire run is async — the user can hit Refresh again later.
+            _report = await HealthApi.GetAsync();
+        }
         finally { _busy = false; }
     }
 

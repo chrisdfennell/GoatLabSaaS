@@ -1,17 +1,21 @@
 @page "/terms"
 @attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
 @layout GoatLab.Client.Layout.LandingLayout
+@inject LegalSettingsService Legal
 
 <PageTitle>Terms of Service — GoatLab</PageTitle>
 
 <section class="legal-page">
     <div class="container">
-        <MudAlert Severity="Severity.Warning" Class="mb-6">
-            <strong>Draft, not legal advice.</strong> This document is a starting-point draft pending
-            attorney review. Bracketed items <code>[LIKE THIS]</code> are placeholders for the lawyer
-            to finalize. Do not rely on these terms for any binding purpose until the version
-            without bracketed placeholders is published here.
-        </MudAlert>
+        @if (_settings is null || !_settings.Approved)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mb-6">
+                <strong>Draft, not legal advice.</strong> This document is a starting-point draft pending
+                attorney review. Bracketed items <code>[LIKE THIS]</code> are placeholders for the lawyer
+                to finalize. Do not rely on these terms for any binding purpose until the version
+                without bracketed placeholders is published here.
+            </MudAlert>
+        }
 
         <h1>Terms of Service</h1>
         <p class="effective">Last updated: @DateTime.UtcNow.ToString("MMMM yyyy")</p>
@@ -20,8 +24,9 @@
         <p>
             These Terms of Service (<strong>"Terms"</strong>) are a binding agreement between you
             (<strong>"you"</strong>, <strong>"your"</strong>, <strong>"Customer"</strong>) and
-            <strong>[LEGAL ENTITY NAME]</strong>, a [STATE] [LLC / corporation / sole proprietor]
-            with its principal place of business at <strong>[BUSINESS ADDRESS]</strong>
+            <strong>@LegalSettingsService.Or(_settings?.EntityName, "LEGAL ENTITY NAME")</strong>,
+            a @LegalSettingsService.Or(_settings?.State, "STATE") @LegalSettingsService.Or(_settings?.EntityType, "LLC / corporation / sole proprietor")
+            with its principal place of business at <strong>@LegalSettingsService.Or(_settings?.BusinessAddress, "BUSINESS ADDRESS")</strong>
             (<strong>"GoatLab"</strong>, <strong>"we"</strong>, <strong>"us"</strong>,
             <strong>"our"</strong>). They govern your access to and use of the GoatLab software
             service, the website at https://goatlab.app, mobile and PWA clients, APIs, and all
@@ -45,7 +50,7 @@
             legally able to form a binding contract under the laws of your jurisdiction. We do not
             knowingly collect data from individuals under 16 and do not intend the Service for use
             by minors. If you become aware that a minor has provided us data, contact us at
-            <strong>[CONTACT EMAIL]</strong> so we can delete it.
+            <strong>@LegalSettingsService.Or(_settings?.ContactEmail, "CONTACT EMAIL")</strong> so we can delete it.
         </p>
 
         <h2>3. Description of the Service</h2>
@@ -79,7 +84,7 @@
         <p>
             You are responsible for safeguarding your credentials, enabling two-factor authentication
             where offered, and for all activity occurring under your account. Notify us immediately
-            at <strong>[CONTACT EMAIL]</strong> if you suspect unauthorized access.
+            at <strong>@LegalSettingsService.Or(_settings?.ContactEmail, "CONTACT EMAIL")</strong> if you suspect unauthorized access.
         </p>
         <h3>4.4. One human per account</h3>
         <p>
@@ -123,7 +128,7 @@
             at the end of the current billing period; you retain access through that period.
             <strong>Fees already paid are non-refundable</strong> except where required by law or
             where service was materially defective due to our fault. To request a refund for a
-            service defect, contact <strong>[CONTACT EMAIL]</strong> within <strong>14 days</strong>
+            service defect, contact <strong>@LegalSettingsService.Or(_settings?.ContactEmail, "CONTACT EMAIL")</strong> within <strong>14 days</strong>
             of the charge.
         </p>
         <h3>5.6. Plan downgrades and overages</h3>
@@ -311,33 +316,62 @@
         <h2>15. Notices</h2>
         <p>
             Notices to you may be sent via email to the address on file or via in-app banner.
-            Notices to us must be sent in writing to <strong>[BUSINESS ADDRESS]</strong> with a copy
-            to <strong>[CONTACT EMAIL]</strong>.
+            Notices to us must be sent in writing to <strong>@LegalSettingsService.Or(_settings?.BusinessAddress, "BUSINESS ADDRESS")</strong> with a copy
+            to <strong>@LegalSettingsService.Or(_settings?.ContactEmail, "CONTACT EMAIL")</strong>.
         </p>
 
         <h2>16. Governing Law and Disputes</h2>
+        @if (_settings is null || !_settings.Approved)
+        {
+            <p>
+                <em>[LAWYER TO REVIEW THIS WHOLE SECTION — strongly jurisdiction-dependent. The
+                    paragraph rendered below depends on the <code>Legal:DisputeResolution</code>
+                    config (<code>court</code> or <code>arbitration</code>).]</em>
+            </p>
+        }
         <p>
-            <em>[LAWYER TO REVIEW THIS WHOLE SECTION — strongly jurisdiction-dependent. Common
-                patterns shown below; pick what applies.]</em>
-        </p>
-        <p>
-            These Terms are governed by the laws of the State of <strong>[STATE]</strong>, USA,
+            These Terms are governed by the laws of the State of
+            <strong>@LegalSettingsService.Or(_settings?.GoverningLawState, "STATE")</strong>, USA,
             without regard to its conflict-of-laws provisions.
         </p>
-        <p>
-            <strong>[OPTION A — court only]</strong> Any dispute arising under these Terms will be
-            resolved exclusively in the state or federal courts located in
-            <strong>[COUNTY, STATE]</strong>, and the parties consent to personal jurisdiction
-            there.
-        </p>
-        <p>
-            <strong>[OPTION B — arbitration]</strong> Any dispute arising under these Terms will be
-            resolved by binding arbitration administered by the American Arbitration Association
-            under its Commercial Arbitration Rules, in <strong>[CITY, STATE]</strong>. You and we
-            waive any right to a jury trial. Either party may bring a claim in small-claims court
-            for any dispute within that court's jurisdiction. Class actions and class-wide
-            arbitration are waived to the extent permitted by law.
-        </p>
+        @if (_dispute == "arbitration")
+        {
+            <p>
+                Any dispute arising under these Terms will be resolved by binding arbitration
+                administered by the American Arbitration Association under its Commercial
+                Arbitration Rules, in <strong>@LegalSettingsService.Or(_settings?.GoverningLawCity, "CITY, STATE")</strong>.
+                You and we waive any right to a jury trial. Either party may bring a claim in
+                small-claims court for any dispute within that court's jurisdiction. Class actions
+                and class-wide arbitration are waived to the extent permitted by law.
+            </p>
+        }
+        else if (_dispute == "court")
+        {
+            <p>
+                Any dispute arising under these Terms will be resolved exclusively in the state or
+                federal courts located in <strong>@LegalSettingsService.Or(_settings?.GoverningLawCounty, "COUNTY, STATE")</strong>,
+                and the parties consent to personal jurisdiction there.
+            </p>
+        }
+        else
+        {
+            @* No DisputeResolution configured — render both options as alternatives so the lawyer can pick. *@
+            <p>
+                <strong>[OPTION A — court only]</strong> Any dispute arising under these Terms will
+                be resolved exclusively in the state or federal courts located in
+                <strong>@LegalSettingsService.Or(_settings?.GoverningLawCounty, "COUNTY, STATE")</strong>,
+                and the parties consent to personal jurisdiction there.
+            </p>
+            <p>
+                <strong>[OPTION B — arbitration]</strong> Any dispute arising under these Terms will
+                be resolved by binding arbitration administered by the American Arbitration
+                Association under its Commercial Arbitration Rules, in
+                <strong>@LegalSettingsService.Or(_settings?.GoverningLawCity, "CITY, STATE")</strong>.
+                You and we waive any right to a jury trial. Either party may bring a claim in
+                small-claims court for any dispute within that court's jurisdiction. Class actions
+                and class-wide arbitration are waived to the extent permitted by law.
+            </p>
+        }
 
         <h2>17. Miscellaneous</h2>
         <ul>
@@ -361,8 +395,9 @@
         <h2>18. Contact</h2>
         <p>
             Questions about these Terms? Contact us at
-            <a href="mailto:[CONTACT EMAIL]">[CONTACT EMAIL]</a> or by mail at
-            <strong>[BUSINESS ADDRESS]</strong>.
+            <a href="mailto:@LegalSettingsService.Or(_settings?.ContactEmail, "CONTACT EMAIL")">@LegalSettingsService.Or(_settings?.ContactEmail, "CONTACT EMAIL")</a>
+            or by mail at
+            <strong>@LegalSettingsService.Or(_settings?.BusinessAddress, "BUSINESS ADDRESS")</strong>.
         </p>
     </div>
 </section>
@@ -380,3 +415,14 @@
     .legal-page .effective { color: #6b7a70; font-size: 14px; margin-bottom: 32px; }
     .legal-page a { color: #2e7d32; }
 </style>
+
+@code {
+    private GoatLab.Shared.DTOs.LegalSettingsDto? _settings;
+    private string? _dispute;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _settings = await Legal.GetAsync();
+        _dispute = _settings?.DisputeResolution?.Trim().ToLowerInvariant();
+    }
+}
