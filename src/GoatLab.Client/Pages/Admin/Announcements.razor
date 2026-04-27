@@ -14,11 +14,18 @@
                StartIcon="@Icons.Material.Filled.Add" OnClick="OpenNewAsync">New</MudButton>
 </div>
 
-@if (items is null)
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Class="mb-4" Variant="Variant.Outlined">
+        <strong>Failed to load announcements.</strong> @_loadError
+        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="LoadAsync" Class="mt-2">Retry</MudButton>
+    </MudAlert>
+}
+@if (items is null && _loadError is null)
 {
     <MudProgressLinear Indeterminate Color="Color.Primary" />
 }
-else if (items.Count == 0)
+else if (items is { Count: 0 })
 {
     <MudPaper Class="pa-6 section-card" Outlined Elevation="0">
         <MudText Typo="Typo.body1" Color="Color.Secondary" Align="Align.Center">
@@ -72,12 +79,29 @@ else
 
 @code {
     private List<AdminAnnouncementRow>? items;
+    private string? _loadError;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
+    // Catches both server 5xx and client deserialization failures so the page
+    // shows what actually broke instead of bubbling to the generic
+    // "An unhandled error has occurred. Reload" banner from index.html.
     private async Task LoadAsync()
     {
-        items = await Admin.GetAnnouncementsAsync();
+        _loadError = null;
+        items = null;
+        try
+        {
+            items = await Admin.GetAnnouncementsAsync() ?? new();
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadError = $"HTTP {(int?)ex.StatusCode ?? 0} — {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _loadError = ex.Message;
+        }
     }
 
     private async Task OpenNewAsync()
