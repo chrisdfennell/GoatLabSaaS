@@ -316,6 +316,26 @@ public class AccountController : ControllerBase
         return Ok(await BuildCurrentUserDto(user));
     }
 
+    /// <summary>
+    /// Diagnostic — dumps the request's authenticated identities + every claim
+    /// they carry. Cheap way to confirm whether <c>super_admin</c> is actually
+    /// on the cookie when an admin endpoint unexpectedly returns 403. Cookie
+    /// auth only (api keys can't authorize themselves into a debug endpoint).
+    /// </summary>
+    [Authorize(AuthenticationSchemes = "Identity.Application")]
+    [HttpGet("whoami")]
+    public IActionResult WhoAmI() => Ok(new
+    {
+        IsAuthenticated = User.Identity?.IsAuthenticated ?? false,
+        AuthType = User.Identity?.AuthenticationType,
+        Identities = User.Identities.Select(i => new
+        {
+            i.AuthenticationType,
+            i.IsAuthenticated,
+            Claims = i.Claims.Select(c => new { c.Type, c.Value }).ToArray()
+        }).ToArray()
+    });
+
     // GDPR-style data export. Returns a zip of the user's profile, memberships,
     // and — for tenants they own — the main farm records. Scoped to owned
     // tenants on purpose: a shared tenant's data belongs to the owner, not to

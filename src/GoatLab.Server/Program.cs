@@ -175,7 +175,12 @@ builder.Services.ConfigureApplicationCookie(options =>
 // health checks) opt out with [AllowAnonymous].
 builder.Services.AddAuthorization(options =>
 {
+    // Explicitly bind the policy to the Identity cookie scheme. Without this,
+    // the policy defaults to whatever the framework picks as the active scheme
+    // for the request — which can be ApiKey when the global auth filter has
+    // both schemes active, and the API-key principal has no super_admin claim.
     options.AddPolicy(SuperAdminPolicy.Name, p => p
+        .AddAuthenticationSchemes(IdentityConstants.ApplicationScheme)
         .RequireAuthenticatedUser()
         .RequireClaim(SuperAdminPolicy.ClaimType, "true"));
 });
