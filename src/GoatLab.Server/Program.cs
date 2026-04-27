@@ -123,7 +123,12 @@ builder.Services
         options.Tokens.AuthenticatorTokenProvider = TokenOptions.DefaultAuthenticatorProvider;
     })
     .AddEntityFrameworkStores<GoatLabDbContext>()
-    .AddDefaultTokenProviders();
+    .AddDefaultTokenProviders()
+    // Custom claims factory: ensures super_admin (and tenant_id) survive
+    // cookie regeneration by the SecurityStampValidator. Without this, the
+    // built-in factory only emits Identity's defaults — admin endpoints
+    // start returning 403 ~30 minutes after login.
+    .AddClaimsPrincipalFactory<GoatLab.Server.Services.Auth.AppClaimsPrincipalFactory>();
 
 // API key bearer scheme. Coexists with the Identity cookie scheme (the default
 // for browser sessions). The global authorization policy below accepts either.
