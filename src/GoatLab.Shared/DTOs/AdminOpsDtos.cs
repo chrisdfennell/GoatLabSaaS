@@ -61,10 +61,11 @@ public record StripeReplayResultDto(
 // --- /admin/bulk-email ---
 
 public record BulkEmailRequest(
-    string Audience,           // "all-owners" | "active-paid" | "trial" | "past-due"
+    string Audience,            // "all-owners" | "active-paid" | "trial" | "past-due"
     string Subject,
-    string HtmlBody,
-    bool DryRun);
+    string HtmlBody,            // Operator-supplied content. Plain prose or HTML — server detects.
+    bool DryRun,
+    string? Preheader = null);  // Optional inbox-preview line. Falls back to a generic message.
 
 public record BulkEmailResultDto(
     string Audience,

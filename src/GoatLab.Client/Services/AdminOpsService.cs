@@ -32,6 +32,10 @@ public class AdminOpsService
     public Task<BulkEmailResultDto?> BulkEmailAsync(BulkEmailRequest req)
         => PostJsonAsync<BulkEmailResultDto>("api/admin/bulk-email", req);
 
+    public record BulkEmailPreviewDto(string Subject, string Html);
+    public Task<BulkEmailPreviewDto?> PreviewBulkEmailAsync(BulkEmailRequest req)
+        => PostJsonAsync<BulkEmailPreviewDto>("api/admin/bulk-email/preview", req);
+
     // Centralized GET that surfaces server errors as HttpRequestException with
     // a useful body excerpt — beats letting GetFromJsonAsync throw an opaque
     // JsonException when the server returned HTML or an error envelope.

@@ -2,15 +2,17 @@
 @inject AdminOpsService Ops
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
+@inject IJSRuntime JS
 
 <PageTitle>Bulk email — Admin — GoatLab</PageTitle>
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="py-6">
     <MudText Typo="Typo.h4" Class="mb-2">Bulk email</MudText>
     <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-        Send an operational announcement to tenant Owners. Always run a dry-run first to confirm the
-        recipient count. <strong>This is for ops messages</strong> ("we're moving servers Sunday at 2am") —
-        not marketing. Marketing requires a separate opt-in we haven't built yet.
+        Send an operational announcement to tenant Owners. Your message is wrapped in branded GoatLab
+        chrome (header bar, recipient greeting, footer). Always run a dry-run first to confirm the
+        recipient count, and click <strong>Preview</strong> to see the final email before sending.
+        <strong>This is for ops messages</strong> ("we're moving servers Sunday at 2am") — not marketing.
     </MudText>
 
     <MudPaper Class="pa-4" Outlined Elevation="0">
@@ -22,12 +24,23 @@
             <MudSelectItem Value="@("past-due")">Past due / unpaid</MudSelectItem>
         </MudSelect>
 
-        <MudTextField @bind-Value="_subject" Label="Subject" Variant="Variant.Outlined" Class="mt-3" Required />
+        <MudTextField @bind-Value="_subject" Label="Subject" Variant="Variant.Outlined" Class="mt-3" Required
+                      HelperText="Shown as the email subject AND as the H1 inside the body." />
 
-        <MudTextField @bind-Value="_body" Label="HTML body" Variant="Variant.Outlined" Class="mt-3"
-                      Lines="14" Required Placeholder="<p>Hi …</p>" HelperText="Plain HTML; no template engine. Test with dry-run first." />
+        <MudTextField @bind-Value="_preheader" Label="Inbox preview text (optional)" Variant="Variant.Outlined" Class="mt-3"
+                      HelperText="Short line shown next to the subject in inbox previews. Falls back to a generic message if blank." />
 
-        <div class="d-flex mt-4" style="gap:10px;">
+        <MudTextField @bind-Value="_body" Label="Message body" Variant="Variant.Outlined" Class="mt-3"
+                      Lines="12" Required
+                      Placeholder="Type plain prose with line breaks, or paste HTML if you need links / formatting."
+                      HelperText="Plain prose works (newlines auto-formatted). HTML works too — paste &lt;p&gt;, &lt;a&gt;, &lt;ul&gt; as needed. The greeting, footer, and unsubscribe-policy line are added by the template." />
+
+        <div class="d-flex mt-4 flex-wrap" style="gap:10px;">
+            <MudButton Variant="Variant.Outlined" Color="Color.Tertiary" StartIcon="@Icons.Material.Filled.Preview"
+                       OnClick="LoadPreview"
+                       Disabled="_busy || string.IsNullOrWhiteSpace(_subject) || string.IsNullOrWhiteSpace(_body)">
+                Preview email
+            </MudButton>
             <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Visibility"
                        OnClick="DryRun" Disabled="_busy || string.IsNullOrWhiteSpace(_audience) || string.IsNullOrWhiteSpace(_subject) || string.IsNullOrWhiteSpace(_body)">
                 Dry run (count recipients)
@@ -38,6 +51,21 @@
             </MudButton>
         </div>
     </MudPaper>
+
+    @if (_preview is not null)
+    {
+        <MudPaper Class="pa-4 mt-4" Outlined Elevation="0">
+            <div class="d-flex align-center justify-space-between mb-2">
+                <MudText Typo="Typo.h6">Preview</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => _preview = null)" />
+            </div>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">
+                Subject: <strong>@_preview.Subject</strong> · recipient placeholder: "Sample Owner"
+            </MudText>
+            <iframe @ref="_previewFrame" sandbox="allow-same-origin" srcdoc="@_preview.Html"
+                    style="width:100%;min-height:520px;border:1px solid #e0e0e0;border-radius:8px;background:#fff;"></iframe>
+        </MudPaper>
+    }
 
     @if (_error is not null)
     {
@@ -73,10 +101,36 @@
 @code {
     private string _audience = "all-owners";
     private string _subject = "";
+    private string _preheader = "";
     private string _body = "";
     private BulkEmailResultDto? _result;
+    private AdminOpsService.BulkEmailPreviewDto? _preview;
+    private ElementReference _previewFrame;
     private string? _error;
     private bool _busy;
+
+    private BulkEmailRequest BuildRequest(bool dryRun) =>
+        new(_audience, _subject, _body, dryRun,
+            string.IsNullOrWhiteSpace(_preheader) ? null : _preheader.Trim());
+
+    private async Task LoadPreview()
+    {
+        _error = null;
+        _busy = true;
+        try
+        {
+            _preview = await Ops.PreviewBulkEmailAsync(BuildRequest(dryRun: true));
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"HTTP {(int?)ex.StatusCode ?? 0} — {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _error = $"{ex.GetType().Name}: {ex.Message}";
+        }
+        finally { _busy = false; }
+    }
 
     private async Task DryRun()
     {
@@ -85,7 +139,7 @@
         _busy = true;
         try
         {
-            _result = await Ops.BulkEmailAsync(new BulkEmailRequest(_audience, _subject, _body, DryRun: true));
+            _result = await Ops.BulkEmailAsync(BuildRequest(dryRun: true));
         }
         catch (HttpRequestException ex)
         {
@@ -103,7 +157,7 @@
         if (_result is null || _result.RecipientCount == 0) return;
         var confirmed = await Dialog.ShowMessageBox(
             title: "Send bulk email?",
-            message: $"This will send \"{_subject}\" to {_result.RecipientCount} recipient(s) in audience \"{_audience}\". This cannot be undone.",
+            message: $"This will send \"{_subject}\" to {_result.RecipientCount} recipient(s) in audience \"{_audience}\". Each message is wrapped in the GoatLab template. This cannot be undone.",
             yesText: $"Send to {_result.RecipientCount}",
             cancelText: "Cancel");
         if (confirmed != true) return;
@@ -112,7 +166,7 @@
         _busy = true;
         try
         {
-            _result = await Ops.BulkEmailAsync(new BulkEmailRequest(_audience, _subject, _body, DryRun: false));
+            _result = await Ops.BulkEmailAsync(BuildRequest(dryRun: false));
             if (_result is not null)
             {
                 Snackbar.Add($"Sent {_result.SentCount} of {_result.RecipientCount}", Severity.Success);

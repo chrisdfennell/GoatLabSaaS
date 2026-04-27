@@ -194,4 +194,99 @@ public static class EmailTemplates
 </div>",
         Text: $"Hi {displayName},\n\nReset your {Brand} password by opening this link:\n{resetUrl}\n\nIf you didn't request this, ignore the email."
     );
+
+    /// <summary>
+    /// Branded chrome for super-admin bulk announcements ("we're moving servers
+    /// Sunday at 2am"). Wraps the operator's message in a header bar, greeting,
+    /// and a footer that points back to GoatLab. Operator types either prose
+    /// (newlines auto-converted to &lt;br&gt;) or raw HTML; the template detects
+    /// which and passes through accordingly.
+    /// </summary>
+    /// <param name="displayName">Recipient's display name. Empty/null falls back to "there".</param>
+    /// <param name="subject">Subject line — also rendered as the email's H1 inside the body.</param>
+    /// <param name="messageBody">Operator-supplied content. Auto-formatted if it contains no HTML tags.</param>
+    /// <param name="preheader">Optional short string shown by mail clients next to the subject in inbox preview. Falls back to a generic line.</param>
+    public static (string Subject, string Html, string Text) BulkAnnouncement(
+        string displayName,
+        string subject,
+        string messageBody,
+        string? preheader = null)
+    {
+        var greeting = string.IsNullOrWhiteSpace(displayName)
+            ? "Hi there,"
+            : $"Hi {System.Net.WebUtility.HtmlEncode(displayName.Trim())},";
+
+        // If the body has no obvious tags, treat it as prose: encode it and turn
+        // double newlines into paragraphs / single newlines into <br>. Otherwise
+        // pass it through (operator deliberately wrote HTML).
+        var renderedBody = LooksLikeHtml(messageBody)
+            ? messageBody
+            : ProseToHtml(messageBody);
+
+        var preheaderText = string.IsNullOrWhiteSpace(preheader)
+            ? "An update from GoatLab."
+            : preheader.Trim();
+        var preheaderHtml = System.Net.WebUtility.HtmlEncode(preheaderText);
+        var encodedSubject = System.Net.WebUtility.HtmlEncode(subject);
+
+        var html = $@"<!DOCTYPE html>
+<html><body style=""margin:0;padding:0;background:#f3f5f3;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#1a2421;"">
+  <span style=""display:none;font-size:0;line-height:0;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;"">{preheaderHtml}</span>
+  <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""background:#f3f5f3;padding:24px 0;"">
+    <tr><td align=""center"">
+      <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" border=""0"" width=""600"" style=""max-width:600px;width:100%;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);"">
+        <tr><td style=""background:#1b5e20;padding:18px 28px;"">
+          <a href=""https://goatlab.app"" style=""text-decoration:none;color:#fff;font-weight:700;font-size:18px;letter-spacing:0.3px;"">
+            🐐 {Brand}
+          </a>
+        </td></tr>
+        <tr><td style=""padding:28px;"">
+          <h1 style=""font-size:22px;color:#102a1a;margin:0 0 16px 0;line-height:1.25;"">{encodedSubject}</h1>
+          <p style=""margin:0 0 16px 0;"">{greeting}</p>
+          <div style=""font-size:15px;line-height:1.6;color:#1a2421;"">
+            {renderedBody}
+          </div>
+          <p style=""margin:24px 0 0 0;font-size:14px;color:#4a5a51;"">— The {Brand} team</p>
+        </td></tr>
+        <tr><td style=""background:#f7f8f7;padding:18px 28px;border-top:1px solid #e3e8e4;font-size:12px;color:#6b7a70;"">
+          You're receiving this because you own a {Brand} farm. Service-critical messages
+          (security, billing, maintenance) cannot be opted out of.<br/>
+          <a href=""https://goatlab.app"" style=""color:#2e7d32;text-decoration:none;"">goatlab.app</a> ·
+          <a href=""https://goatlab.app/account/settings"" style=""color:#2e7d32;text-decoration:none;"">Account settings</a> ·
+          <a href=""https://goatlab.app/privacy"" style=""color:#2e7d32;text-decoration:none;"">Privacy</a>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>";
+
+        var plainGreeting = string.IsNullOrWhiteSpace(displayName) ? "Hi there," : $"Hi {displayName.Trim()},";
+        var text = $"{plainGreeting}\n\n{HtmlToPlainText(renderedBody)}\n\n— The {Brand} team\n\ngoatlab.app";
+
+        return (subject, html, text);
+    }
+
+    private static bool LooksLikeHtml(string? s) =>
+        !string.IsNullOrWhiteSpace(s) &&
+        (s!.Contains('<') && s.Contains('>'));
+
+    private static string ProseToHtml(string? s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return "";
+        var encoded = System.Net.WebUtility.HtmlEncode(s.Trim());
+        // Paragraph on blank lines, soft-break otherwise.
+        var paragraphs = encoded.Split(new[] { "\r\n\r\n", "\n\n" }, StringSplitOptions.None);
+        return string.Join("\n",
+            paragraphs.Select(p => "<p style=\"margin:0 0 14px 0;\">"
+                + p.Replace("\r\n", "<br/>").Replace("\n", "<br/>")
+                + "</p>"));
+    }
+
+    private static string HtmlToPlainText(string html)
+    {
+        if (string.IsNullOrEmpty(html)) return "";
+        var noTags = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]+>", " ");
+        var collapsed = System.Text.RegularExpressions.Regex.Replace(noTags, "\\s+", " ").Trim();
+        return System.Net.WebUtility.HtmlDecode(collapsed);
+    }
 }

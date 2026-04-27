@@ -39,6 +39,27 @@ public class AdminBulkEmailController : ControllerBase
         _logger = logger;
     }
 
+    public record PreviewResult(string Subject, string Html);
+
+    /// <summary>
+    /// Renders the wrapped template against a fake recipient ("Sample Owner")
+    /// so the admin can see exactly what customers will receive before pulling
+    /// the trigger. No data fetched; same template used by the Send path.
+    /// </summary>
+    [HttpPost("preview")]
+    public ActionResult<PreviewResult> Preview([FromBody] BulkEmailRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.Subject) || string.IsNullOrWhiteSpace(req.HtmlBody))
+            return BadRequest("Subject and message body are required.");
+
+        var (subject, html, _) = EmailTemplates.BulkAnnouncement(
+            displayName: "Sample Owner",
+            subject: req.Subject,
+            messageBody: req.HtmlBody,
+            preheader: req.Preheader);
+        return new PreviewResult(subject, html);
+    }
+
     [HttpPost]
     public async Task<ActionResult<BulkEmailResultDto>> Send([FromBody] BulkEmailRequest req, CancellationToken ct)
     {
@@ -63,7 +84,16 @@ public class AdminBulkEmailController : ControllerBase
         {
             try
             {
-                await _email.SendAsync(r.Email, req.Subject, req.HtmlBody, plainTextBody: null, ct);
+                // Wrap the operator-supplied content in branded chrome (header
+                // bar, greeting personalized to the recipient, footer with
+                // links). Keeps every announcement looking like a real GoatLab
+                // email instead of a raw paste.
+                var (subject, html, text) = EmailTemplates.BulkAnnouncement(
+                    displayName: r.Name,
+                    subject: req.Subject,
+                    messageBody: req.HtmlBody,
+                    preheader: req.Preheader);
+                await _email.SendAsync(r.Email, subject, html, text, ct);
                 sent++;
             }
             catch (Exception ex)
