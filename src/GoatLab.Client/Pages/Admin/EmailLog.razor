@@ -28,7 +28,14 @@
         }
     </div>
 
-    @if (_page is null)
+    @if (_loadError is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mt-4" Variant="Variant.Outlined">
+            <strong>Failed to load email log.</strong> @_loadError
+            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="Reload" Class="mt-2">Retry</MudButton>
+        </MudAlert>
+    }
+    else if (_page is null)
     {
         <MudProgressCircular Indeterminate Class="mt-6" />
     }
@@ -70,14 +77,30 @@
     private string? _recipient;
     private string? _status;
     private EmailLogPageDto? _page;
+    private string? _loadError;
     private bool _busy;
 
     protected override async Task OnInitializedAsync() => await Reload();
 
+    // Surface the actual error inline instead of bubbling to the generic
+    // Blazor error UI, so we can see whether it's HTTP 500 (server threw),
+    // 401 (auth), or a JSON parse error (server returned the SPA fallback).
     private async Task Reload()
     {
+        _loadError = null;
         _busy = true;
-        try { _page = await Ops.GetEmailLogAsync(_recipient, _status, 200); }
+        try
+        {
+            _page = await Ops.GetEmailLogAsync(_recipient, _status, 200);
+        }
+        catch (HttpRequestException ex)
+        {
+            _loadError = $"HTTP {(int?)ex.StatusCode ?? 0} — {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _loadError = $"{ex.GetType().Name}: {ex.Message}";
+        }
         finally { _busy = false; }
     }
 

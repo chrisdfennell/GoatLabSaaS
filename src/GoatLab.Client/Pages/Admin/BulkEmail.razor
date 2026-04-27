@@ -39,6 +39,13 @@
         </div>
     </MudPaper>
 
+    @if (_error is not null)
+    {
+        <MudAlert Severity="Severity.Error" Class="mt-4" Variant="Variant.Outlined">
+            <strong>Bulk email failed.</strong> @_error
+        </MudAlert>
+    }
+
     @if (_result is not null)
     {
         <MudPaper Class="pa-4 mt-4" Outlined Elevation="0">
@@ -68,14 +75,25 @@
     private string _subject = "";
     private string _body = "";
     private BulkEmailResultDto? _result;
+    private string? _error;
     private bool _busy;
 
     private async Task DryRun()
     {
+        _error = null;
+        _result = null;
         _busy = true;
         try
         {
             _result = await Ops.BulkEmailAsync(new BulkEmailRequest(_audience, _subject, _body, DryRun: true));
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"HTTP {(int?)ex.StatusCode ?? 0} — {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _error = $"{ex.GetType().Name}: {ex.Message}";
         }
         finally { _busy = false; }
     }
@@ -90,6 +108,7 @@
             cancelText: "Cancel");
         if (confirmed != true) return;
 
+        _error = null;
         _busy = true;
         try
         {
@@ -98,6 +117,14 @@
             {
                 Snackbar.Add($"Sent {_result.SentCount} of {_result.RecipientCount}", Severity.Success);
             }
+        }
+        catch (HttpRequestException ex)
+        {
+            _error = $"HTTP {(int?)ex.StatusCode ?? 0} — {ex.Message}";
+        }
+        catch (Exception ex)
+        {
+            _error = $"{ex.GetType().Name}: {ex.Message}";
         }
         finally { _busy = false; }
     }

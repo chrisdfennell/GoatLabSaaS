@@ -12,33 +12,58 @@ public class AdminOpsService
     private readonly HttpClient _http;
     public AdminOpsService(HttpClient http) => _http = http;
 
-    public async Task<EmailLogPageDto?> GetEmailLogAsync(string? recipient = null, string? status = null, int limit = 100)
+    public Task<EmailLogPageDto?> GetEmailLogAsync(string? recipient = null, string? status = null, int limit = 100)
     {
         var qs = new List<string> { $"limit={limit}" };
         if (!string.IsNullOrWhiteSpace(recipient)) qs.Add($"recipient={Uri.EscapeDataString(recipient)}");
         if (!string.IsNullOrWhiteSpace(status)) qs.Add($"status={Uri.EscapeDataString(status)}");
-        return await _http.GetFromJsonAsync<EmailLogPageDto>("api/admin/email-log?" + string.Join("&", qs));
+        return GetJsonAsync<EmailLogPageDto>("api/admin/email-log?" + string.Join("&", qs));
     }
 
-    public async Task<AdminSearchResponse?> SearchAsync(string query, int limit = 20)
-        => await _http.GetFromJsonAsync<AdminSearchResponse>(
-            $"api/admin/search?q={Uri.EscapeDataString(query)}&limit={limit}");
+    public Task<AdminSearchResponse?> SearchAsync(string query, int limit = 20)
+        => GetJsonAsync<AdminSearchResponse>($"api/admin/search?q={Uri.EscapeDataString(query)}&limit={limit}");
 
-    public async Task<StripeSyncResultDto?> SyncTenantAsync(int tenantId)
+    public Task<StripeSyncResultDto?> SyncTenantAsync(int tenantId)
+        => PostJsonAsync<StripeSyncResultDto>($"api/admin/billing/sync/{tenantId}", body: null);
+
+    public Task<StripeReplayResultDto?> ReplayEventAsync(string eventId)
+        => PostJsonAsync<StripeReplayResultDto>($"api/admin/billing/replay/{Uri.EscapeDataString(eventId)}", body: null);
+
+    public Task<BulkEmailResultDto?> BulkEmailAsync(BulkEmailRequest req)
+        => PostJsonAsync<BulkEmailResultDto>("api/admin/bulk-email", req);
+
+    // Centralized GET that surfaces server errors as HttpRequestException with
+    // a useful body excerpt — beats letting GetFromJsonAsync throw an opaque
+    // JsonException when the server returned HTML or an error envelope.
+    private async Task<T?> GetJsonAsync<T>(string url)
     {
-        var resp = await _http.PostAsync($"api/admin/billing/sync/{tenantId}", content: null);
-        return await resp.Content.ReadFromJsonAsync<StripeSyncResultDto>();
+        var resp = await _http.GetAsync(url);
+        await EnsureOkOrThrow(resp);
+        return await resp.Content.ReadFromJsonAsync<T>();
     }
 
-    public async Task<StripeReplayResultDto?> ReplayEventAsync(string eventId)
+    private async Task<T?> PostJsonAsync<T>(string url, object? body)
     {
-        var resp = await _http.PostAsync($"api/admin/billing/replay/{Uri.EscapeDataString(eventId)}", content: null);
-        return await resp.Content.ReadFromJsonAsync<StripeReplayResultDto>();
+        HttpResponseMessage resp = body is null
+            ? await _http.PostAsync(url, content: null)
+            : await _http.PostAsJsonAsync(url, body);
+        await EnsureOkOrThrow(resp);
+        return await resp.Content.ReadFromJsonAsync<T>();
     }
 
-    public async Task<BulkEmailResultDto?> BulkEmailAsync(BulkEmailRequest req)
+    private static async Task EnsureOkOrThrow(HttpResponseMessage resp)
     {
-        var resp = await _http.PostAsJsonAsync("api/admin/bulk-email", req);
-        return await resp.Content.ReadFromJsonAsync<BulkEmailResultDto>();
+        if (resp.IsSuccessStatusCode) return;
+        var snippet = "";
+        try
+        {
+            var text = await resp.Content.ReadAsStringAsync();
+            snippet = text.Length > 240 ? text[..240] + "…" : text;
+        }
+        catch { /* body already consumed or not readable — fall through */ }
+        throw new HttpRequestException(
+            $"{(int)resp.StatusCode} {resp.ReasonPhrase}: {snippet}",
+            inner: null,
+            statusCode: resp.StatusCode);
     }
 }
