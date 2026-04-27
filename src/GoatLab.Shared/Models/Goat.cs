@@ -84,4 +84,10 @@ public class Goat : ITenantOwned
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+
+    // Stamped only when Status changes. Mortality report and any other
+    // "when did this animal die / sell" query reads this rather than
+    // UpdatedAt, which moves on every unrelated edit. Null on legacy rows
+    // imported before this field existed — callers fall back to UpdatedAt.
+    public DateTime? StatusChangedAt { get; set; }
 }

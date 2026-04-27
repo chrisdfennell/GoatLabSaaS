@@ -171,34 +171,41 @@ public class ReportsService
 
     // ---------- Mortality ----------
 
-    // Uses Goat.UpdatedAt as a proxy for StatusChangedAt. The UI should label
-    // this "approximate" since any other field edit would also bump the stamp.
+    // Reads Goat.StatusChangedAt (stamped only when the Status field actually
+    // changes). Legacy rows from before that column existed have null
+    // StatusChangedAt; we fall back to UpdatedAt for those so they don't drop
+    // off the report entirely.
     public async Task<MortalityReportDto> GetMortalityAsync(DateTime from, DateTime to, CancellationToken ct = default)
     {
         var (start, end) = Window(from, to);
 
-        var deceased = await _db.Goats
+        var rows = await _db.Goats
             .AsNoTracking()
-            .Where(g => g.Status == GoatStatus.Deceased
-                        && g.UpdatedAt >= start && g.UpdatedAt < end)
-            .Select(g => new { g.Id, g.Name, g.UpdatedAt })
+            .Where(g => g.Status == GoatStatus.Deceased)
+            .Select(g => new { g.Id, g.Name, g.StatusChangedAt, g.UpdatedAt })
             .ToListAsync(ct);
+
+        var deceased = rows
+            .Select(r => new { r.Id, r.Name, At = r.StatusChangedAt ?? r.UpdatedAt })
+            .Where(r => r.At >= start && r.At < end)
+            .ToList();
 
         int activeAtStart = await _db.Goats
             .AsNoTracking()
             .CountAsync(g => g.CreatedAt < start
-                             && (g.Status != GoatStatus.Deceased || g.UpdatedAt >= start)
+                             && (g.Status != GoatStatus.Deceased
+                                 || (g.StatusChangedAt ?? g.UpdatedAt) >= start)
                              && g.Status != GoatStatus.Sold, ct);
 
         var monthly = deceased
-            .GroupBy(d => new { d.UpdatedAt.Year, d.UpdatedAt.Month })
+            .GroupBy(d => new { d.At.Year, d.At.Month })
             .OrderBy(g => g.Key.Year).ThenBy(g => g.Key.Month)
             .Select(g => new MonthlyMortalityDto(g.Key.Year, g.Key.Month, g.Count()))
             .ToList();
 
         var goats = deceased
-            .OrderByDescending(d => d.UpdatedAt)
-            .Select(d => new MortalityGoatDto(d.Id, d.Name, d.UpdatedAt))
+            .OrderByDescending(d => d.At)
+            .Select(d => new MortalityGoatDto(d.Id, d.Name, d.At))
             .ToList();
 
         return new MortalityReportDto(

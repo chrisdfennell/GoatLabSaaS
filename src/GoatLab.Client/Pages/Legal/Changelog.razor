@@ -1,0 +1,137 @@
+@page "/changelog"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@layout GoatLab.Client.Layout.LandingLayout
+
+<PageTitle>Changelog — GoatLab</PageTitle>
+
+<HeadContent>
+    <meta name="description" content="What's new in GoatLab — feature releases, improvements, and bug fixes." />
+</HeadContent>
+
+<section class="legal-page">
+    <div class="container">
+        <h1>Changelog</h1>
+        <p class="effective">What we've shipped recently. New entries on top.</p>
+
+        @* When you ship something user-visible, prepend a new <article class="cl-entry"> here.
+           Keep entries concise — one sentence per bullet, link to docs/blog from the site if needed. *@
+
+        <article class="cl-entry">
+            <header>
+                <span class="cl-date">2026-04-26</span>
+                <span class="cl-tag cl-tag-improvement">Improvement</span>
+            </header>
+            <h2>Accurate mortality timestamps + admin backup visibility</h2>
+            <ul>
+                <li>Mortality reports now use the goat's actual status-change moment instead of approximating from <code>UpdatedAt</code>.</li>
+                <li>Admins can see the offsite-backup last-success state and trigger a manual run from <code>/admin/health</code>.</li>
+                <li>Terms and Privacy entity name, contact, and jurisdiction are now configurable without a code redeploy.</li>
+            </ul>
+        </article>
+
+        <article class="cl-entry">
+            <header>
+                <span class="cl-date">2026-04-25</span>
+                <span class="cl-tag cl-tag-feature">Feature</span>
+            </header>
+            <h2>Farm-to-farm transfers, mate recommendations, breed directory</h2>
+            <ul>
+                <li>Send a goat (and its medical/weight/milk/photo history) to another GoatLab farm via a secure token link.</li>
+                <li>For each doe, GoatLab now ranks every intact buck in your herd by projected offspring COI plus daughter production.</li>
+                <li>New public breed directory at <a href="/breeds">goatlab.app/breeds</a> aggregating for-sale listings across every farm with a public profile.</li>
+                <li>Server-prerendered breed pages so the directory shows up properly in search engines.</li>
+            </ul>
+        </article>
+
+        <article class="cl-entry">
+            <header>
+                <span class="cl-date">2026-04-22</span>
+                <span class="cl-tag cl-tag-feature">Feature</span>
+            </header>
+            <h2>Online reservations, QR ear-tag sheets, withdrawal tracking</h2>
+            <ul>
+                <li>Public listings can take a Stripe-Checkout deposit to reserve an animal — buyer goes straight onto the seller's waitlist with the deposit recorded.</li>
+                <li>Print a sheet of QR codes for every goat in your filtered list — each scans to that goat's profile.</li>
+                <li>Medication withdrawal periods now block sales and milk logging until the hold expires, with a tenant-wide "active holds" view on the health dashboard.</li>
+            </ul>
+        </article>
+
+        <article class="cl-entry">
+            <header>
+                <span class="cl-date">2026-04-19</span>
+                <span class="cl-tag cl-tag-feature">Feature</span>
+            </header>
+            <h2>Buyer waitlist, deposits, and a buyer portal</h2>
+            <ul>
+                <li>Track interested buyers with breed/sex preferences, deposit amounts, and priority. Convert to a sale in one click.</li>
+                <li>Buyers can view their place on your waitlist via a magic-link portal — no account required.</li>
+                <li>Inline customer creation from the waitlist dialog so you can add a new buyer without leaving the form.</li>
+            </ul>
+        </article>
+
+        <article class="cl-entry">
+            <header>
+                <span class="cl-date">2026-04-18</span>
+                <span class="cl-tag cl-tag-feature">Feature</span>
+            </header>
+            <h2>API keys, outbound webhooks, feed consumption</h2>
+            <ul>
+                <li>Generate tenant API keys (one-shot reveal) and authenticate against the same endpoints your browser uses.</li>
+                <li>Subscribe to webhooks for goat / sale / kidding / medical events with HMAC-SHA256 signatures and 3-attempt retries.</li>
+                <li>Track feed consumption against inventory; the reorder forecast warns you before you run out.</li>
+            </ul>
+        </article>
+
+        <article class="cl-entry">
+            <header>
+                <span class="cl-date">2026-04-17</span>
+                <span class="cl-tag cl-tag-feature">Feature</span>
+            </header>
+            <h2>Reports, forecasting, and progeny rollups</h2>
+            <ul>
+                <li>Six new reports on the Insights tab: P&amp;L, milk trends, kidding, mortality, parasite/FAMACHA, health spend.</li>
+                <li>Forecasts for kidding load, milk production, and 90-day cash flow based on trailing averages.</li>
+                <li>Per-sire / per-dam offspring rollups so you can see which animals are actually producing.</li>
+            </ul>
+        </article>
+
+        <p class="cl-footer">
+            Need something that's not here?
+            <a href="mailto:@LegalSettingsService.Or(_settings?.ContactEmail, "CONTACT EMAIL")">Email us</a>
+            and we'll add it to the roadmap.
+        </p>
+    </div>
+</section>
+
+<style>
+    .legal-page { padding: 80px 0; background: #fff; color: #1a2421; }
+    .legal-page .container { max-width: 760px; margin: 0 auto; padding: 0 24px; line-height: 1.6; }
+    .legal-page h1 { font-size: 32px; margin-bottom: 8px; }
+    .legal-page .effective { color: #6b7a70; font-size: 14px; margin-bottom: 32px; }
+    .legal-page a { color: #2e7d32; }
+    .legal-page code { background: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 0.92em; }
+
+    .cl-entry { border-top: 1px solid #e3e8e4; padding: 24px 0; }
+    .cl-entry:first-of-type { border-top: 0; padding-top: 0; }
+    .cl-entry header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .cl-entry h2 { font-size: 22px; margin: 4px 0 12px 0; color: #102a1a; }
+    .cl-entry ul { margin: 0; padding-left: 22px; }
+    .cl-entry ul li { margin-bottom: 6px; }
+    .cl-date { font-size: 13px; color: #6b7a70; font-variant-numeric: tabular-nums; }
+    .cl-tag { font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
+    .cl-tag-feature { background: #e6f4ea; color: #1b5e20; }
+    .cl-tag-improvement { background: #e3f2fd; color: #0d47a1; }
+    .cl-tag-fix { background: #fff3e0; color: #b25400; }
+    .cl-footer { margin-top: 32px; padding-top: 20px; border-top: 1px solid #e3e8e4; color: #6b7a70; }
+</style>
+
+@code {
+    private GoatLab.Shared.DTOs.LegalSettingsDto? _settings;
+
+    [Inject] private LegalSettingsService Legal { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _settings = await Legal.GetAsync();
+    }
+}

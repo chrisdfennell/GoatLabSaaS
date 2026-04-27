@@ -33,6 +33,7 @@ public class SitemapController : ControllerBase
             new($"{origin}/login",    "monthly", 0.5),
             new($"{origin}/terms",    "yearly",  0.3),
             new($"{origin}/privacy",  "yearly",  0.3),
+            new($"{origin}/changelog","weekly",  0.5),
             new($"{origin}/breeds",   "daily",   0.8),
         };
 

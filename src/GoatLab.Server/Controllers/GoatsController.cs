@@ -111,6 +111,7 @@ public class GoatsController : ControllerBase
 
         goat.CreatedAt = DateTime.UtcNow;
         goat.UpdatedAt = DateTime.UtcNow;
+        goat.StatusChangedAt = DateTime.UtcNow;
         _db.Goats.Add(goat);
         await _db.SaveChangesAsync();
         await _webhooks.DispatchAsync(WebhookEventTypes.GoatCreated, GoatSummary(goat));
@@ -130,6 +131,13 @@ public class GoatsController : ControllerBase
         existing.Breed = goat.Breed;
         existing.Gender = goat.Gender;
         existing.DateOfBirth = goat.DateOfBirth;
+        // Stamp StatusChangedAt only when the status actually changes — that
+        // way the mortality report's window filter is precise instead of being
+        // dragged forward by unrelated field edits.
+        if (existing.Status != goat.Status)
+        {
+            existing.StatusChangedAt = DateTime.UtcNow;
+        }
         existing.Status = goat.Status;
         existing.Bio = goat.Bio;
         existing.RegistrationNumber = goat.RegistrationNumber;
