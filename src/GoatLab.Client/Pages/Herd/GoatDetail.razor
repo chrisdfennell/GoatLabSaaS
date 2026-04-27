@@ -120,6 +120,82 @@ else
 
     <MudTabs Elevation="0" Rounded ApplyEffectsToContainer PanelClass="pt-4">
 
+        @* ===== TIMELINE TAB ===== *@
+        <MudTabPanel Text="Timeline" Icon="@Icons.Material.Filled.Timeline" OnClick="LoadTimelineIfNeeded">
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="polished-section-header">
+                    <MudText Typo="Typo.h6">@(goat?.Name ?? "Goat") timeline</MudText>
+                </div>
+                @if (timeline is null)
+                {
+                    <div class="d-flex align-center justify-center py-8">
+                        <MudProgressCircular Indeterminate Size="Size.Small" />
+                    </div>
+                }
+                else if (timeline.Count == 0)
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="py-6 text-center">
+                        No history yet. Once you add medical records, weights, breedings, or photos they'll show up here.
+                    </MudText>
+                }
+                else
+                {
+                    @foreach (var monthGroup in timeline.GroupBy(t => new { t.Date.Year, t.Date.Month }).OrderByDescending(g => g.Key.Year).ThenByDescending(g => g.Key.Month))
+                    {
+                        <div class="timeline-month-header">
+                            @(new DateTime(monthGroup.Key.Year, monthGroup.Key.Month, 1).ToString("MMMM yyyy"))
+                        </div>
+                        <div class="timeline-list">
+                            @foreach (var entry in monthGroup)
+                            {
+                                <div class="timeline-row timeline-sev-@entry.Severity">
+                                    <div class="timeline-icon">
+                                        <MudIcon Icon="@MapTimelineIcon(entry.Icon)" Size="Size.Small" />
+                                    </div>
+                                    <div class="timeline-body">
+                                        <div class="timeline-title">
+                                            @if (!string.IsNullOrEmpty(entry.DeepLink))
+                                            {
+                                                <MudLink Href="@entry.DeepLink" Underline="Underline.Hover">@entry.Title</MudLink>
+                                            }
+                                            else
+                                            {
+                                                @entry.Title
+                                            }
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(entry.Detail))
+                                        {
+                                            <div class="timeline-detail">@entry.Detail</div>
+                                        }
+                                    </div>
+                                    <div class="timeline-date">@entry.Date.ToString("MMM d")</div>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </MudPaper>
+            <style>
+                .timeline-month-header { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1.5px; color: #6b7a70; margin: 16px 0 8px 0; padding-left: 4px; font-weight: 600; }
+                .timeline-list { display: flex; flex-direction: column; gap: 6px; }
+                .timeline-row { display: flex; gap: 12px; padding: 10px 14px; border-radius: 8px; border-left: 3px solid #2e7d32; background: rgba(46,125,50,0.04); align-items: flex-start; }
+                .timeline-row:hover { background: rgba(46,125,50,0.08); }
+                .timeline-sev-success { border-left-color: #2e7d32; }
+                .timeline-sev-info    { border-left-color: #1976d2; background: rgba(25,118,210,0.04); }
+                .timeline-sev-info:hover { background: rgba(25,118,210,0.08); }
+                .timeline-sev-warning { border-left-color: #ed6c02; background: rgba(237,108,2,0.05); }
+                .timeline-sev-warning:hover { background: rgba(237,108,2,0.10); }
+                .timeline-sev-error   { border-left-color: #d32f2f; background: rgba(211,47,47,0.05); }
+                .timeline-sev-error:hover { background: rgba(211,47,47,0.10); }
+                .timeline-icon { color: #4a5a51; flex-shrink: 0; padding-top: 1px; }
+                .timeline-body { flex: 1; min-width: 0; }
+                .timeline-title { font-weight: 600; color: #1a2421; }
+                .timeline-detail { font-size: 0.85rem; color: #6b7a70; margin-top: 2px; }
+                .timeline-date { color: #6b7a70; font-size: 0.85rem; white-space: nowrap; padding-top: 1px; }
+                .mud-theme-dark .timeline-title { color: #e0e0e0; }
+            </style>
+        </MudTabPanel>
+
         @* ===== PROFILE TAB ===== *@
         <MudTabPanel Text="Profile" Icon="@Icons.Material.Filled.Info">
             <MudGrid>
@@ -1231,6 +1307,8 @@ else
     private List<LinearAppraisal>? appraisals;
     private List<LactationSummary>? lactations;
     private WithdrawalStatus? withdrawal;
+    private List<TimelineEntryDto>? timeline;
+    private bool timelineLoading;
 
     private bool showWeightForm;
     private WeightRecord newWeight = new();
@@ -1313,6 +1391,43 @@ else
         }
     }
 
+    // Tab `OnClick` re-fetches if the user is opening the timeline AFTER having
+    // edited records on other tabs. Cheap (single endpoint, no joins) so we
+    // re-pull rather than try to keep the timeline in sync with each per-tab edit.
+    private async Task LoadTimelineIfNeeded()
+    {
+        if (timelineLoading) return;
+        timelineLoading = true;
+        try
+        {
+            timeline = await GoatSvc.GetTimelineAsync(Id) ?? new();
+        }
+        finally
+        {
+            timelineLoading = false;
+        }
+    }
+
+    // Server emits Material icon names in snake_case; map to MudBlazor's typed
+    // icon constants. Unknown names fall back to a generic info icon.
+    private static string MapTimelineIcon(string? key) => key switch
+    {
+        "pets" => Icons.Material.Filled.Pets,
+        "swap_horiz" => Icons.Material.Filled.SwapHoriz,
+        "local_hospital" => Icons.Material.Filled.LocalHospital,
+        "scale" => Icons.Material.Filled.Scale,
+        "favorite" => Icons.Material.Filled.Favorite,
+        "fitness_center" => Icons.Material.Filled.FitnessCenter,
+        "water_drop" => Icons.Material.Filled.WaterDrop,
+        "child_care" => Icons.Material.Filled.ChildCare,
+        "emoji_events" => Icons.Material.Filled.EmojiEvents,
+        "rule" => Icons.Material.Filled.Rule,
+        "inventory_2" => Icons.Material.Filled.Inventory2,
+        "photo_camera" => Icons.Material.Filled.PhotoCamera,
+        "folder" => Icons.Material.Filled.Folder,
+        _ => Icons.Material.Filled.Info,
+    };
+
     private string PublicLink
     {
         get
@@ -1385,8 +1500,11 @@ else
         var appraisalTask = ShowSvc.GetAppraisalsAsync(Id);
         var lactationTask = MilkSvc.GetLactationsAsync(Id);
         var withdrawalTask = HealthSvc.GetWithdrawalAsync(Id);
+        var timelineTask = GoatSvc.GetTimelineAsync(Id);
 
-        await Task.WhenAll(medTask, weightTask, famachaTask, milkTask, salesTask, milkTrendTask, showTask, appraisalTask, lactationTask, withdrawalTask);
+        await Task.WhenAll(medTask, weightTask, famachaTask, milkTask, salesTask, milkTrendTask, showTask, appraisalTask, lactationTask, withdrawalTask, timelineTask);
+
+        timeline = timelineTask.Result ?? new();
 
         withdrawal = withdrawalTask.Result;
 

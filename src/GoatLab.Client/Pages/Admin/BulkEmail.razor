@@ -1,0 +1,104 @@
+@page "/admin/bulk-email"
+@inject AdminOpsService Ops
+@inject ISnackbar Snackbar
+@inject IDialogService Dialog
+
+<PageTitle>Bulk email — Admin — GoatLab</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="py-6">
+    <MudText Typo="Typo.h4" Class="mb-2">Bulk email</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+        Send an operational announcement to tenant Owners. Always run a dry-run first to confirm the
+        recipient count. <strong>This is for ops messages</strong> ("we're moving servers Sunday at 2am") —
+        not marketing. Marketing requires a separate opt-in we haven't built yet.
+    </MudText>
+
+    <MudPaper Class="pa-4" Outlined Elevation="0">
+        <MudSelect T="string" @bind-Value="_audience" Label="Audience" Variant="Variant.Outlined"
+                   AnchorOrigin="Origin.BottomCenter">
+            <MudSelectItem Value="@("all-owners")">All tenant owners</MudSelectItem>
+            <MudSelectItem Value="@("active-paid")">Active paid subscriptions</MudSelectItem>
+            <MudSelectItem Value="@("trial")">Currently in trial</MudSelectItem>
+            <MudSelectItem Value="@("past-due")">Past due / unpaid</MudSelectItem>
+        </MudSelect>
+
+        <MudTextField @bind-Value="_subject" Label="Subject" Variant="Variant.Outlined" Class="mt-3" Required />
+
+        <MudTextField @bind-Value="_body" Label="HTML body" Variant="Variant.Outlined" Class="mt-3"
+                      Lines="14" Required Placeholder="<p>Hi …</p>" HelperText="Plain HTML; no template engine. Test with dry-run first." />
+
+        <div class="d-flex mt-4" style="gap:10px;">
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Visibility"
+                       OnClick="DryRun" Disabled="_busy || string.IsNullOrWhiteSpace(_audience) || string.IsNullOrWhiteSpace(_subject) || string.IsNullOrWhiteSpace(_body)">
+                Dry run (count recipients)
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Send"
+                       OnClick="ConfirmAndSend" Disabled="_busy || _result is null || _result.RecipientCount == 0">
+                Send to @(_result?.RecipientCount ?? 0)
+            </MudButton>
+        </div>
+    </MudPaper>
+
+    @if (_result is not null)
+    {
+        <MudPaper Class="pa-4 mt-4" Outlined Elevation="0">
+            <MudText Typo="Typo.h6" Class="mb-2">
+                @if (_result.DryRun) { <text>Dry run</text> } else { <text>Send result</text> }
+            </MudText>
+            <MudText Typo="Typo.body2">
+                Audience: <code>@_result.Audience</code>.
+                Recipients: <strong>@_result.RecipientCount</strong>.
+                @if (!_result.DryRun)
+                {
+                    <text> Sent: <strong>@_result.SentCount</strong>. Failed: <strong>@_result.FailedCount</strong>.</text>
+                }
+            </MudText>
+            @if (_result.SampleRecipients.Count > 0)
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2 d-block">
+                    Sample (first 10): @string.Join(", ", _result.SampleRecipients)
+                </MudText>
+            }
+        </MudPaper>
+    }
+</MudContainer>
+
+@code {
+    private string _audience = "all-owners";
+    private string _subject = "";
+    private string _body = "";
+    private BulkEmailResultDto? _result;
+    private bool _busy;
+
+    private async Task DryRun()
+    {
+        _busy = true;
+        try
+        {
+            _result = await Ops.BulkEmailAsync(new BulkEmailRequest(_audience, _subject, _body, DryRun: true));
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task ConfirmAndSend()
+    {
+        if (_result is null || _result.RecipientCount == 0) return;
+        var confirmed = await Dialog.ShowMessageBox(
+            title: "Send bulk email?",
+            message: $"This will send \"{_subject}\" to {_result.RecipientCount} recipient(s) in audience \"{_audience}\". This cannot be undone.",
+            yesText: $"Send to {_result.RecipientCount}",
+            cancelText: "Cancel");
+        if (confirmed != true) return;
+
+        _busy = true;
+        try
+        {
+            _result = await Ops.BulkEmailAsync(new BulkEmailRequest(_audience, _subject, _body, DryRun: false));
+            if (_result is not null)
+            {
+                Snackbar.Add($"Sent {_result.SentCount} of {_result.RecipientCount}", Severity.Success);
+            }
+        }
+        finally { _busy = false; }
+    }
+}

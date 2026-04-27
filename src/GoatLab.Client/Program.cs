@@ -81,5 +81,6 @@ builder.Services.AddScoped<WaitlistService>();
 builder.Services.AddScoped<ApiKeysService>();
 builder.Services.AddScoped<WebhooksService>();
 builder.Services.AddScoped<LegalSettingsService>();
+builder.Services.AddScoped<AdminOpsService>();
 
 await builder.Build().RunAsync();

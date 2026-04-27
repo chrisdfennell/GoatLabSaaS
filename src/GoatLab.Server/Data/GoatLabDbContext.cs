@@ -92,6 +92,9 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
     // Settings
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
 
+    // Outbound email log (cross-tenant; super-admin only).
+    public DbSet<EmailLog> EmailLogs => Set<EmailLog>();
+
     // Admin audit log (cross-tenant)
     public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
 
@@ -362,6 +365,11 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<AppSetting>()
             .HasIndex(s => s.Key)
             .IsUnique();
+
+        // EmailLog: chronological reads + filter-by-recipient are the two
+        // queries the admin page runs.
+        modelBuilder.Entity<EmailLog>().HasIndex(e => e.At);
+        modelBuilder.Entity<EmailLog>().HasIndex(e => e.ToAddress);
 
         // Admin audit log — chronological reads are the common case
         modelBuilder.Entity<AdminAuditLog>()

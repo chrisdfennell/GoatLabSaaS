@@ -2,6 +2,7 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize(Policy = "SuperAdmin")]
 @using GoatLab.Shared.Models
 @inject AdminService Admin
+@inject AdminOpsService Ops
 @inject AuthService AuthApi
 @inject CookieAuthStateProvider AuthState
 @inject ISnackbar Snackbar
@@ -163,6 +164,28 @@ else
                         </tr>
                     </tbody>
                 </MudSimpleTable>
+                <div class="mt-3 d-flex" style="gap:8px;">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                               StartIcon="@Icons.Material.Filled.Sync"
+                               OnClick="SyncFromStripeAsync" Disabled="@stripeSyncing">
+                        Sync from Stripe
+                    </MudButton>
+                </div>
+                @if (stripeSyncResult is not null)
+                {
+                    <MudAlert Severity="@(stripeSyncResult.Found ? Severity.Success : Severity.Warning)" Class="mt-3" Dense>
+                        <strong>@stripeSyncResult.Message</strong>
+                        @if (stripeSyncResult.Changes.Count > 0)
+                        {
+                            <ul style="margin:8px 0 0 18px;font-size:0.85em;">
+                                @foreach (var c in stripeSyncResult.Changes)
+                                {
+                                    <li>@c</li>
+                                }
+                            </ul>
+                        }
+                    </MudAlert>
+                }
             </MudPaper>
 
             <MudPaper Class="pa-4 section-card mb-3" Outlined Elevation="0">
@@ -280,6 +303,24 @@ else
     private string _notesDraft = string.Empty;
     private string _tagDraft = string.Empty;
     private Dictionary<string, bool> _flagsDraft = new();
+    private GoatLab.Shared.DTOs.StripeSyncResultDto? stripeSyncResult;
+    private bool stripeSyncing;
+
+    private async Task SyncFromStripeAsync()
+    {
+        stripeSyncing = true;
+        try
+        {
+            stripeSyncResult = await Ops.SyncTenantAsync(Id);
+            if (stripeSyncResult is not null && stripeSyncResult.Changes.Count > 0)
+            {
+                // Reload the detail card so the Stripe metadata reflects the
+                // freshly-resynced values without a manual refresh.
+                await LoadAsync();
+            }
+        }
+        finally { stripeSyncing = false; }
+    }
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 

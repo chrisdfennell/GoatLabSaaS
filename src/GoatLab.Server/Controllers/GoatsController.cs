@@ -1,6 +1,8 @@
 using GoatLab.Server.Data;
 using GoatLab.Server.Services.Plans;
+using GoatLab.Server.Services.Timeline;
 using GoatLab.Server.Services.Webhooks;
+using GoatLab.Shared.DTOs;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,13 +18,15 @@ public class GoatsController : ControllerBase
     private readonly IWebHostEnvironment _env;
     private readonly IFeatureGate _featureGate;
     private readonly WebhookDispatcher _webhooks;
+    private readonly ITimelineService _timeline;
 
-    public GoatsController(GoatLabDbContext db, IWebHostEnvironment env, IFeatureGate featureGate, WebhookDispatcher webhooks)
+    public GoatsController(GoatLabDbContext db, IWebHostEnvironment env, IFeatureGate featureGate, WebhookDispatcher webhooks, ITimelineService timeline)
     {
         _db = db;
         _env = env;
         _featureGate = featureGate;
         _webhooks = webhooks;
+        _timeline = timeline;
     }
 
     private object GoatSummary(Goat g) => new
@@ -93,6 +97,18 @@ public class GoatsController : ControllerBase
             .FirstOrDefaultAsync(g => g.Id == id);
 
         return goat is null ? NotFound() : goat;
+    }
+
+    // Single chronological history per goat — meds, weights, FAMACHA, milk
+    // (monthly), breeding, kidding, shows, appraisals, photos, documents,
+    // status changes, harvest. Tenant filter on Goats verifies the goat is in
+    // scope before TimelineService aggregates from per-goat tables.
+    [HttpGet("{id}/timeline")]
+    public async Task<ActionResult<List<TimelineEntryDto>>> Timeline(int id, CancellationToken ct)
+    {
+        var exists = await _db.Goats.AsNoTracking().AnyAsync(g => g.Id == id, ct);
+        if (!exists) return NotFound();
+        return await _timeline.GetForGoatAsync(id, ct);
     }
 
     [HttpPost]

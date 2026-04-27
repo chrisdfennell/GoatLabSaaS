@@ -39,4 +39,19 @@ public interface IBillingService
         string payload,
         string signatureHeader,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Super-admin drift repair. Pulls the tenant's subscription state from
+    /// Stripe and overwrites the local tenant row so SubscriptionStatus,
+    /// CurrentPeriodEnd, TrialEndsAt, and PlanId match Stripe.
+    /// </summary>
+    /// <returns>List of human-readable change descriptions ("status: trialing → active") and a top-level message.</returns>
+    Task<StripeSyncResultDto> SyncTenantFromStripeAsync(int tenantId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Super-admin webhook replay. Fetches a Stripe event by id from the API
+    /// (no signature verification — caller is super-admin) and dispatches it
+    /// through the same handler the live webhook uses.
+    /// </summary>
+    Task<StripeReplayResultDto> ReplayStripeEventAsync(string eventId, CancellationToken cancellationToken);
 }

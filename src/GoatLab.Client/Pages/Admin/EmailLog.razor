@@ -1,0 +1,91 @@
+@page "/admin/email-log"
+@inject AdminOpsService Ops
+
+<PageTitle>Email log — Admin — GoatLab</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+    <MudText Typo="Typo.h4" Class="mb-2">Email log</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+        Every outbound email send attempt — useful when a customer says "I never got the password reset."
+        Bodies are not stored; metadata + first-line-of-error only.
+    </MudText>
+
+    <div class="d-flex flex-wrap" style="gap:12px;align-items:flex-end;">
+        <MudTextField @bind-Value="_recipient" Label="Recipient contains" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        <MudSelect T="string" @bind-Value="_status" Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:160px;">
+            <MudSelectItem T="string" Value="@(null)">Any status</MudSelectItem>
+            <MudSelectItem T="string" Value="@("sent")">sent</MudSelectItem>
+            <MudSelectItem T="string" Value="@("failed")">failed</MudSelectItem>
+            <MudSelectItem T="string" Value="@("skipped")">skipped</MudSelectItem>
+        </MudSelect>
+        <MudButton OnClick="Reload" Variant="Variant.Filled" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Search" Disabled="_busy">Search</MudButton>
+        @if (_page is not null)
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                Showing @_page.Rows.Count of @_page.Total
+            </MudText>
+        }
+    </div>
+
+    @if (_page is null)
+    {
+        <MudProgressCircular Indeterminate Class="mt-6" />
+    }
+    else
+    {
+        <MudTable Items="_page.Rows" Dense Hover Class="mt-4">
+            <HeaderContent>
+                <MudTh>When</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>To</MudTh>
+                <MudTh>Subject</MudTh>
+                <MudTh>Bytes</MudTh>
+                <MudTh>Detail</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.At.ToLocalTime().ToString("MMM d, h:mm:ss tt")</MudTd>
+                <MudTd>
+                    <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@context.Status</MudChip>
+                </MudTd>
+                <MudTd><code>@context.ToAddress</code></MudTd>
+                <MudTd>@context.Subject</MudTd>
+                <MudTd>@(context.BodyBytes?.ToString() ?? "—")</MudTd>
+                <MudTd Style="max-width:340px;word-break:break-word;font-size:0.85rem;color:#6b7a70;">
+                    @if (!string.IsNullOrEmpty(context.Error))
+                    {
+                        <span style="color:#c62828;">@context.Error</span>
+                    }
+                    else
+                    {
+                        @context.Sender
+                    }
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+</MudContainer>
+
+@code {
+    private string? _recipient;
+    private string? _status;
+    private EmailLogPageDto? _page;
+    private bool _busy;
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _busy = true;
+        try { _page = await Ops.GetEmailLogAsync(_recipient, _status, 200); }
+        finally { _busy = false; }
+    }
+
+    private static Color StatusColor(string status) => status switch
+    {
+        "sent" => Color.Success,
+        "failed" => Color.Error,
+        "skipped" => Color.Warning,
+        _ => Color.Default
+    };
+}

@@ -197,29 +197,151 @@ public class StripeBillingService : IBillingService
         }
 
         _logger.LogInformation("Received Stripe webhook {EventType} {EventId}", stripeEvent.Type, stripeEvent.Id);
+        await DispatchEventAsync(stripeEvent, cancellationToken);
+    }
 
+    // Switchboard for both the live webhook handler and the super-admin replay
+    // path. Caller is responsible for trust (signature verification on the
+    // live path; super-admin auth on the replay path).
+    private async Task<bool> DispatchEventAsync(Event stripeEvent, CancellationToken cancellationToken)
+    {
         switch (stripeEvent.Type)
         {
             case "checkout.session.completed":
                 if (stripeEvent.Data.Object is Session completedSession)
                     await OnCheckoutCompletedAsync(completedSession, cancellationToken);
-                break;
+                return true;
 
             case "customer.subscription.created":
             case "customer.subscription.updated":
             case "customer.subscription.trial_will_end":
                 if (stripeEvent.Data.Object is Subscription updatedSub)
                     await OnSubscriptionChangedAsync(updatedSub, cancellationToken);
-                break;
+                return true;
 
             case "customer.subscription.deleted":
                 if (stripeEvent.Data.Object is Subscription deletedSub)
                     await OnSubscriptionDeletedAsync(deletedSub, cancellationToken);
-                break;
+                return true;
 
             default:
-                break;
+                return false;
         }
+    }
+
+    public async Task<StripeSyncResultDto> SyncTenantFromStripeAsync(int tenantId, CancellationToken cancellationToken)
+    {
+        var tenant = await LoadTenantAsync(tenantId, cancellationToken);
+        if (tenant is null)
+            return new StripeSyncResultDto(tenantId, "?", false, "Tenant not found.", Array.Empty<string>());
+        if (string.IsNullOrEmpty(_opts.SecretKey))
+            return new StripeSyncResultDto(tenantId, tenant.Slug, false, "Stripe is not configured (no secret key).", Array.Empty<string>());
+
+        Subscription? sub = null;
+        try
+        {
+            var subSvc = new SubscriptionService();
+            if (!string.IsNullOrEmpty(tenant.StripeSubscriptionId))
+            {
+                sub = await subSvc.GetAsync(tenant.StripeSubscriptionId, cancellationToken: cancellationToken);
+            }
+            else if (!string.IsNullOrEmpty(tenant.StripeCustomerId))
+            {
+                // No sub id locally — list and pick the most recent active sub
+                // for this customer. Could be a subscription created by Stripe
+                // CLI or a CSV import, never wired back into our DB.
+                var list = await subSvc.ListAsync(new SubscriptionListOptions
+                {
+                    Customer = tenant.StripeCustomerId,
+                    Limit = 5,
+                    Status = "all"
+                }, cancellationToken: cancellationToken);
+                sub = list.Data
+                    .OrderByDescending(s => s.Created)
+                    .FirstOrDefault(s => s.Status is "active" or "trialing" or "past_due")
+                    ?? list.Data.OrderByDescending(s => s.Created).FirstOrDefault();
+            }
+        }
+        catch (StripeException ex)
+        {
+            return new StripeSyncResultDto(tenantId, tenant.Slug, false, $"Stripe API error: {ex.Message}", Array.Empty<string>());
+        }
+
+        if (sub is null)
+            return new StripeSyncResultDto(tenantId, tenant.Slug, false,
+                "No subscription found in Stripe for this tenant.", Array.Empty<string>());
+
+        var changes = new List<string>();
+
+        if (tenant.StripeSubscriptionId != sub.Id)
+        {
+            changes.Add($"subscription id: {tenant.StripeSubscriptionId ?? "(none)"} → {sub.Id}");
+            tenant.StripeSubscriptionId = sub.Id;
+        }
+        if (tenant.SubscriptionStatus != sub.Status)
+        {
+            changes.Add($"status: {tenant.SubscriptionStatus ?? "(none)"} → {sub.Status}");
+            tenant.SubscriptionStatus = sub.Status;
+        }
+        var stripePeriodEnd = sub.Items?.Data?.FirstOrDefault()?.CurrentPeriodEnd;
+        if (tenant.CurrentPeriodEnd != stripePeriodEnd)
+        {
+            changes.Add($"current_period_end: {tenant.CurrentPeriodEnd:o} → {stripePeriodEnd:o}");
+            tenant.CurrentPeriodEnd = stripePeriodEnd;
+        }
+        if (tenant.TrialEndsAt != sub.TrialEnd)
+        {
+            changes.Add($"trial_end: {tenant.TrialEndsAt:o} → {sub.TrialEnd:o}");
+            tenant.TrialEndsAt = sub.TrialEnd;
+            tenant.TrialReminderSentAt = null; // give the reminder job a clean slate
+        }
+
+        // Match the Stripe Price back to a local Plan via StripePriceId.
+        var stripePriceId = sub.Items?.Data?.FirstOrDefault()?.Price?.Id;
+        if (!string.IsNullOrEmpty(stripePriceId))
+        {
+            var matchedPlan = await _db.Plans.AsNoTracking()
+                .FirstOrDefaultAsync(p => p.StripePriceId == stripePriceId, cancellationToken);
+            if (matchedPlan is not null && matchedPlan.Id != tenant.PlanId)
+            {
+                changes.Add($"plan: {tenant.PlanId} → {matchedPlan.Id} ({matchedPlan.Slug})");
+                tenant.PlanId = matchedPlan.Id;
+            }
+        }
+
+        if (changes.Count > 0)
+        {
+            await SaveAsync(cancellationToken);
+        }
+
+        var msg = changes.Count == 0
+            ? "Already in sync — no changes."
+            : $"Applied {changes.Count} change(s).";
+        return new StripeSyncResultDto(tenantId, tenant.Slug, true, msg, changes);
+    }
+
+    public async Task<StripeReplayResultDto> ReplayStripeEventAsync(string eventId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(_opts.SecretKey))
+            return new StripeReplayResultDto(eventId, "?", false, "Stripe is not configured (no secret key).");
+
+        Event stripeEvent;
+        try
+        {
+            var eventSvc = new EventService();
+            stripeEvent = await eventSvc.GetAsync(eventId, cancellationToken: cancellationToken);
+        }
+        catch (StripeException ex)
+        {
+            return new StripeReplayResultDto(eventId, "?", false, $"Stripe API error: {ex.Message}");
+        }
+
+        _logger.LogWarning("Super-admin manual replay of Stripe event {EventType} {EventId}",
+            stripeEvent.Type, stripeEvent.Id);
+
+        var handled = await DispatchEventAsync(stripeEvent, cancellationToken);
+        return new StripeReplayResultDto(stripeEvent.Id, stripeEvent.Type, handled,
+            handled ? "Event re-dispatched." : "No handler for this event type — nothing to do.");
     }
 
     private async Task OnCheckoutCompletedAsync(Session session, CancellationToken cancellationToken)

@@ -1,5 +1,6 @@
 @page "/admin/health"
 @inject AdminHealthService HealthApi
+@inject AdminOpsService Ops
 @inject ISnackbar Snackbar
 
 <PageTitle>System health — Admin — GoatLab</PageTitle>
@@ -82,6 +83,39 @@
             Report generated at @_report.GeneratedAtUtc.ToLocalTime().ToString("MMM d, yyyy h:mm:ss tt").
         </MudText>
     }
+
+    <MudPaper Class="pa-4 mt-6" Outlined Elevation="0">
+        <MudText Typo="Typo.h5" Class="mb-2">Stripe webhook replay</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            Re-dispatch a Stripe event that was missed (e.g. webhook outage) by id.
+            Find the id in dashboard.stripe.com → Developers → Events. Format: <code>evt_…</code>.
+        </MudText>
+        <div class="d-flex" style="gap:8px;">
+            <MudTextField @bind-Value="_replayEventId" Label="Stripe event id" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Placeholder="evt_1RH..." Style="flex:1;" />
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.Replay" OnClick="ReplayAsync"
+                       Disabled="@(_busy || string.IsNullOrWhiteSpace(_replayEventId))">
+                Replay
+            </MudButton>
+        </div>
+        @if (_replayResult is not null)
+        {
+            <MudAlert Severity="@(_replayResult.Handled ? Severity.Success : Severity.Warning)" Class="mt-3" Dense>
+                <strong>@_replayResult.EventType</strong> — @_replayResult.Message
+            </MudAlert>
+        }
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mt-3" Outlined Elevation="0">
+        <MudText Typo="Typo.h5" Class="mb-2">More super-admin tools</MudText>
+        <div class="d-flex flex-wrap" style="gap:10px;">
+            <MudButton Href="/admin/email-log" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Email">Email log</MudButton>
+            <MudButton Href="/admin/search" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Search">Cross-tenant search</MudButton>
+            <MudButton Href="/admin/bulk-email" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Campaign">Bulk email</MudButton>
+            <MudButton Href="/admin/jobs" Target="_blank" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.OpenInNew">Hangfire</MudButton>
+        </div>
+    </MudPaper>
 </MudContainer>
 
 <style>
@@ -91,8 +125,21 @@
 @code {
     private AdminHealthService.Report? _report;
     private bool _busy;
+    private string _replayEventId = "";
+    private GoatLab.Shared.DTOs.StripeReplayResultDto? _replayResult;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task ReplayAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_replayEventId)) return;
+        _busy = true;
+        try
+        {
+            _replayResult = await Ops.ReplayEventAsync(_replayEventId.Trim());
+        }
+        finally { _busy = false; }
+    }
 
     private async Task LoadAsync()
     {

@@ -218,12 +218,27 @@ builder.Services.AddHealthChecks()
 // Email. Real SMTP sender when Smtp:Host is configured, otherwise a no-op that
 // logs each attempt. Lets features like password reset ship before the mail
 // server exists; flip on by setting Smtp:Host (via env or user-secrets).
+//
+// LoggingEmailSenderDecorator wraps whichever inner sender is registered so
+// /admin/email-log records every send. The inner senders are registered as
+// concrete classes (not via IAppEmailSender) so the decorator alone wins the
+// interface.
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection(SmtpOptions.SectionName));
 var smtpHost = builder.Configuration.GetValue<string>($"{SmtpOptions.SectionName}:Host");
 if (!string.IsNullOrWhiteSpace(smtpHost))
-    builder.Services.AddSingleton<IAppEmailSender, SmtpEmailSender>();
+    builder.Services.AddSingleton<SmtpEmailSender>();
 else
-    builder.Services.AddSingleton<IAppEmailSender, NullEmailSender>();
+    builder.Services.AddSingleton<NullEmailSender>();
+builder.Services.AddSingleton<IAppEmailSender>(sp =>
+{
+    IAppEmailSender inner = !string.IsNullOrWhiteSpace(smtpHost)
+        ? sp.GetRequiredService<SmtpEmailSender>()
+        : sp.GetRequiredService<NullEmailSender>();
+    return new LoggingEmailSenderDecorator(
+        inner,
+        sp.GetRequiredService<IServiceScopeFactory>(),
+        sp.GetRequiredService<ILogger<LoggingEmailSenderDecorator>>());
+});
 
 // Billing. StripeBillingService reads Stripe:SecretKey/WebhookSecret at
 // startup. Missing keys don't fail startup — endpoints error at call time so
@@ -261,6 +276,9 @@ builder.Services.Configure<GoatLab.Server.Services.Legal.LegalOptions>(
 
 // ADGA/AGS registry CSV import.
 builder.Services.AddScoped<RegistryImportService>();
+
+// Per-goat unified timeline aggregator.
+builder.Services.AddScoped<GoatLab.Server.Services.Timeline.ITimelineService, GoatLab.Server.Services.Timeline.TimelineService>();
 
 // Outbound webhooks. Dispatcher is scoped (shares the request's DbContext so
 // event emission participates in the same unit of work as the write that

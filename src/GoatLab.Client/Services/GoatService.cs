@@ -1,3 +1,4 @@
+using GoatLab.Shared.DTOs;
 using GoatLab.Shared.Models;
 using System.Net.Http.Json;
 
@@ -25,6 +26,8 @@ public class GoatService
     public Task UpdateAsync(Goat goat) => _api.PutAsync($"api/goats/{goat.Id}", goat);
     public Task DeleteAsync(int id) => _api.DeleteAsync($"api/goats/{id}");
     public Task<HerdStats?> GetStatsAsync() => _api.GetAsync<HerdStats>("api/goats/stats");
+    public Task<List<TimelineEntryDto>?> GetTimelineAsync(int id) =>
+        _api.GetAsync<List<TimelineEntryDto>>($"api/goats/{id}/timeline");
 
     public async Task<GoatPhoto?> UploadPhotoAsync(int goatId, Stream fileStream, string fileName, string? caption = null, bool isPrimary = false)
     {
