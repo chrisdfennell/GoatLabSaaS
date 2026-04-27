@@ -1,0 +1,17 @@
+@{
+    ViewData["Title"] = "Listing not available — GoatLab";
+    ViewData["Description"] = "This goat isn't currently listed for sale.";
+    Context.Response.StatusCode = 404;
+}
+
+<div class="empty-state" style="margin-top: 40px;">
+    <div class="icon">🐐</div>
+    <h1 style="margin: 8px 0;">Listing not available</h1>
+    <p>
+        This goat isn't currently listed for sale. The seller may have removed the listing,
+        marked the animal as sold, or made their farm private.
+    </p>
+    <p>
+        <a class="cta-button" href="/breeds">Browse other breeders</a>
+    </p>
+</div>

@@ -25,7 +25,9 @@ Disallow: /confirm-email
 Disallow: /accept-invite
 Disallow: /reset-password
 Disallow: /forgot-password
-Disallow: /pub/
+
+# /pub/ is intentionally crawlable — those pages are server-rendered for
+# breeders' for-sale listings and we WANT search engines to index them.
 
 # Block AI training crawlers (flip to Allow if you want them indexing you)
 User-agent: GPTBot

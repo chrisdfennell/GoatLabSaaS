@@ -69,6 +69,20 @@ public class SitemapController : ControllerBase
         foreach (var slug in farmSlugs)
             urls.Add(new($"{origin}/pub/{slug}", "weekly", 0.6));
 
+        // Every for-sale goat — same gates as the SSR PublicFarmPagesController.
+        // Listing changes are the events most worth crawling promptly, so a
+        // weekly hint is fine; bots come back if traffic warrants.
+        var goatSlugs = await _db.Goats.IgnoreQueryFilters()
+            .Where(g => g.IsListedForSale && !g.IsExternal
+                        && g.Tenant!.PublicProfileEnabled
+                        && g.Tenant.DeletedAt == null
+                        && g.Tenant.SuspendedAt == null)
+            .Select(g => new { TenantSlug = g.Tenant!.Slug, g.Id })
+            .ToListAsync(ct);
+
+        foreach (var item in goatSlugs)
+            urls.Add(new($"{origin}/pub/{item.TenantSlug}/{item.Id}", "weekly", 0.7));
+
         return Content(BuildXml(urls), "application/xml", Encoding.UTF8);
     }
 

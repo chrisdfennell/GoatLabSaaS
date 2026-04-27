@@ -1,0 +1,262 @@
+@using GoatLab.Shared.DTOs
+@using GoatLab.Server.Controllers
+@model PublicGoatDto
+@{
+    var slug = (string?)ViewData["FarmSlug"] ?? Model.FarmSlug;
+    var depositStatus = (string?)ViewData["DepositStatus"];
+    var reserveError = TempData["ReserveError"] as string;
+}
+
+<div class="breadcrumbs">
+    <a href="/">GoatLab</a>
+    <span class="sep">›</span>
+    <a href="/breeds">Browse breeders</a>
+    <span class="sep">›</span>
+    <a href="/pub/@slug">@Model.FarmName</a>
+    <span class="sep">›</span>
+    <span>@Model.Name</span>
+</div>
+
+@if (depositStatus == "success")
+{
+    <div class="alert alert-success">
+        <strong>Deposit received.</strong> @Model.FarmName has been notified and will reach out to finalize pickup.
+    </div>
+}
+else if (depositStatus == "cancel")
+{
+    <div class="alert alert-info">Reservation was cancelled — no payment was taken.</div>
+}
+@if (!string.IsNullOrEmpty(reserveError))
+{
+    <div class="alert alert-error">@reserveError</div>
+}
+
+<div class="goat-header">
+    <div>
+        <span class="eyebrow">For sale</span>
+        <h1>@Model.Name</h1>
+        <p class="goat-meta">
+            @(Model.Breed ?? "Unknown breed")
+            @if (Model.DateOfBirth.HasValue)
+            {
+                <span> · @PublicFarmPagesController.AgeString(Model.DateOfBirth.Value)</span>
+            }
+            <span> · @Model.Gender</span>
+            @if (!string.IsNullOrEmpty(Model.EarTag))
+            {
+                <span> · #@Model.EarTag</span>
+            }
+        </p>
+    </div>
+    @if (Model.AskingPriceCents.HasValue)
+    {
+        <div class="goat-price">
+            <span class="eyebrow">Asking</span>
+            <div class="price-amount">$@((Model.AskingPriceCents.Value / 100m).ToString("N0"))</div>
+        </div>
+    }
+</div>
+
+@if (Model.Photos.Count > 0)
+{
+    <div class="goat-photos">
+        @foreach (var p in Model.Photos)
+        {
+            <a href="@p.Url" target="_blank" class="goat-photo">
+                <img src="@p.Url" alt="@(p.Caption ?? Model.Name)" loading="lazy" />
+            </a>
+        }
+    </div>
+}
+
+<div class="goat-grid">
+    <div class="goat-main">
+        @if (!string.IsNullOrWhiteSpace(Model.Bio))
+        {
+            <section class="card">
+                <h2>About @Model.Name</h2>
+                <p class="prewrap">@Model.Bio</p>
+            </section>
+        }
+        @if (!string.IsNullOrWhiteSpace(Model.SaleNotes))
+        {
+            <section class="card">
+                <h2>Sale notes</h2>
+                <p class="prewrap">@Model.SaleNotes</p>
+            </section>
+        }
+        @if (Model.Pedigree?.Sire is not null || Model.Pedigree?.Dam is not null)
+        {
+            <section class="card">
+                <h2>Pedigree</h2>
+                <div class="pedigree-grid">
+                    <div class="pedigree-cell"><strong>@Model.Pedigree!.Name</strong></div>
+                    <div>
+                        <div class="pedigree-cell @(Model.Pedigree.Sire is null ? "pedigree-empty" : "")">
+                            <span class="pedigree-label">Sire</span>
+                            @(Model.Pedigree.Sire?.Name ?? "Unknown")
+                        </div>
+                        <div class="pedigree-cell @(Model.Pedigree.Dam is null ? "pedigree-empty" : "")" style="margin-top:8px;">
+                            <span class="pedigree-label">Dam</span>
+                            @(Model.Pedigree.Dam?.Name ?? "Unknown")
+                        </div>
+                    </div>
+                    <div>
+                        <div class="pedigree-cell @(Model.Pedigree.Sire?.Sire is null ? "pedigree-empty" : "")">
+                            @(Model.Pedigree.Sire?.Sire?.Name ?? "—")
+                        </div>
+                        <div class="pedigree-cell @(Model.Pedigree.Sire?.Dam is null ? "pedigree-empty" : "")" style="margin-top:8px;">
+                            @(Model.Pedigree.Sire?.Dam?.Name ?? "—")
+                        </div>
+                        <div class="pedigree-cell @(Model.Pedigree.Dam?.Sire is null ? "pedigree-empty" : "")" style="margin-top:8px;">
+                            @(Model.Pedigree.Dam?.Sire?.Name ?? "—")
+                        </div>
+                        <div class="pedigree-cell @(Model.Pedigree.Dam?.Dam is null ? "pedigree-empty" : "")" style="margin-top:8px;">
+                            @(Model.Pedigree.Dam?.Dam?.Name ?? "—")
+                        </div>
+                    </div>
+                </div>
+            </section>
+        }
+    </div>
+
+    <aside class="goat-side">
+        <section class="card">
+            <h2>Seller</h2>
+            <p class="seller-name">@Model.FarmName</p>
+            @if (!string.IsNullOrEmpty(Model.FarmLocation))
+            {
+                <p class="seller-meta">📍 @Model.FarmLocation</p>
+            }
+            @if (!string.IsNullOrEmpty(Model.FarmContactEmail))
+            {
+                <a class="cta-button block-button"
+                   href="mailto:@Model.FarmContactEmail?subject=Inquiry about @Model.Name">
+                    Contact seller
+                </a>
+            }
+            @if (Model.DepositCents is int deposit && deposit > 0)
+            {
+                <button type="button" class="block-button success-button" onclick="document.getElementById('reserve-dialog').showModal()">
+                    Reserve with $@((deposit / 100m).ToString("N0")) deposit
+                </button>
+                <p class="reserve-note">Secure payment via Stripe · applied to purchase price</p>
+            }
+        </section>
+
+        @if (!string.IsNullOrEmpty(Model.Registry) || !string.IsNullOrEmpty(Model.RegistrationNumber))
+        {
+            <section class="card">
+                <h2>Registration</h2>
+                @if (!string.IsNullOrEmpty(Model.Registry))
+                {
+                    <p><strong>Registry:</strong> @Model.Registry</p>
+                }
+                @if (!string.IsNullOrEmpty(Model.RegistrationNumber))
+                {
+                    <p><strong>Reg #:</strong> @Model.RegistrationNumber</p>
+                }
+                @if (!string.IsNullOrEmpty(Model.BreederName))
+                {
+                    <p><strong>Breeder:</strong> @Model.BreederName</p>
+                }
+            </section>
+        }
+
+        <section class="card transfer-card">
+            <h3 style="margin: 0 0 6px 0;">🐐 Already on GoatLab?</h3>
+            <p style="margin: 0; font-size: 0.9rem;">
+                If you buy @Model.Name, ask @Model.FarmName to transfer the record to your herd —
+                full pedigree, medical history, weights, and photos move over instantly.
+            </p>
+            <a href="/register" style="display:inline-block;margin-top:8px;font-weight:600;">Start a free farm →</a>
+        </section>
+    </aside>
+</div>
+
+@if (Model.DepositCents is int dep && dep > 0)
+{
+    <dialog id="reserve-dialog" class="reserve-dialog">
+        <form method="post" action="/pub/@slug/@Model.Id/reserve-form" class="reserve-form">
+            @Html.AntiForgeryToken()
+            <h2 style="margin-top:0;">Reserve @Model.Name</h2>
+            <p class="reserve-summary">
+                $@((dep / 100m).ToString("N0")) deposit · Stripe payment · refundable per @Model.FarmName's policy.
+                On success you'll go on @Model.FarmName's waitlist with the deposit recorded.
+            </p>
+            <label>
+                <span>Your email *</span>
+                <input type="email" name="BuyerEmail" required autocomplete="email" />
+            </label>
+            <label>
+                <span>Your name *</span>
+                <input type="text" name="BuyerName" required autocomplete="name" />
+            </label>
+            <label>
+                <span>Phone (optional)</span>
+                <input type="tel" name="BuyerPhone" autocomplete="tel" />
+            </label>
+            <label>
+                <span>Notes for the seller (optional)</span>
+                <textarea name="Notes" rows="3" placeholder="Pickup timing, registration paperwork, anything else..."></textarea>
+            </label>
+            <div class="reserve-actions">
+                <button type="button" onclick="document.getElementById('reserve-dialog').close()">Cancel</button>
+                <button type="submit" class="cta-button">Continue to Stripe</button>
+            </div>
+        </form>
+    </dialog>
+}
+
+<style>
+    .breadcrumbs a { color: #6b7a70; }
+
+    .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; }
+    .alert-success { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+    .alert-info    { background: #e3f2fd; color: #0d47a1; border: 1px solid #90caf9; }
+    .alert-error   { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+
+    .goat-header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 16px; margin-bottom: 16px; }
+    .goat-header h1 { margin: 6px 0 4px 0; }
+    .goat-meta { color: #6b7a70; margin: 0; }
+    .goat-price { text-align: right; }
+    .goat-price .price-amount { font-size: 2rem; font-weight: 700; color: #2e7d32; line-height: 1.1; }
+
+    .goat-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin: 16px 0 24px 0; }
+    .goat-photo img { width: 100%; height: 220px; object-fit: cover; border-radius: 8px; display: block; }
+
+    .goat-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+    @@media (max-width: 800px) { .goat-grid { grid-template-columns: 1fr; } }
+
+    .card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+    .card h2 { margin: 0 0 12px 0; font-size: 1.15rem; }
+    .card p { margin: 4px 0; }
+    .prewrap { white-space: pre-wrap; }
+    .seller-name { font-weight: 700; font-size: 1.05rem; margin: 0; }
+    .seller-meta { font-size: 0.9rem; color: #6b7a70; margin-top: 4px; }
+    .block-button { display: block; width: 100%; text-align: center; margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-weight: 600; cursor: pointer; border: none; font-size: 1rem; }
+    .success-button { background: #2e7d32; color: #fff; }
+    .success-button:hover { background: #1b5e20; }
+    .reserve-note { font-size: 0.78rem; color: #6b7a70; text-align: center; margin-top: 6px; }
+
+    .pedigree-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .pedigree-cell { padding: 10px 12px; background: rgba(46,125,50,0.05); border-radius: 6px; border: 1px solid rgba(46,125,50,0.15); font-size: 0.85rem; }
+    .pedigree-empty { background: rgba(0,0,0,0.02); border-style: dashed; color: #999; }
+    .pedigree-label { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #6b7a70; }
+
+    .transfer-card { background: linear-gradient(135deg,#f1f8e9 0%,#e8f5e9 100%); border-color: #c5e1a5; }
+
+    .reserve-dialog { border: 0; border-radius: 12px; padding: 0; max-width: 480px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+    .reserve-dialog::backdrop { background: rgba(0,0,0,0.5); }
+    .reserve-form { padding: 24px; }
+    .reserve-form label { display: block; margin-bottom: 12px; font-size: 0.9rem; }
+    .reserve-form label span { display: block; margin-bottom: 4px; color: #4a5a51; font-weight: 500; }
+    .reserve-form input, .reserve-form textarea { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem; font-family: inherit; }
+    .reserve-form input:focus, .reserve-form textarea:focus { outline: none; border-color: #2e7d32; box-shadow: 0 0 0 2px rgba(46,125,50,0.2); }
+    .reserve-summary { background: #f5f5f5; padding: 10px 12px; border-radius: 6px; font-size: 0.88rem; color: #4a5a51; margin-bottom: 16px; }
+    .reserve-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+    .reserve-actions button { padding: 10px 18px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; font-size: 0.95rem; }
+    .reserve-actions button[type="button"] { background: #f0f0f0; color: #1a2421; }
+    .reserve-actions button.cta-button { background: #2e7d32; color: #fff; }
+</style>
