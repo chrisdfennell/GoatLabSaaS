@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  GoatLab Open Graph card — 1200x630 (Facebook / LinkedIn / Twitter standard).
+  Source SVG; rasterize to og-card.png whenever you change copy.
+
+  Render to PNG:
+    npx @resvg/resvg-js og-card.svg og-card.png -w 1200
+  or via headless Chrome:
+    chrome --headless --disable-gpu --screenshot=og-card.png --window-size=1200,630 file:///path/to/og-card.svg
+  or via ImageMagick:
+    magick -density 300 og-card.svg -resize 1200x630 og-card.png
+
+  The PNG is what Facebook/LinkedIn unfurlers actually consume — Twitter/Discord
+  also accept SVG via og:image, but PNG is the cross-platform safe bet.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f1f13"/>
+      <stop offset="100%" stop-color="#1b3a23"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2e7d32"/>
+      <stop offset="100%" stop-color="#66bb6a"/>
+    </linearGradient>
+    <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="6" stdDeviation="14" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <!-- Subtle topographic dots (decorative) -->
+  <g fill="rgba(102,187,106,0.08)">
+    <circle cx="1080" cy="120" r="180"/>
+    <circle cx="120" cy="540" r="220"/>
+  </g>
+
+  <!-- Top accent stripe -->
+  <rect x="0" y="0" width="1200" height="6" fill="url(#accent)"/>
+
+  <!-- Brand row -->
+  <g transform="translate(70, 80)">
+    <text x="0" y="32" font-family="-apple-system, Segoe UI, Roboto, Helvetica, sans-serif"
+          font-size="38" font-weight="800" fill="#fff" letter-spacing="-1">
+      <tspan font-size="44">🐐</tspan>
+      <tspan dx="14">GoatLab</tspan>
+    </text>
+    <text x="0" y="68" font-family="-apple-system, Segoe UI, Roboto, Helvetica, sans-serif"
+          font-size="18" font-weight="500" fill="#a5d6a7" letter-spacing="2"
+          text-transform="uppercase">
+      THE FARM TOOL · AND · THE MARKETPLACE
+    </text>
+  </g>
+
+  <!-- Headline -->
+  <g transform="translate(70, 240)">
+    <text x="0" y="0" font-family="-apple-system, Segoe UI, Roboto, Helvetica, sans-serif"
+          font-size="64" font-weight="800" fill="#ffffff" letter-spacing="-1.5">
+      <tspan x="0" dy="0">Run your whole goat operation.</tspan>
+      <tspan x="0" dy="74" fill="#a5d6a7">Sell to buyers across the network.</tspan>
+    </text>
+  </g>
+
+  <!-- Three pillars -->
+  <g transform="translate(70, 440)" font-family="-apple-system, Segoe UI, Roboto, Helvetica, sans-serif">
+    <!-- Pillar 1 -->
+    <g>
+      <rect x="0" y="0" width="340" height="120" rx="14" fill="rgba(255,255,255,0.06)" stroke="rgba(165,214,167,0.25)" stroke-width="1"/>
+      <text x="22" y="34" font-size="14" font-weight="700" fill="#a5d6a7" letter-spacing="1.5">HERD &amp; HEALTH</text>
+      <text x="22" y="68" font-size="20" font-weight="600" fill="#fff">Records · breeding · milk</text>
+      <text x="22" y="96" font-size="16" fill="#c8e6c9">COI · timeline · alerts · forecasts</text>
+    </g>
+    <!-- Pillar 2 -->
+    <g transform="translate(360, 0)">
+      <rect x="0" y="0" width="340" height="120" rx="14" fill="rgba(255,255,255,0.06)" stroke="rgba(165,214,167,0.25)" stroke-width="1"/>
+      <text x="22" y="34" font-size="14" font-weight="700" fill="#a5d6a7" letter-spacing="1.5">PUBLIC MARKETPLACE</text>
+      <text x="22" y="68" font-size="20" font-weight="600" fill="#fff">Listings · deposits · waitlist</text>
+      <text x="22" y="96" font-size="16" fill="#c8e6c9">Buyers find you · Stripe-powered</text>
+    </g>
+    <!-- Pillar 3 -->
+    <g transform="translate(720, 0)">
+      <rect x="0" y="0" width="340" height="120" rx="14" fill="rgba(255,255,255,0.06)" stroke="rgba(165,214,167,0.25)" stroke-width="1"/>
+      <text x="22" y="34" font-size="14" font-weight="700" fill="#a5d6a7" letter-spacing="1.5">CROSS-FARM LINEAGE</text>
+      <text x="22" y="68" font-size="20" font-weight="600" fill="#fff">Pedigree across the network</text>
+      <text x="22" y="96" font-size="16" fill="#c8e6c9">Vet share-links · transfers</text>
+    </g>
+  </g>
+
+  <!-- URL -->
+  <text x="600" y="600" text-anchor="middle"
+        font-family="-apple-system, Segoe UI, Roboto, Helvetica, sans-serif"
+        font-size="20" font-weight="600" fill="#66bb6a" letter-spacing="1">
+    goatlab.app
+  </text>
+</svg>
