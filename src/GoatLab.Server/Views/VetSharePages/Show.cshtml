@@ -1,0 +1,154 @@
+@using GoatLab.Server.Controllers
+@model VetSharePagesController.VetShareGoatVm
+@{
+    var token = ViewData["Token"] as string ?? "";
+    var vetName = ViewData["VetName"] as string;
+    var expiresAt = (DateTime?)ViewData["ExpiresAt"];
+    var noteSaved = ViewData["NoteSaved"] as string;
+
+    ViewData["Title"] = $"Health record: {Model.Name} — {Model.FarmName}";
+    ViewData["Description"] = $"Veterinary share link for {Model.Name}, a {Model.Breed ?? "goat"} at {Model.FarmName}.";
+
+    string AgeString(DateTime? dob)
+    {
+        if (!dob.HasValue) return "";
+        var months = (int)((DateTime.UtcNow - dob.Value).TotalDays / 30.44);
+        if (months < 12) return months + " mo";
+        var y = months / 12; var m = months % 12;
+        return m == 0 ? y + " yr" : $"{y} yr {m} mo";
+    }
+}
+
+<div class="vet-banner">
+    <strong>Veterinary share link</strong> · this is a read-only view of one animal's health record from a {ViewData["AppBrand"]?.ToString() ?? "GoatLab"} farmer.
+    @if (expiresAt.HasValue) { <span> Link expires @expiresAt.Value.ToString("MMM d, yyyy").</span> }
+</div>
+
+@if (!string.IsNullOrEmpty(noteSaved))
+{
+    <div class="vet-alert vet-alert-success">@noteSaved</div>
+}
+
+<h1>@Model.Name</h1>
+<p class="lede">
+    @(Model.Breed ?? "Unknown breed") · @Model.Gender@(Model.DateOfBirth.HasValue ? $" · {AgeString(Model.DateOfBirth)}" : "")
+    @if (!string.IsNullOrEmpty(Model.EarTag)) { <span> · ear tag #@Model.EarTag</span> }
+    @if (!string.IsNullOrEmpty(Model.RegistrationNumber)) { <span> · reg @Model.RegistrationNumber</span> }
+</p>
+<p style="color:#6b7a70;font-size:0.9rem;margin-top:-12px;">From <strong>@Model.FarmName</strong></p>
+
+<section class="vet-card">
+    <h2>Medical history</h2>
+    @if (Model.Medical.Count == 0)
+    {
+        <p class="vet-empty">No medical records on file.</p>
+    }
+    else
+    {
+        <table class="vet-table">
+            <thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Detail</th><th>Administered by</th></tr></thead>
+            <tbody>
+                @foreach (var m in Model.Medical)
+                {
+                    <tr>
+                        <td>@m.Date.ToString("yyyy-MM-dd")</td>
+                        <td><span class="vet-tag">@m.RecordType</span></td>
+                        <td><strong>@m.Title</strong></td>
+                        <td style="max-width:360px;color:#4a5a51;">
+                            @if (!string.IsNullOrEmpty(m.Description)) { @m.Description }
+                            @if (!string.IsNullOrEmpty(m.Dosage)) { <span> · dose: @m.Dosage</span> }
+                        </td>
+                        <td>@m.AdministeredBy</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+<div class="vet-grid">
+    <section class="vet-card">
+        <h2>Weights</h2>
+        @if (Model.Weights.Count == 0) { <p class="vet-empty">No weights recorded.</p> }
+        else
+        {
+            <table class="vet-table">
+                <thead><tr><th>Date</th><th>Weight</th></tr></thead>
+                <tbody>@foreach (var w in Model.Weights) { <tr><td>@w.Date.ToString("yyyy-MM-dd")</td><td>@w.Weight.ToString("F1") lbs</td></tr> }</tbody>
+            </table>
+        }
+    </section>
+    <section class="vet-card">
+        <h2>FAMACHA</h2>
+        @if (Model.Famacha.Count == 0) { <p class="vet-empty">No FAMACHA scores.</p> }
+        else
+        {
+            <table class="vet-table">
+                <thead><tr><th>Date</th><th>Score</th></tr></thead>
+                <tbody>@foreach (var f in Model.Famacha) { <tr><td>@f.Date.ToString("yyyy-MM-dd")</td><td>@f.Score / 5</td></tr> }</tbody>
+            </table>
+        }
+    </section>
+    <section class="vet-card">
+        <h2>Body condition</h2>
+        @if (Model.BodyCondition.Count == 0) { <p class="vet-empty">No body-condition scores.</p> }
+        else
+        {
+            <table class="vet-table">
+                <thead><tr><th>Date</th><th>Score</th></tr></thead>
+                <tbody>@foreach (var b in Model.BodyCondition) { <tr><td>@b.Date.ToString("yyyy-MM-dd")</td><td>@b.Score.ToString("F1") / 5</td></tr> }</tbody>
+            </table>
+        }
+    </section>
+</div>
+
+<section class="vet-card vet-note-card">
+    <h2>Leave a note</h2>
+    <p style="margin:4px 0 16px 0;color:#4a5a51;">Notes go straight to the farmer's timeline as a Checkup record.</p>
+    <form method="post" action="/vet/@token/note">
+        @Html.AntiForgeryToken()
+        <label>Your name
+            <input type="text" name="VetName" maxlength="120" placeholder="Dr. Jane Doe, DVM"
+                   value="@vetName" />
+        </label>
+        <label>Note
+            <textarea name="Note" rows="6" maxlength="4000" required
+                      placeholder="Examination findings, treatment plan, follow-up needs..."></textarea>
+        </label>
+        <button type="submit">Submit note</button>
+    </form>
+</section>
+
+<style>
+    .vet-banner { background: #e8f5e9; color: #1b5e20; padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; margin-bottom: 16px; }
+    .vet-alert { padding: 12px 16px; border-radius: 8px; margin: 12px 0; }
+    .vet-alert-success { background: #e8f5e9; color: #1b5e20; border: 1px solid #a5d6a7; }
+
+    .vet-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 10px; padding: 18px; margin-top: 16px; }
+    .vet-card h2 { margin: 0 0 12px 0; font-size: 1.1rem; }
+    .vet-empty { color: #6b7a70; font-style: italic; margin: 0; }
+
+    .vet-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .vet-table th { text-align: left; padding: 6px 10px; background: #f7f8f7; border-bottom: 1px solid #e3e8e4; font-weight: 600; color: #4a5a51; }
+    .vet-table td { padding: 8px 10px; border-bottom: 1px solid #f0f2f0; vertical-align: top; }
+    .vet-tag { display:inline-block; padding: 2px 8px; background: #e3f2fd; color: #0d47a1; border-radius: 999px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .vet-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+
+    .vet-note-card form label { display: block; margin-bottom: 12px; font-size: 0.9rem; color: #4a5a51; font-weight: 500; }
+    .vet-note-card input, .vet-note-card textarea {
+        display: block; width: 100%;
+        margin-top: 4px;
+        padding: 10px 12px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 14px;
+        font-family: inherit;
+    }
+    .vet-note-card input:focus, .vet-note-card textarea:focus { outline: none; border-color: #2e7d32; box-shadow: 0 0 0 2px rgba(46,125,50,0.15); }
+    .vet-note-card button {
+        padding: 10px 22px; background: #2e7d32; color: #fff; border: 0; border-radius: 8px;
+        font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .vet-note-card button:hover { background: #1b5e20; }
+</style>

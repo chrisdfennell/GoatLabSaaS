@@ -1,5 +1,7 @@
+using System.Security.Cryptography;
 using GoatLab.Server.Data;
 using GoatLab.Server.Services.Billing;
+using GoatLab.Server.Services.Email;
 using GoatLab.Shared.DTOs;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -136,6 +138,127 @@ public class PublicController : ControllerBase
         var origin = Request.Headers["Origin"].ToString();
         if (!string.IsNullOrEmpty(origin)) return origin;
         return $"{Request.Scheme}://{Request.Host}";
+    }
+
+    // ----- Anonymous "Follow this farm" -----
+
+    public record FollowFarmRequest(string Email);
+    public record FollowFarmResponse(bool Ok, string Message);
+
+    [HttpPost("farms/{slug}/follow")]
+    public async Task<ActionResult<FollowFarmResponse>> Follow(
+        string slug,
+        [FromBody] FollowFarmRequest req,
+        [FromServices] IAppEmailSender email,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Email) || !req.Email.Contains('@'))
+            return new FollowFarmResponse(false, "Please enter a valid email address.");
+
+        var tenant = await GetPublicTenantAsync(slug, ct);
+        if (tenant is null) return NotFound(new FollowFarmResponse(false, "Farm not found or not public."));
+
+        var emailNorm = req.Email.Trim().ToLowerInvariant();
+
+        // Idempotent: if a row already exists for this (tenant, email) we
+        // reactivate (in case of prior unsubscribe) and resend the
+        // confirmation. No "already following" leak — same response either way.
+        var existing = await _db.FarmFollowers.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(f => f.TenantId == tenant.Id && f.Email == emailNorm, ct);
+
+        FarmFollower follower;
+        if (existing is not null)
+        {
+            existing.IsActive = true;
+            existing.UnsubscribedAt = null;
+            // Rotate token on resubscribe so a stale unsubscribe link from
+            // an earlier session can't quietly re-deactivate.
+            existing.UnsubscribeToken = NewToken();
+            follower = existing;
+        }
+        else
+        {
+            follower = new FarmFollower
+            {
+                TenantId = tenant.Id,
+                Email = emailNorm,
+                CreatedAt = DateTime.UtcNow,
+                UnsubscribeToken = NewToken(),
+                IsActive = true,
+            };
+            _db.FarmFollowers.Add(follower);
+        }
+        await _db.SaveChangesAsync(ct);
+
+        var origin = RequestOrigin();
+        var farmUrl = $"{origin}/pub/{tenant.Slug}";
+        var unsubUrl = $"{origin}/follow/unsubscribe?token={follower.UnsubscribeToken}";
+
+        try
+        {
+            var (subject, html, text) = EmailTemplates.FarmFollowConfirmation(tenant.Name, farmUrl, unsubUrl);
+            await email.SendAsync(emailNorm, subject, html, text, ct);
+        }
+        catch
+        {
+            // Email failure shouldn't block the subscribe — they're already
+            // in the DB and the next listing will reach them. Logged by the
+            // LoggingEmailSenderDecorator.
+        }
+
+        return new FollowFarmResponse(true, $"You're now following {tenant.Name}. Check your email to confirm.");
+    }
+
+    // GET so it works from a one-click email link. Returns a tiny HTML page —
+    // we don't care about the JSON consumer experience here, only the buyer
+    // who clicked the unsubscribe button in their inbox.
+    [HttpGet("/follow/unsubscribe")]
+    public async Task<ContentResult> Unsubscribe([FromQuery] string token, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return UnsubscribePage(false, "Missing or invalid unsubscribe token.");
+
+        var follower = await _db.FarmFollowers.IgnoreQueryFilters()
+            .Include(f => f.Tenant)
+            .FirstOrDefaultAsync(f => f.UnsubscribeToken == token, ct);
+
+        if (follower is null)
+            return UnsubscribePage(false, "We couldn't find that subscription. It may have already been removed.");
+
+        if (follower.IsActive)
+        {
+            follower.IsActive = false;
+            follower.UnsubscribedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+        }
+
+        var farmName = follower.Tenant?.Name ?? "this farm";
+        return UnsubscribePage(true, $"You've been unsubscribed from {farmName} new-listing notifications.");
+    }
+
+    private static string NewToken()
+    {
+        // 32 random bytes → 64 hex chars. Plenty of entropy for an
+        // unsubscribe link; collision-resistant per the unique index.
+        var buf = RandomNumberGenerator.GetBytes(32);
+        return Convert.ToHexString(buf).ToLowerInvariant();
+    }
+
+    private ContentResult UnsubscribePage(bool success, string message)
+    {
+        var icon = success ? "✓" : "✗";
+        var color = success ? "#2e7d32" : "#c62828";
+        var html = $@"<!DOCTYPE html><html><head><meta charset=""utf-8"" /><title>Unsubscribe — GoatLab</title>
+<meta name=""viewport"" content=""width=device-width,initial-scale=1"" /></head>
+<body style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f3f5f3;margin:0;padding:48px 16px;text-align:center;color:#1a2421;"">
+  <div style=""max-width:460px;margin:0 auto;background:#fff;padding:32px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06);"">
+    <div style=""font-size:48px;color:{color};line-height:1;"">{icon}</div>
+    <h1 style=""font-size:20px;margin:16px 0 8px 0;"">Unsubscribed</h1>
+    <p style=""color:#4a5a51;margin:0 0 24px 0;"">{System.Net.WebUtility.HtmlEncode(message)}</p>
+    <a href=""/breeds"" style=""display:inline-block;background:#2e7d32;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;"">Browse other breeders</a>
+  </div>
+</body></html>";
+        return new ContentResult { Content = html, ContentType = "text/html; charset=utf-8", StatusCode = success ? 200 : 404 };
     }
 
     // ----- Breed directory -----

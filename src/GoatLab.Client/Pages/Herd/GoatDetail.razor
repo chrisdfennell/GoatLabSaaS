@@ -114,6 +114,8 @@ else
             <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
                        StartIcon="@Icons.Material.Filled.SwapHoriz" OnClick="OpenTransferDialog">Transfer to buyer</MudButton>
             <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
+                       StartIcon="@Icons.Material.Filled.MedicalServices" OnClick="OpenVetShareDialog">Share with vet</MudButton>
+            <MudButton Variant="Variant.Outlined" Style="border-color:rgba(255,255,255,0.5);color:#fff;"
                        StartIcon="@Icons.Material.Filled.Delete" OnClick="DeleteGoat">Delete</MudButton>
         </div>
     </div>
@@ -1394,6 +1396,18 @@ else
     // Tab `OnClick` re-fetches if the user is opening the timeline AFTER having
     // edited records on other tabs. Cheap (single endpoint, no joins) so we
     // re-pull rather than try to keep the timeline in sync with each per-tab edit.
+    private async Task OpenVetShareDialog()
+    {
+        if (goat is null) return;
+        var parameters = new DialogParameters
+        {
+            [nameof(VetShareDialog.GoatId)] = Id,
+            [nameof(VetShareDialog.GoatName)] = goat.Name,
+        };
+        await Dialog.ShowAsync<VetShareDialog>("Share with vet", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+    }
+
     private async Task LoadTimelineIfNeeded()
     {
         if (timelineLoading) return;

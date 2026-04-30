@@ -1,0 +1,222 @@
+@using GoatLab.Server.Controllers
+@model LineagePagesController.LineageVm
+@{
+    var origin = $"{Context.Request.Scheme}://{Context.Request.Host}";
+    var canonical = $"{origin}/lineage/{Model.Id}";
+
+    var ageStr = Model.DateOfBirth.HasValue
+        ? $", born {Model.DateOfBirth.Value:yyyy-MM-dd}"
+        : "";
+
+    ViewData["Title"] = $"{Model.Name} pedigree — GoatLab lineage";
+    ViewData["Description"] = $"Cross-farm pedigree for {Model.Name}, a {Model.Breed ?? "goat"}{ageStr}{(Model.FarmIsPublic ? $" at {Model.FarmName}" : "")}. Walk ancestors across every GoatLab farm.";
+    ViewData["Canonical"] = canonical;
+    if (!string.IsNullOrEmpty(Model.PrimaryPhotoUrl)) ViewData["OgImage"] = origin + Model.PrimaryPhotoUrl;
+
+    int CountCrossFarm(LineagePagesController.PedigreeNode? n) =>
+        n is null ? 0 : (n.CrossFarmId.HasValue ? 1 : 0) + CountCrossFarm(n.Sire) + CountCrossFarm(n.Dam);
+    var crossFarmCount = CountCrossFarm(Model.Pedigree);
+}
+
+<div class="breadcrumbs">
+    <a href="/">GoatLab</a>
+    <span class="sep">›</span>
+    @if (Model.FarmIsPublic && Model.FarmSlug is not null)
+    {
+        <a href="/breeds">Breeders</a>
+        <span class="sep">›</span>
+        <a href="/pub/@Model.FarmSlug">@Model.FarmName</a>
+        <span class="sep">›</span>
+    }
+    <span>@Model.Name lineage</span>
+</div>
+
+<div class="lineage-hero">
+    @if (!string.IsNullOrEmpty(Model.PrimaryPhotoUrl))
+    {
+        <img src="@Model.PrimaryPhotoUrl" alt="@Model.Name" class="lineage-photo" loading="lazy" />
+    }
+    <div class="lineage-summary">
+        <span class="eyebrow">Lineage</span>
+        <h1>@Model.Name</h1>
+        <p class="lede">
+            @(Model.Breed ?? "Unknown breed") · @Model.Gender
+            @if (Model.DateOfBirth.HasValue) { <span> · born @Model.DateOfBirth.Value.ToString("MMM yyyy")</span> }
+            @if (!string.IsNullOrEmpty(Model.RegistrationNumber))
+            {
+                <span> · @Model.Registry @Model.RegistrationNumber</span>
+            }
+        </p>
+        @if (Model.FarmIsPublic && Model.FarmSlug is not null)
+        {
+            <p class="lineage-farm">
+                Currently at <a href="/pub/@Model.FarmSlug"><strong>@Model.FarmName</strong></a>
+                @if (Model.IsCurrentlyListed)
+                {
+                    <a href="/pub/@Model.FarmSlug/@Model.Id" class="cta-button" style="margin-left:12px;">View listing</a>
+                }
+            </p>
+        }
+        @if (crossFarmCount > 0)
+        {
+            <p class="lineage-link-count">
+                <strong>@crossFarmCount @(crossFarmCount == 1 ? "ancestor" : "ancestors")</strong>
+                traceable to other GoatLab farms — click any underlined name to walk that line.
+            </p>
+        }
+    </div>
+</div>
+
+@if (Model.Pedigree is null)
+{
+    <p class="lede">No pedigree on file.</p>
+}
+else
+{
+    <h2 style="margin-top: 32px;">Pedigree</h2>
+    <p style="color:#6b7a70;margin-top:-8px;">
+        Click an <span style="color:#2e7d32;text-decoration:underline;">underlined ancestor</span>
+        to view its own lineage. Plain names are recorded but the goat isn't currently on a public GoatLab farm.
+    </p>
+
+    <div class="pedigree">
+        @{ var p = Model.Pedigree; var s = p.Sire; var d = p.Dam; }
+        <div class="ped-col ped-col-self">
+            @await RenderCellAsync(p, isFocal: true)
+        </div>
+        <div class="ped-col">
+            <div class="ped-row">@await RenderCellAsync(s, label: "Sire")</div>
+            <div class="ped-row">@await RenderCellAsync(d, label: "Dam")</div>
+        </div>
+        <div class="ped-col">
+            <div class="ped-row">@await RenderCellAsync(s?.Sire)</div>
+            <div class="ped-row">@await RenderCellAsync(s?.Dam)</div>
+            <div class="ped-row">@await RenderCellAsync(d?.Sire)</div>
+            <div class="ped-row">@await RenderCellAsync(d?.Dam)</div>
+        </div>
+        <div class="ped-col">
+            <div class="ped-row">@await RenderCellAsync(s?.Sire?.Sire)</div>
+            <div class="ped-row">@await RenderCellAsync(s?.Sire?.Dam)</div>
+            <div class="ped-row">@await RenderCellAsync(s?.Dam?.Sire)</div>
+            <div class="ped-row">@await RenderCellAsync(s?.Dam?.Dam)</div>
+            <div class="ped-row">@await RenderCellAsync(d?.Sire?.Sire)</div>
+            <div class="ped-row">@await RenderCellAsync(d?.Sire?.Dam)</div>
+            <div class="ped-row">@await RenderCellAsync(d?.Dam?.Sire)</div>
+            <div class="ped-row">@await RenderCellAsync(d?.Dam?.Dam)</div>
+        </div>
+    </div>
+}
+
+@if (Model.TransferHistory.Count > 0)
+{
+    <h2 style="margin-top: 32px;">Ownership history</h2>
+    <p style="color:#6b7a70;margin-top:-8px;">Tracked GoatLab farm-to-farm transfers — the Carfax of goats.</p>
+    <div class="transfer-trail">
+        @foreach (var stop in Model.TransferHistory)
+        {
+            <div class="transfer-stop">
+                <div class="transfer-date">@stop.At.ToString("MMM yyyy")</div>
+                <div class="transfer-farm">
+                    sold by
+                    @if (stop.FarmSlug is not null)
+                    {
+                        <a href="/pub/@stop.FarmSlug">@stop.FarmName</a>
+                    }
+                    else
+                    {
+                        <strong>@stop.FarmName</strong>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@functions {
+    private async Task<Microsoft.AspNetCore.Html.IHtmlContent> RenderCellAsync(
+        LineagePagesController.PedigreeNode? node,
+        string? label = null,
+        bool isFocal = false)
+    {
+        await Task.CompletedTask;
+        if (node is null)
+        {
+            return new Microsoft.AspNetCore.Html.HtmlString("<div class=\"ped-cell ped-empty\">—</div>");
+        }
+        var sb = new System.Text.StringBuilder(256);
+        sb.Append("<div class=\"ped-cell").Append(isFocal ? " ped-focal" : "").Append("\">");
+        if (!string.IsNullOrEmpty(label))
+        {
+            sb.Append("<div class=\"ped-label\">").Append(label).Append("</div>");
+        }
+        if (node.CrossFarmId.HasValue && !isFocal)
+        {
+            sb.Append("<a class=\"ped-link\" href=\"/lineage/").Append(node.CrossFarmId).Append("\">")
+              .Append(System.Net.WebUtility.HtmlEncode(node.Name))
+              .Append("</a>");
+            if (!string.IsNullOrEmpty(node.CrossFarmName))
+            {
+                sb.Append("<div class=\"ped-farm\">@ ").Append(System.Net.WebUtility.HtmlEncode(node.CrossFarmName)).Append("</div>");
+            }
+        }
+        else
+        {
+            sb.Append("<div class=\"ped-name\">").Append(System.Net.WebUtility.HtmlEncode(node.Name)).Append("</div>");
+        }
+        if (!string.IsNullOrEmpty(node.RegistrationNumber))
+        {
+            sb.Append("<div class=\"ped-reg\">").Append(System.Net.WebUtility.HtmlEncode(node.RegistrationNumber)).Append("</div>");
+        }
+        sb.Append("</div>");
+        return new Microsoft.AspNetCore.Html.HtmlString(sb.ToString());
+    }
+}
+
+<style>
+    .lineage-hero { display: flex; gap: 18px; margin-top: 16px; padding: 18px; background: #fff; border: 1px solid #e0e0e0; border-radius: 12px; align-items: flex-start; }
+    .lineage-photo { width: 140px; height: 140px; object-fit: cover; border-radius: 10px; flex-shrink: 0; }
+    .lineage-summary { flex: 1; min-width: 0; }
+    .lineage-summary h1 { margin: 4px 0 4px 0; }
+    .lineage-farm { margin: 8px 0 0 0; }
+    .lineage-link-count { margin: 14px 0 0 0; padding: 8px 12px; background: #e8f5e9; color: #1b5e20; border-radius: 6px; font-size: 0.92rem; }
+
+    .pedigree {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr 1fr 1fr;
+        gap: 8px;
+        margin-top: 12px;
+    }
+    .ped-col { display: flex; flex-direction: column; gap: 8px; }
+    .ped-col-self { justify-content: center; }
+    .ped-row { flex: 1; display: flex; }
+    .ped-cell {
+        flex: 1;
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 0.88rem;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 64px;
+    }
+    .ped-focal { background: #e8f5e9; border-color: #2e7d32; }
+    .ped-empty { background: #f7f8f7; border-style: dashed; color: #aaa; align-items: center; }
+    .ped-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #6b7a70; }
+    .ped-name { font-weight: 600; color: #1a2421; }
+    .ped-link { font-weight: 600; color: #2e7d32; text-decoration: underline; }
+    .ped-link:hover { color: #1b5e20; }
+    .ped-farm { font-size: 11px; color: #6b7a70; margin-top: 2px; }
+    .ped-reg { font-size: 11px; color: #6b7a70; margin-top: 2px; font-family: ui-monospace, monospace; }
+
+    .transfer-trail { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .transfer-stop { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px 14px; display: flex; gap: 12px; align-items: center; }
+    .transfer-date { font-variant-numeric: tabular-nums; color: #6b7a70; font-size: 0.85rem; min-width: 80px; }
+    .transfer-farm { font-size: 0.92rem; }
+
+    @@media (max-width: 800px) {
+        .pedigree { grid-template-columns: 1fr 1fr; font-size: 0.82rem; }
+        .pedigree .ped-col:nth-child(n+3) { display: none; }
+    }
+</style>

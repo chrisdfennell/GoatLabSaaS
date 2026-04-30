@@ -95,6 +95,14 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
     // Outbound email log (cross-tenant; super-admin only).
     public DbSet<EmailLog> EmailLogs => Set<EmailLog>();
 
+    // Public-marketplace subscribers — buyers who follow a farm via the
+    // anonymous "Follow this farm" form on /pub/{slug}.
+    public DbSet<FarmFollower> FarmFollowers => Set<FarmFollower>();
+
+    // Time-bounded vet share links: the owner mints one per goat to give a
+    // vet temporary read access to that goat's medical history.
+    public DbSet<VetShareLink> VetShareLinks => Set<VetShareLink>();
+
     // Admin audit log (cross-tenant)
     public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
 
@@ -370,6 +378,25 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
         // queries the admin page runs.
         modelBuilder.Entity<EmailLog>().HasIndex(e => e.At);
         modelBuilder.Entity<EmailLog>().HasIndex(e => e.ToAddress);
+
+        // FarmFollower: token must be unique (it's the auth for unsubscribe);
+        // (TenantId, Email) helps the "is this email already following?"
+        // check on POST follow, and unique-per-tenant prevents accidental
+        // double-subscribe from a refresh.
+        modelBuilder.Entity<FarmFollower>()
+            .HasIndex(f => f.UnsubscribeToken).IsUnique();
+        modelBuilder.Entity<FarmFollower>()
+            .HasIndex(f => new { f.TenantId, f.Email }).IsUnique();
+
+        // VetShareLink: lookup by token (hash) is the hot path — the public
+        // /vet/{token} endpoint hashes the inbound token and matches here.
+        modelBuilder.Entity<VetShareLink>()
+            .HasIndex(v => v.TokenHash).IsUnique();
+        modelBuilder.Entity<VetShareLink>()
+            .HasIndex(v => new { v.GoatId, v.RevokedAt });
+        modelBuilder.Entity<VetShareLink>()
+            .HasOne(v => v.Goat).WithMany()
+            .HasForeignKey(v => v.GoatId).OnDelete(DeleteBehavior.Cascade);
 
         // Admin audit log — chronological reads are the common case
         modelBuilder.Entity<AdminAuditLog>()

@@ -79,11 +79,67 @@ else
     </div>
 }
 
+<div class="farm-follow">
+    <div class="farm-follow-icon">📬</div>
+    <div class="farm-follow-body">
+        <h3 style="margin:0 0 4px 0;">Follow @name</h3>
+        <p style="margin:0 0 12px 0;color:#4a5a51;font-size:0.95rem;">
+            Get one email when @name lists a new goat for sale. No marketing, no daily digests. Unsubscribe anytime.
+        </p>
+        <form id="follow-form" class="farm-follow-form">
+            <input type="email" name="email" placeholder="you@example.com" required autocomplete="email"
+                   aria-label="Your email address" />
+            <button type="submit">Follow</button>
+        </form>
+        <div id="follow-status" class="farm-follow-status" role="status"></div>
+    </div>
+</div>
+
 <div class="farm-footer-cta">
     <p>
         Are you a breeder? <a href="/register">Start your own free GoatLab farm</a> and list your goats here.
     </p>
 </div>
+
+<script>
+    (function () {
+        var form = document.getElementById('follow-form');
+        var status = document.getElementById('follow-status');
+        if (!form || !status) return;
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            var input = form.querySelector('input[name="email"]');
+            var btn = form.querySelector('button');
+            if (!input || !btn) return;
+            var email = (input.value || '').trim();
+            if (!email) return;
+            btn.disabled = true; btn.textContent = '…';
+            status.textContent = '';
+            status.className = 'farm-follow-status';
+            try {
+                var resp = await fetch(@Json.Serialize($"/api/public/farms/{slug}/follow"), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                });
+                var data = await resp.json().catch(function () { return null; });
+                if (resp.ok && data && data.ok) {
+                    status.textContent = data.message || ('You’re now following @name.');
+                    status.className = 'farm-follow-status farm-follow-success';
+                    input.value = '';
+                } else {
+                    status.textContent = (data && data.message) || ('Couldn’t subscribe. Try again in a moment.');
+                    status.className = 'farm-follow-status farm-follow-error';
+                }
+            } catch (err) {
+                status.textContent = 'Network error — please try again.';
+                status.className = 'farm-follow-status farm-follow-error';
+            } finally {
+                btn.disabled = false; btn.textContent = 'Follow';
+            }
+        });
+    })();
+</script>
 
 <style>
     .farm-header { display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 28px; }
@@ -123,4 +179,42 @@ else
         color: #1b5e20;
         font-size: 0.95rem;
     }
+
+    .farm-follow {
+        display: flex;
+        gap: 16px;
+        margin-top: 32px;
+        padding: 18px 20px;
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        align-items: flex-start;
+    }
+    .farm-follow-icon { font-size: 32px; line-height: 1; }
+    .farm-follow-body { flex: 1; min-width: 0; }
+    .farm-follow-form { display: flex; gap: 8px; flex-wrap: wrap; }
+    .farm-follow-form input {
+        flex: 1; min-width: 200px;
+        padding: 10px 12px;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        font-size: 14px;
+        font-family: inherit;
+    }
+    .farm-follow-form input:focus { outline: none; border-color: #2e7d32; box-shadow: 0 0 0 2px rgba(46,125,50,0.15); }
+    .farm-follow-form button {
+        padding: 10px 18px;
+        background: #2e7d32;
+        color: #fff;
+        border: 0;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .farm-follow-form button:hover { background: #1b5e20; }
+    .farm-follow-form button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .farm-follow-status { font-size: 0.88rem; margin-top: 8px; min-height: 1.2em; }
+    .farm-follow-success { color: #1b5e20; }
+    .farm-follow-error { color: #c62828; }
 </style>

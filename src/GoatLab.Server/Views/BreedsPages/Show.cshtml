@@ -1,43 +1,57 @@
-@model IReadOnlyList<BreedFarmDto>
+@using GoatLab.Server.Controllers
+@using GoatLab.Shared.DTOs
+@model IReadOnlyList<BreedsPagesController.MarketplaceListing>
 @{
     var displayName = ViewData["DisplayName"] as string ?? "Breed";
     var slug = ViewData["BreedSlug"] as string ?? "";
-    ViewData["Title"] = $"{displayName} breeders — GoatLab";
-    ViewData["Description"] = $"{displayName} goats for sale from GoatLab breeders. Browse farms, see starting prices, and contact sellers directly.";
+    var farms = (ViewData["Farms"] as IReadOnlyList<BreedFarmDto>) ?? Array.Empty<BreedFarmDto>();
+    var totalListings = (int)(ViewData["TotalListings"] ?? 0);
+    var sex = ViewData["FilterSex"] as string;
+    var maxPrice = ViewData["FilterMaxPrice"] as int?;
+    var minPrice = ViewData["FilterMinPrice"] as int?;
+    var stateFilter = ViewData["FilterState"] as string;
+    var sortVal = ViewData["FilterSort"] as string;
+
+    ViewData["Title"] = $"{displayName} goats for sale — GoatLab marketplace";
+    ViewData["Description"] = $"Browse {Model.Count} {displayName} listings across {farms.Count} GoatLab farms. Filter by sex, price, and state. Contact sellers directly or reserve with a Stripe deposit.";
 
     var origin = $"{Context.Request.Scheme}://{Context.Request.Host}";
     ViewData["Canonical"] = $"{origin}/breeds/{slug}";
 
-    // JSON-LD: ItemList of BreederOrganization entries, each mapped to its
-    // public farm page. Allows Google to render breeder farms as structured
-    // sub-results.
-    var items = string.Join(",", Model.Select((f, i) =>
-    {
-        var farmUrl = $"{origin}/pub/{f.FarmSlug}";
-        var locJson = string.IsNullOrEmpty(f.Location)
-            ? ""
-            : $@", ""address"": {{ ""@type"": ""PostalAddress"", ""addressLocality"": ""{System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(f.Location!)}"" }}";
-        return $@"{{
+    // JSON-LD: ItemList of Product listings (the goats themselves) plus a
+    // sub-list of breeders. Google can use either as the rich-result anchor.
+    var products = string.Join(",", Model.Take(20).Select((g, i) => $@"{{
       ""@type"": ""ListItem"",
       ""position"": {i + 1},
       ""item"": {{
-        ""@type"": ""Organization"",
-        ""name"": ""{System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(f.FarmName)}"",
-        ""url"": ""{farmUrl}""{locJson}
+        ""@type"": ""Product"",
+        ""name"": ""{System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(g.Name)}"",
+        ""url"": ""{origin}/pub/{g.FarmSlug}/{g.Id}"",
+        ""category"": ""{System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(g.Breed ?? displayName)}""
+        {(g.AskingPriceCents.HasValue ? $@",""offers"": {{ ""@type"": ""Offer"", ""price"": ""{(g.AskingPriceCents.Value / 100m):0.00}"", ""priceCurrency"": ""USD"", ""availability"": ""https://schema.org/InStock"" }}" : "")}
       }}
-    }}";
-    }));
+    }}"));
     ViewData["JsonLd"] = $@"{{
   ""@context"": ""https://schema.org"",
   ""@type"": ""CollectionPage"",
-  ""name"": ""{System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(displayName)} breeders"",
+  ""name"": ""{System.Text.Encodings.Web.JavaScriptEncoder.Default.Encode(displayName)} goats for sale"",
   ""description"": ""{ViewData["Description"]}"",
   ""url"": ""{ViewData["Canonical"]}"",
   ""mainEntity"": {{
     ""@type"": ""ItemList"",
-    ""itemListElement"": [{items}]
+    ""numberOfItems"": {Model.Count},
+    ""itemListElement"": [{products}]
   }}
 }}";
+
+    string AgeString(DateTime? dob)
+    {
+        if (!dob.HasValue) return "";
+        var months = (int)((DateTime.UtcNow - dob.Value).TotalDays / 30.44);
+        if (months < 12) return months + " mo";
+        var y = months / 12; var m = months % 12;
+        return m == 0 ? y + " yr" : $"{y} yr {m} mo";
+    }
 }
 
 <div class="breadcrumbs">
@@ -46,25 +60,99 @@
     <span>@displayName</span>
 </div>
 
-<div class="eyebrow">Breed directory</div>
-<h1>@displayName breeders</h1>
+<div class="eyebrow">@displayName marketplace</div>
+<h1>@displayName goats for sale</h1>
+<p class="lede">
+    @totalListings active @(totalListings == 1 ? "listing" : "listings") across @farms.Count
+    @(farms.Count == 1 ? "farm" : "farms"). Filter and sort to find the right animal — or
+    <a href="#farms">browse breeders</a> directly.
+</p>
+
+<form method="get" class="filter-bar" action="/breeds/@slug">
+    <div class="filter-field">
+        <label>Sex</label>
+        <select name="sex">
+            <option value="">Any</option>
+            <option value="Female" selected="@(sex == "Female")">Doe</option>
+            <option value="Male" selected="@(sex == "Male")">Buck</option>
+            <option value="Wether" selected="@(sex == "Wether")">Wether</option>
+        </select>
+    </div>
+    <div class="filter-field">
+        <label>Min price ($)</label>
+        <input type="number" name="minPrice" min="0" step="50" value="@(minPrice?.ToString() ?? "")" placeholder="0" />
+    </div>
+    <div class="filter-field">
+        <label>Max price ($)</label>
+        <input type="number" name="maxPrice" min="0" step="50" value="@(maxPrice?.ToString() ?? "")" placeholder="any" />
+    </div>
+    <div class="filter-field">
+        <label>State / region</label>
+        <input type="text" name="state" value="@stateFilter" placeholder="e.g. Texas" maxlength="50" />
+    </div>
+    <div class="filter-field">
+        <label>Sort</label>
+        <select name="sort">
+            <option value="" selected="@(string.IsNullOrEmpty(sortVal))">Lowest price</option>
+            <option value="price-desc" selected="@(sortVal == "price-desc")">Highest price</option>
+            <option value="newest" selected="@(sortVal == "newest")">Newest</option>
+        </select>
+    </div>
+    <div class="filter-actions">
+        <button type="submit" class="cta-button">Apply</button>
+        @if (sex is not null || minPrice.HasValue || maxPrice.HasValue || !string.IsNullOrEmpty(stateFilter) || !string.IsNullOrEmpty(sortVal))
+        {
+            <a href="/breeds/@slug" class="filter-clear">Clear</a>
+        }
+    </div>
+</form>
 
 @if (Model.Count == 0)
 {
     <div class="empty-state">
         <div class="icon">🔍</div>
-        <h2 style="margin: 4px 0;">No @displayName farms listed right now.</h2>
-        <p><a href="/breeds" class="cta-button" style="display:inline-block;margin-top:12px;">Browse all breeds</a></p>
+        <h2 style="margin: 4px 0;">No matching @displayName listings.</h2>
+        <p style="margin: 4px 0;">Try widening your filters, or <a href="/breeds/@slug">clear them</a> to see all @totalListings @displayName listings.</p>
     </div>
 }
 else
 {
-    <p class="lede">
-        @Model.Count farm@(Model.Count == 1 ? "" : "s") listed. Click a farm to view their current @displayName goats.
-    </p>
+    <div class="goats-grid" style="margin-top: 24px;">
+        @foreach (var g in Model)
+        {
+            <a class="goat-card" href="/pub/@g.FarmSlug/@g.Id">
+                <div class="goat-card-photo @(string.IsNullOrEmpty(g.PrimaryPhotoUrl) ? "empty" : "")">
+                    @if (!string.IsNullOrEmpty(g.PrimaryPhotoUrl))
+                    {
+                        <img src="@g.PrimaryPhotoUrl" alt="@g.Name" loading="lazy" />
+                    }
+                    else
+                    {
+                        <span>🐐</span>
+                    }
+                </div>
+                <div class="goat-card-body">
+                    <div class="goat-card-name">@g.Name</div>
+                    <div class="goat-card-meta">
+                        @g.Gender@(g.DateOfBirth.HasValue ? $" · {AgeString(g.DateOfBirth)}" : "")
+                    </div>
+                    <div class="goat-card-farm">@g.FarmName@(string.IsNullOrEmpty(g.FarmLocation) ? "" : $" · {g.FarmLocation}")</div>
+                    @if (g.AskingPriceCents.HasValue)
+                    {
+                        <div class="goat-card-price">$@((g.AskingPriceCents.Value / 100m).ToString("N0"))</div>
+                    }
+                </div>
+            </a>
+        }
+    </div>
+}
 
+@if (farms.Count > 0)
+{
+    <h2 id="farms" style="margin-top: 48px;">@displayName breeders</h2>
+    <p class="lede" style="margin-top: 4px;">Visit a farm to see their full herd or contact them directly.</p>
     <div class="farms-grid">
-        @foreach (var f in Model)
+        @foreach (var f in farms)
         {
             <a class="farm-card" href="/pub/@f.FarmSlug">
                 @if (!string.IsNullOrEmpty(f.HeroPhotoUrl))
@@ -76,7 +164,7 @@ else
                     <div class="photo empty">🐐</div>
                 }
                 <div class="body">
-                    <h2 class="name">@f.FarmName</h2>
+                    <h3 class="name">@f.FarmName</h3>
                     @if (!string.IsNullOrEmpty(f.Location))
                     {
                         <div class="location">📍 @f.Location</div>
@@ -93,3 +181,48 @@ else
         }
     </div>
 }
+
+<style>
+    .filter-bar {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+        align-items: end;
+        margin-top: 16px;
+        padding: 16px;
+        background: #f7f8f7;
+        border: 1px solid #e3e8e4;
+        border-radius: 10px;
+    }
+    .filter-field { display: flex; flex-direction: column; }
+    .filter-field label { font-size: 12px; color: #4a5a51; font-weight: 600; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .filter-field input, .filter-field select { padding: 8px 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; font-family: inherit; background: #fff; }
+    .filter-field input:focus, .filter-field select:focus { outline: none; border-color: #2e7d32; box-shadow: 0 0 0 2px rgba(46,125,50,0.15); }
+    .filter-actions { display: flex; align-items: center; gap: 10px; }
+    .filter-clear { font-size: 13px; color: #6b7a70; }
+
+    .goats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 16px;
+    }
+    .goat-card {
+        display: block;
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        overflow: hidden;
+        text-decoration: none;
+        color: inherit;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .goat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.08); text-decoration: none; }
+    .goat-card-photo { aspect-ratio: 4 / 3; background: #f5f5f5; }
+    .goat-card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .goat-card-photo.empty { display: flex; align-items: center; justify-content: center; font-size: 3rem; color: #bbb; }
+    .goat-card-body { padding: 12px 14px; }
+    .goat-card-name { font-weight: 700; font-size: 1.05rem; }
+    .goat-card-meta { font-size: 0.85rem; color: #6b7a70; margin-top: 2px; }
+    .goat-card-farm { font-size: 0.82rem; color: #4a5a51; margin-top: 4px; }
+    .goat-card-price { color: #2e7d32; font-weight: 700; font-size: 1.05rem; margin-top: 6px; }
+</style>

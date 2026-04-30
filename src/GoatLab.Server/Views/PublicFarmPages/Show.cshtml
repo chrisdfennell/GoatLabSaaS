@@ -89,7 +89,10 @@ else if (depositStatus == "cancel")
         @if (Model.Pedigree?.Sire is not null || Model.Pedigree?.Dam is not null)
         {
             <section class="card">
-                <h2>Pedigree</h2>
+                <div class="d-flex" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                    <h2 style="margin:0;">Pedigree</h2>
+                    <a href="/lineage/@Model.Id" style="font-size:0.88rem;font-weight:600;">View full lineage →</a>
+                </div>
                 <div class="pedigree-grid">
                     <div class="pedigree-cell"><strong>@Model.Pedigree!.Name</strong></div>
                     <div>

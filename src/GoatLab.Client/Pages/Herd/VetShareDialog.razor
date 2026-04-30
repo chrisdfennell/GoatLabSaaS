@@ -1,0 +1,178 @@
+@inject HttpClient Http
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Share <strong>@GoatName</strong>'s health record</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_createdUrl is null)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                Mints a one-time URL the vet can open without signing up. They'll see this goat's
+                medical, weight, FAMACHA, and body-condition history, plus a form to leave a note that
+                lands on the timeline. Link is read-only; revoke anytime.
+            </MudText>
+
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudNumericField @bind-Value="_expiresInDays" Label="Expires in (days)"
+                                     Min="1" Max="60" Variant="Variant.Outlined" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_vetName" Label="Vet's name (optional)"
+                                  Variant="Variant.Outlined" Placeholder="Dr. Jane Doe, DVM" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_vetEmail" Label="Email link to vet (optional)"
+                                  Variant="Variant.Outlined" Placeholder="vet@clinic.com"
+                                  HelperText="If set, GoatLab emails the link directly. You can also copy it manually." />
+                </MudItem>
+            </MudGrid>
+
+            @if (_existing is { Count: > 0 })
+            {
+                <MudText Typo="Typo.subtitle2" Class="mt-4">Active links</MudText>
+                <MudList T="VetShareSummary" Dense>
+                    @foreach (var v in _existing)
+                    {
+                        <MudListItem T="VetShareSummary">
+                            <div class="d-flex align-center" style="gap:8px;">
+                                <code style="font-size:0.85em;">@v.TokenPrefix…</code>
+                                <span style="color:#6b7a70;font-size:0.85em;">expires @v.ExpiresAt.ToLocalTime().ToString("MMM d")</span>
+                                @if (v.LastViewedAt is not null)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success">viewed @v.LastViewedAt.Value.ToLocalTime().ToString("MMM d")</MudChip>
+                                }
+                                <MudSpacer />
+                                <MudButton Size="Size.Small" Color="Color.Error" Variant="Variant.Text"
+                                           OnClick="@(() => RevokeAsync(v.Id))" Disabled="_busy">Revoke</MudButton>
+                            </div>
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+        }
+        else
+        {
+            <MudAlert Severity="Severity.Success" Class="mb-3">
+                Share link created. Copy it now — for security, the URL won't be shown again.
+            </MudAlert>
+            <MudTextField Value="@_createdUrl" ReadOnly Variant="Variant.Outlined" Class="mb-2"
+                          Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.ContentCopy"
+                          OnAdornmentClick="CopyAsync" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                Expires @_createdExpiresAt?.ToLocalTime().ToString("MMM d, yyyy h:mm tt").
+                @if (_emailedTo is not null) { <span> Emailed to <strong>@_emailedTo</strong>.</span> }
+            </MudText>
+        }
+    </DialogContent>
+    <DialogActions>
+        @if (_createdUrl is null)
+        {
+            <MudButton OnClick="Cancel">Cancel</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateAsync" Disabled="_busy">
+                @(_busy ? "Generating…" : "Generate link")
+            </MudButton>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Done">Done</MudButton>
+        }
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public int GoatId { get; set; }
+    [Parameter] public string GoatName { get; set; } = "";
+
+    private int _expiresInDays = 14;
+    private string _vetName = "";
+    private string _vetEmail = "";
+    private string? _createdUrl;
+    private DateTime? _createdExpiresAt;
+    private string? _emailedTo;
+    private bool _busy;
+    private List<VetShareSummary>? _existing;
+
+    public record VetShareSummary(int Id, string TokenPrefix, DateTime CreatedAt, DateTime ExpiresAt,
+        DateTime? LastViewedAt, DateTime? RevokedAt, string? VetName, string? VetEmail);
+
+    record CreatedLink(int Id, string Token, DateTime ExpiresAt, string? VetName);
+
+    protected override async Task OnInitializedAsync() => await LoadExistingAsync();
+
+    private async Task LoadExistingAsync()
+    {
+        try
+        {
+            var rows = await Http.GetFromJsonAsync<List<VetShareSummary>>($"api/vet-shares?goatId={GoatId}");
+            _existing = rows?.Where(r => r.RevokedAt is null && r.ExpiresAt > DateTime.UtcNow).ToList() ?? new();
+        }
+        catch { _existing = new(); }
+    }
+
+    private async Task CreateAsync()
+    {
+        _busy = true;
+        try
+        {
+            var resp = await Http.PostAsJsonAsync("api/vet-shares", new
+            {
+                GoatId,
+                ExpiresInDays = _expiresInDays,
+                VetName = string.IsNullOrWhiteSpace(_vetName) ? null : _vetName,
+                VetEmail = string.IsNullOrWhiteSpace(_vetEmail) ? null : _vetEmail,
+            });
+            if (!resp.IsSuccessStatusCode)
+            {
+                Snackbar.Add($"Couldn't create link: {(int)resp.StatusCode}", Severity.Error);
+                return;
+            }
+            var dto = await resp.Content.ReadFromJsonAsync<CreatedLink>();
+            if (dto is null) return;
+
+            // The plaintext token is in the URL; we never see it again from the server.
+            var origin = NormalizedOrigin();
+            _createdUrl = $"{origin}/vet/{dto.Token}";
+            _createdExpiresAt = dto.ExpiresAt;
+            _emailedTo = string.IsNullOrWhiteSpace(_vetEmail) ? null : _vetEmail.Trim();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task RevokeAsync(int id)
+    {
+        _busy = true;
+        try
+        {
+            await Http.DeleteAsync($"api/vet-shares/{id}");
+            await LoadExistingAsync();
+        }
+        finally { _busy = false; }
+    }
+
+    private async Task CopyAsync()
+    {
+        if (_createdUrl is null) return;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", _createdUrl);
+            Snackbar.Add("Link copied.", Severity.Success);
+        }
+        catch { /* clipboard API may be blocked — user can select manually */ }
+    }
+
+    private string NormalizedOrigin()
+    {
+        // Use the page's own origin so dev (https://goatlab.local:8443) and
+        // prod (https://goatlab.app) both produce a working URL.
+        var baseAddr = Http.BaseAddress;
+        return baseAddr is null ? "" : $"{baseAddr.Scheme}://{baseAddr.Authority}";
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Done() => MudDialog.Close(DialogResult.Ok(true));
+}

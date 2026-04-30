@@ -196,6 +196,82 @@ public static class EmailTemplates
     );
 
     /// <summary>
+    /// Optional invite when the operator types a vet's email at link-creation
+    /// time. The plaintext token lives only in the URL of this email; the
+    /// server stores the SHA-256 hash.
+    /// </summary>
+    public static (string Subject, string Html, string Text) VetShareInvite(
+        string vetName, string url, DateTime expiresAt) =>
+    (
+        Subject: $"Goat health record share — {Brand}",
+        Html: $@"<div style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:0 auto;padding:24px;color:#1a2421;"">
+  <h2 style=""color:#2e7d32;margin-bottom:8px;"">Health record shared with you</h2>
+  <p>Hi {System.Net.WebUtility.HtmlEncode(vetName)},</p>
+  <p>A {Brand} farmer shared a goat's medical history with you. Click the button below to review records and (optionally) leave a note that lands back on the farm's timeline. No login required.</p>
+  <p style=""margin:28px 0;"">
+    <a href=""{url}"" style=""display:inline-block;background:#2e7d32;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;"">Open record</a>
+  </p>
+  <p style=""font-size:13px;color:#6b7a70;"">Link expires {expiresAt:MMM d, yyyy}. After that, ask the farmer for a fresh link.</p>
+</div>",
+        Text: $"A {Brand} farmer shared a goat health record with you.\nOpen: {url}\nExpires: {expiresAt:MMM d, yyyy}"
+    );
+
+    /// <summary>
+    /// Sent when an anonymous follower of a farm subscribes via the
+    /// "Follow this farm" form on /pub/{slug}. Confirms the subscription
+    /// and includes the unsubscribe link inline.
+    /// </summary>
+    public static (string Subject, string Html, string Text) FarmFollowConfirmation(
+        string farmName, string farmUrl, string unsubscribeUrl) =>
+    (
+        Subject: $"You're following {farmName} on {Brand}",
+        Html: $@"<div style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:0 auto;padding:24px;color:#1a2421;"">
+  <h2 style=""color:#2e7d32;margin-bottom:8px;"">You're now following {System.Net.WebUtility.HtmlEncode(farmName)}</h2>
+  <p>You'll get one email from {Brand} when {System.Net.WebUtility.HtmlEncode(farmName)} lists a new goat for sale. Nothing else — no marketing, no daily digests.</p>
+  <p style=""margin:24px 0;"">
+    <a href=""{farmUrl}"" style=""display:inline-block;background:#2e7d32;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;"">Visit the farm</a>
+  </p>
+  <p style=""font-size:12px;color:#6b7a70;"">Don't want these notifications? <a href=""{unsubscribeUrl}"">Unsubscribe with one click</a> — no login required.</p>
+</div>",
+        Text: $"You're now following {farmName} on {Brand}.\nYou'll get one email when they list a new goat. Visit: {farmUrl}\nUnsubscribe: {unsubscribeUrl}"
+    );
+
+    /// <summary>
+    /// Sent to every active follower of a farm when one of its goats gets
+    /// flipped to IsListedForSale=true. Single-CTA: "View this listing".
+    /// </summary>
+    public static (string Subject, string Html, string Text) NewListingNotification(
+        string farmName, string goatName, string? breed, string? gender, int? priceCents,
+        string? primaryPhotoUrl, string listingUrl, string unsubscribeUrl)
+    {
+        var priceLine = priceCents.HasValue
+            ? $"<p style=\"font-size:24px;color:#2e7d32;font-weight:700;margin:12px 0 4px 0;\">${(priceCents.Value / 100m):N0}</p>"
+            : "";
+        var photoLine = string.IsNullOrEmpty(primaryPhotoUrl)
+            ? ""
+            : $"<a href=\"{listingUrl}\"><img src=\"{primaryPhotoUrl}\" alt=\"{System.Net.WebUtility.HtmlEncode(goatName)}\" style=\"width:100%;max-width:480px;border-radius:8px;display:block;margin:16px 0;\" /></a>";
+        var detailsLine = string.Join(" · ", new[] { breed, gender }.Where(s => !string.IsNullOrWhiteSpace(s)));
+
+        var subject = priceCents.HasValue
+            ? $"{farmName} listed {goatName} — ${(priceCents.Value / 100m):N0}"
+            : $"{farmName} listed {goatName}";
+
+        var html = $@"<div style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:0 auto;padding:24px;color:#1a2421;"">
+  <p style=""font-size:13px;color:#6b7a70;margin:0;"">{Brand} marketplace</p>
+  <h2 style=""color:#2e7d32;margin:4px 0 8px 0;"">{System.Net.WebUtility.HtmlEncode(farmName)} listed {System.Net.WebUtility.HtmlEncode(goatName)} for sale</h2>
+  {photoLine}
+  {priceLine}
+  <p style=""color:#4a5a51;margin:0 0 16px 0;"">{System.Net.WebUtility.HtmlEncode(detailsLine)}</p>
+  <p style=""margin:24px 0;"">
+    <a href=""{listingUrl}"" style=""display:inline-block;background:#2e7d32;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;"">View this listing</a>
+  </p>
+  <p style=""font-size:12px;color:#6b7a70;"">You're getting this because you're following {System.Net.WebUtility.HtmlEncode(farmName)} on {Brand}. <a href=""{unsubscribeUrl}"">Unsubscribe</a> any time.</p>
+</div>";
+        var text = $"{farmName} listed {goatName} for sale.\n{detailsLine}\n{(priceCents.HasValue ? $"${(priceCents.Value / 100m):N0}\n" : "")}View: {listingUrl}\n\nUnsubscribe: {unsubscribeUrl}";
+        return (subject, html, text);
+    }
+
+    /// <summary>
     /// Branded chrome for super-admin bulk announcements ("we're moving servers
     /// Sunday at 2am"). Wraps the operator's message in a header bar, greeting,
     /// and a footer that points back to GoatLab. Operator types either prose

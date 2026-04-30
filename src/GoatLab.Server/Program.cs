@@ -290,6 +290,14 @@ builder.Services.AddScoped<RegistryImportService>();
 // Per-goat unified timeline aggregator.
 builder.Services.AddScoped<GoatLab.Server.Services.Timeline.ITimelineService, GoatLab.Server.Services.Timeline.TimelineService>();
 
+// Public-marketplace fan-out: notifies anonymous followers of a farm when
+// the farm lists a new goat for sale. Fired from GoatsController.Update.
+builder.Services.AddScoped<GoatLab.Server.Services.Marketplace.NewListingNotifier>();
+
+// Vet share-link mints + validates time-bounded URLs that grant a vet
+// read-access to one goat's medical history without signup.
+builder.Services.AddScoped<GoatLab.Server.Services.Vet.VetShareLinkService>();
+
 // Outbound webhooks. Dispatcher is scoped (shares the request's DbContext so
 // event emission participates in the same unit of work as the write that
 // triggered it). HttpClient is named "webhooks" with a 10s timeout applied

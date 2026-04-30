@@ -1,4 +1,5 @@
 using GoatLab.Server.Data;
+using GoatLab.Server.Services.Marketplace;
 using GoatLab.Server.Services.Plans;
 using GoatLab.Server.Services.Timeline;
 using GoatLab.Server.Services.Webhooks;
@@ -19,14 +20,16 @@ public class GoatsController : ControllerBase
     private readonly IFeatureGate _featureGate;
     private readonly WebhookDispatcher _webhooks;
     private readonly ITimelineService _timeline;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public GoatsController(GoatLabDbContext db, IWebHostEnvironment env, IFeatureGate featureGate, WebhookDispatcher webhooks, ITimelineService timeline)
+    public GoatsController(GoatLabDbContext db, IWebHostEnvironment env, IFeatureGate featureGate, WebhookDispatcher webhooks, ITimelineService timeline, IServiceScopeFactory scopeFactory)
     {
         _db = db;
         _env = env;
         _featureGate = featureGate;
         _webhooks = webhooks;
         _timeline = timeline;
+        _scopeFactory = scopeFactory;
     }
 
     private object GoatSummary(Goat g) => new
@@ -167,6 +170,10 @@ public class GoatsController : ControllerBase
         existing.SireId = goat.SireId;
         existing.DamId = goat.DamId;
         existing.PenId = goat.PenId;
+        // Detect the false→true listing flip BEFORE we overwrite. We only fan
+        // out follower notifications on an actual flip, not on every save of
+        // an already-listed goat (which would spam buyers on each price tweak).
+        var becameListed = !existing.IsListedForSale && goat.IsListedForSale;
         existing.IsListedForSale = goat.IsListedForSale;
         existing.AskingPriceCents = goat.AskingPriceCents;
         existing.SaleNotes = goat.SaleNotes;
@@ -174,6 +181,21 @@ public class GoatsController : ControllerBase
 
         await _db.SaveChangesAsync();
         await _webhooks.DispatchAsync(WebhookEventTypes.GoatUpdated, GoatSummary(existing));
+
+        if (becameListed)
+        {
+            // Fire-and-forget — capture goat id, not the controller's scoped
+            // services, so the background task gets its own scope.
+            var goatId = existing.Id;
+            _ = Task.Run(async () =>
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var notifier = scope.ServiceProvider.GetRequiredService<NewListingNotifier>();
+                try { await notifier.NotifyAsync(goatId); }
+                catch { /* notifier logs internally; never bubble */ }
+            });
+        }
+
         return NoContent();
     }
 
