@@ -3,6 +3,7 @@
 @inject AdminService Admin
 @inject ISnackbar Snackbar
 @inject IDialogService Dialog
+@inject NavigationManager Nav
 
 <PageTitle>@(detail?.Email ?? "User") — Admin — GoatLab</PageTitle>
 
@@ -116,6 +117,12 @@ else
                     <MudButton Variant="Variant.Filled" Color="Color.Success"
                                StartIcon="@Icons.Material.Filled.Restore" FullWidth
                                OnClick="RestoreAsync">Restore</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" Class="mt-2"
+                               StartIcon="@Icons.Material.Filled.DeleteForever" FullWidth
+                               OnClick="HardDeleteAsync">Permanently delete now</MudButton>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1 d-block">
+                        Skips the 30-day grace. Sole-owned farms are also soft-deleted (and follow their own grace).
+                    </MudText>
                 }
                 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-3">
                     Joined @detail.CreatedAt.ToLocalTime().ToString("MMM d, yyyy")
@@ -286,5 +293,39 @@ else
             await LoadAsync();
         }
         catch (Exception ex) { Snackbar.Add($"Restore failed: {ex.Message}", Severity.Error); }
+    }
+
+    // Type-the-email confirmation pattern (AWS / GitHub style). The simple
+    // ShowMessageBox doesn't take user input, so we prompt twice: first
+    // explaining what's about to happen, then opening a textfield prompt
+    // for the email. Both server and client validate; the server does the
+    // authoritative check.
+    private async Task HardDeleteAsync()
+    {
+        if (detail is null) return;
+        var ack = await Dialog.ShowMessageBox(
+            title: "Permanently delete this account?",
+            message: $"This removes '{detail.Email}' from the database. Their data is gone — no restore button. Sole-owned farms (if any) get soft-deleted and enter their own 30-day grace.",
+            yesText: "I understand, continue",
+            cancelText: "Cancel");
+        if (ack != true) return;
+
+        var typed = await Dialog.ShowAsync<TypeEmailToConfirmDialog>("Type the email to confirm",
+            new DialogParameters { ["ExpectedEmail"] = detail.Email },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await typed.Result;
+        if (result is null || result.Canceled || result.Data is not string entered) return;
+
+        var (ok, err, orphans) = await Admin.HardDeleteUserAsync(Id, entered);
+        if (!ok)
+        {
+            Snackbar.Add($"Hard-delete failed: {err}", Severity.Error);
+            return;
+        }
+        var msg = (orphans ?? 0) > 0
+            ? $"User permanently deleted. {orphans} sole-owned farm(s) soft-deleted."
+            : "User permanently deleted.";
+        Snackbar.Add(msg, Severity.Success);
+        Nav.NavigateTo("/admin/users");
     }
 }

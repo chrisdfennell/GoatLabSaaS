@@ -88,6 +88,25 @@ public class AdminService
     public Task RestoreUserAsync(string id) =>
         EnsurePostAsync($"api/admin/users/{id}/restore", new { });
 
+    public record HardDeleteResultDto(int OrphanedTenantsSoftDeleted);
+
+    // Server requires the user to already be soft-deleted (progression
+    // active → soft → hard) and the typed email to match the user's email.
+    // Returns the response body so the caller can show "also soft-deleted N
+    // sole-owned tenants" in the success snackbar.
+    public async Task<(bool ok, string? error, int? orphans)> HardDeleteUserAsync(string id, string confirmEmail)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/admin/users/{id}/hard-delete",
+            new { ConfirmEmail = confirmEmail });
+        if (resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadFromJsonAsync<HardDeleteResultDto>();
+            return (true, null, body?.OrphanedTenantsSoftDeleted);
+        }
+        var raw = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(raw) ? $"HTTP {(int)resp.StatusCode}" : raw, null);
+    }
+
     // Impersonation
     public async Task<ImpersonationState?> GetImpersonationAsync()
     {

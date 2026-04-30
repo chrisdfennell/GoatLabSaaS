@@ -532,6 +532,60 @@ public class AdminController : ControllerBase
         return NoContent();
     }
 
+    public record HardDeleteConfirmation(string ConfirmEmail);
+
+    // Manual hard-delete. Mirrors HardDeleteSweepJob's logic but for a single
+    // user, and short-circuits the 30-day Hangfire grace. Soft-delete must
+    // already have happened (the progression: active → soft → hard) so a
+    // mis-click can't nuke a live account, and the typed-email confirmation
+    // catches the same kind of mistake.
+    [HttpPost("users/{id}/hard-delete")]
+    public async Task<IActionResult> HardDeleteUser(string id, [FromBody] HardDeleteConfirmation? body, CancellationToken ct)
+    {
+        var user = await _userManager.FindByIdAsync(id);
+        if (user is null) return NotFound();
+
+        var callerId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (callerId == id) return BadRequest(new { error = "You can't hard-delete yourself." });
+        if (user.DeletedAt is null)
+            return BadRequest(new { error = "Soft-delete the user first, then hard-delete." });
+
+        if (body is null || !string.Equals(body.ConfirmEmail, user.Email, StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { error = "Type the user's email exactly to confirm." });
+
+        // Soft-delete any tenant where this user is the only remaining member
+        // so it enters the same 30-day grace. Avoids orphan tenants with
+        // goats/medical records and no live owners. Doesn't bypass the
+        // tenants' own grace — separate hard-delete needed if you want
+        // those gone immediately.
+        _tenantContext.BypassFilter = true;
+        var memberTenantIds = await _db.TenantMembers
+            .Where(m => m.UserId == id)
+            .Select(m => m.TenantId)
+            .ToListAsync(ct);
+        var tenantsToOrphan = await _db.Tenants
+            .Where(t => memberTenantIds.Contains(t.Id) && t.DeletedAt == null)
+            .Where(t => !_db.TenantMembers.Any(m => m.TenantId == t.Id && m.UserId != id))
+            .ToListAsync(ct);
+        var now = DateTime.UtcNow;
+        foreach (var t in tenantsToOrphan) t.DeletedAt = now;
+        if (tenantsToOrphan.Count > 0) await _db.SaveChangesAsync(ct);
+
+        // Identity cascade picks up claims/logins/tokens; FK cascade on
+        // TenantMembers handles memberships. Things linked by UserId-as-
+        // string (audit-log target ids, GoatTransfer.InitiatedByUserId,
+        // VetShareLink.CreatedByUserId, ApiKey.CreatedByUserId) are NOT
+        // wiped — they're a history of this user's actions, not state
+        // owned by them. The audit trail must outlive the user.
+        var emailForAudit = user.Email;
+        var result = await _userManager.DeleteAsync(user);
+        if (!result.Succeeded)
+            return StatusCode(500, new { errors = result.Errors.Select(e => e.Description) });
+
+        await _audit.LogAsync("user.hard_delete", "User", id, emailForAudit);
+        return Ok(new { orphanedTenantsSoftDeleted = tenantsToOrphan.Count });
+    }
+
     // --------- Impersonation ---------
 
     public const string OriginalTenantClaimType = "original_tenant_id";

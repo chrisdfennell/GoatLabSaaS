@@ -1,0 +1,46 @@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6" Style="color:#c62828;">
+            <MudIcon Icon="@Icons.Material.Filled.Warning" /> Type the email to confirm
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            This action cannot be undone. To confirm, type the user's email below.
+        </MudText>
+        <MudText Typo="Typo.body2" Class="mb-2">
+            Email: <code>@ExpectedEmail</code>
+        </MudText>
+        <MudTextField @bind-Value="_typed"
+                      Label="Type the email"
+                      Variant="Variant.Outlined"
+                      Immediate
+                      AutoFocus
+                      Placeholder="@ExpectedEmail" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" Disabled="@(!IsMatch)" OnClick="Confirm">
+            Permanently delete
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public string ExpectedEmail { get; set; } = "";
+
+    private string _typed = "";
+
+    // Case-insensitive match — addresses are not case-sensitive locally and
+    // the server does the same comparison anyway.
+    private bool IsMatch =>
+        !string.IsNullOrEmpty(_typed)
+        && string.Equals(_typed.Trim(), ExpectedEmail, StringComparison.OrdinalIgnoreCase);
+
+    private void Cancel() => MudDialog.Cancel();
+
+    // Pass the typed string back so the caller doesn't have to read it from
+    // a parameter binding after the dialog closes.
+    private void Confirm() => MudDialog.Close(DialogResult.Ok(_typed.Trim()));
+}
