@@ -66,6 +66,36 @@ public class AccountController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterRequest req)
     {
+        // ---------------- Invite-aware register ----------------
+        // If the user reached /register from an invite link, look the invite
+        // up FIRST. We need to enforce three things before creating any user:
+        //   1. The invite is real, not expired, not already used.
+        //   2. The email the user typed matches the email we invited.
+        //   3. We have a tenant id to attach them to (no new tenant created).
+        // Any failure short-circuits with a 400 so we don't leave a half-
+        // registered orphaned user.
+        TenantInvitation? invite = null;
+        if (!string.IsNullOrWhiteSpace(req.InviteToken))
+        {
+            _tenantContext.BypassFilter = true;
+            var hash = HashInviteToken(req.InviteToken);
+            invite = await _db.TenantInvitations.FirstOrDefaultAsync(i => i.TokenHash == hash);
+            _tenantContext.BypassFilter = false;
+
+            if (invite is null) return BadRequest(new { error = "Invite link is invalid." });
+            if (invite.AcceptedAt is not null) return BadRequest(new { error = "Invite was already accepted." });
+            if (invite.RevokedAt is not null) return BadRequest(new { error = "Invite was revoked." });
+            if (invite.ExpiresAt < DateTime.UtcNow) return BadRequest(new { error = "Invite has expired." });
+            if (!string.Equals(req.Email, invite.Email, StringComparison.OrdinalIgnoreCase))
+                return BadRequest(new { error = $"This invite is for {invite.Email}. Use that email to sign up." });
+        }
+        else
+        {
+            // No invite — the standard self-serve flow needs a farm name.
+            if (string.IsNullOrWhiteSpace(req.FarmName))
+                return BadRequest(new { error = "Farm name is required." });
+        }
+
         var user = new ApplicationUser
         {
             UserName = req.Email,
@@ -80,32 +110,51 @@ public class AccountController : ControllerBase
         // Bypass the tenant query filter while creating the user's first tenant.
         _tenantContext.BypassFilter = true;
 
-        var slug = Slugify(req.FarmName);
-        var baseSlug = slug;
-        var n = 1;
-        while (await _db.Tenants.AnyAsync(t => t.Slug == slug))
+        int tenantId;
+        if (invite is not null)
         {
-            slug = $"{baseSlug}-{++n}";
+            // Invite path — attach the user to the existing tenant. No new
+            // tenant created, so plan/slug logic below is skipped entirely.
+            tenantId = invite.TenantId;
+            _db.TenantMembers.Add(new TenantMember
+            {
+                TenantId = invite.TenantId,
+                UserId = user.Id,
+                Role = invite.Role,
+            });
+            invite.AcceptedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
         }
-
-        // Assign a default plan (first active public plan, or the Homestead seed).
-        var defaultPlanId = await _db.Plans
-            .Where(p => p.IsActive && p.IsPublic)
-            .OrderBy(p => p.DisplayOrder)
-            .Select(p => (int?)p.Id)
-            .FirstOrDefaultAsync() ?? 1;
-
-        var tenant = new Tenant { Name = req.FarmName, Slug = slug, PlanId = defaultPlanId };
-        _db.Tenants.Add(tenant);
-        await _db.SaveChangesAsync();
-
-        _db.TenantMembers.Add(new TenantMember
+        else
         {
-            TenantId = tenant.Id,
-            UserId = user.Id,
-            Role = TenantRole.Owner,
-        });
-        await _db.SaveChangesAsync();
+            var slug = Slugify(req.FarmName);
+            var baseSlug = slug;
+            var n = 1;
+            while (await _db.Tenants.AnyAsync(t => t.Slug == slug))
+            {
+                slug = $"{baseSlug}-{++n}";
+            }
+
+            // Assign a default plan (first active public plan, or the Homestead seed).
+            var defaultPlanId = await _db.Plans
+                .Where(p => p.IsActive && p.IsPublic)
+                .OrderBy(p => p.DisplayOrder)
+                .Select(p => (int?)p.Id)
+                .FirstOrDefaultAsync() ?? 1;
+
+            var tenant = new Tenant { Name = req.FarmName, Slug = slug, PlanId = defaultPlanId };
+            _db.Tenants.Add(tenant);
+            await _db.SaveChangesAsync();
+            tenantId = tenant.Id;
+
+            _db.TenantMembers.Add(new TenantMember
+            {
+                TenantId = tenant.Id,
+                UserId = user.Id,
+                Role = TenantRole.Owner,
+            });
+            await _db.SaveChangesAsync();
+        }
 
         // Fire off confirmation email. If SMTP isn't configured, NullEmailSender
         // logs + drops the send. Any exception (mail server down, bad creds) is
@@ -125,8 +174,19 @@ public class AccountController : ControllerBase
             });
         }
 
-        await _signInManager.SignInWithClaimsAsync(user, isPersistent: true, BuildClaims(user, tenant.Id));
+        await _signInManager.SignInWithClaimsAsync(user, isPersistent: true, BuildClaims(user, tenantId));
         return Ok(await BuildCurrentUserDto(user));
+    }
+
+    // Mirrors TeamController.Sha256 — the invite token's hashed form is what
+    // gets persisted, so accept-on-register has to recompute the hash to look
+    // the row up. Convert.ToHexString returns UPPERCASE which is what
+    // TeamController stored; do NOT lowercase here or the lookup misses.
+    private static string HashInviteToken(string token)
+    {
+        var bytes = System.Text.Encoding.UTF8.GetBytes(token);
+        var digest = System.Security.Cryptography.SHA256.HashData(bytes);
+        return Convert.ToHexString(digest);
     }
 
     [AllowAnonymous]

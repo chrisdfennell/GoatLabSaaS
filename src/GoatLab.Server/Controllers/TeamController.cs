@@ -49,6 +49,45 @@ public class TeamController : ControllerBase
     public record CreateInviteRequest(string Email, TenantRole Role);
     public record ChangeRoleRequest(TenantRole Role);
     public record AcceptInviteRequest(string Token);
+    public record InvitePreviewDto(string Email, string FarmName, TenantRole Role, DateTime ExpiresAt);
+
+    /// <summary>
+    /// Anonymous preview of an invite. Lets the /register page detect that a
+    /// new user is joining an existing farm so it can hide the "Farm name"
+    /// field, lock the email to the invited address, and route through the
+    /// invite-aware register path. No token validation beyond expiry/revoked
+    /// checks — leaking "this email was invited to this farm" to whoever
+    /// holds the token is the same surface area as just sending them the
+    /// email itself.
+    /// </summary>
+    [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+    [HttpGet("invites/preview")]
+    public async Task<ActionResult<InvitePreviewDto>> Preview([FromQuery] string token, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return NotFound();
+
+        var hash = Sha256(token);
+
+        _tenantContext.BypassFilter = true;
+        try
+        {
+            var invite = await _db.TenantInvitations
+                .Include(i => i.Tenant)
+                .FirstOrDefaultAsync(i => i.TokenHash == hash, ct);
+
+            if (invite is null) return NotFound();
+            if (invite.AcceptedAt is not null) return BadRequest(new { error = "Invite was already accepted." });
+            if (invite.RevokedAt is not null) return BadRequest(new { error = "Invite was revoked." });
+            if (invite.ExpiresAt < DateTime.UtcNow) return BadRequest(new { error = "Invite has expired." });
+
+            return new InvitePreviewDto(
+                invite.Email,
+                invite.Tenant?.Name ?? "this farm",
+                invite.Role,
+                invite.ExpiresAt);
+        }
+        finally { _tenantContext.BypassFilter = false; }
+    }
 
     [HttpGet]
     public async Task<ActionResult<TeamDto>> Get(CancellationToken ct)

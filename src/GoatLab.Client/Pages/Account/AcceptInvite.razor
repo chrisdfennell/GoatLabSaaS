@@ -22,12 +22,12 @@
         <MudIcon Icon="@Icons.Material.Filled.GroupAdd" Size="Size.Large" Color="Color.Primary" />
         <MudText Typo="Typo.h5" Class="mt-2 mb-2">Sign in to accept</MudText>
         <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
-            You need a GoatLab account with the invited email address. Sign in, then come back to this link.
+            You need a GoatLab account with the invited email address. Sign in, then come back to this link — or create an account and we'll join you in one step.
         </MudText>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth Href="@LoginReturnUrl()">
             Sign in
         </MudButton>
-        <MudButton Variant="Variant.Text" Color="Color.Primary" FullWidth Class="mt-2" Href="/register">
+        <MudButton Variant="Variant.Text" Color="Color.Primary" FullWidth Class="mt-2" Href="@RegisterReturnUrl()">
             Create an account
         </MudButton>
     }
@@ -61,6 +61,13 @@
 
     private string LoginReturnUrl() =>
         $"/login?returnUrl={Uri.EscapeDataString($"/accept-invite?token={_token}")}";
+
+    // Forwards the invite token to /register. The register page detects the
+    // inviteToken query string, fetches a preview, hides the farm-name
+    // field, and the server attaches the new user to the invited tenant
+    // atomically — no orphaned new tenant + manual accept-invite afterward.
+    private string RegisterReturnUrl() =>
+        $"/register?inviteToken={Uri.EscapeDataString(_token ?? "")}";
 
     protected override async Task OnInitializedAsync()
     {

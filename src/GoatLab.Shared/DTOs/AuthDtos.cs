@@ -7,7 +7,15 @@ public record RegisterRequest(
     [Required, EmailAddress] string Email,
     [Required, MinLength(8)] string Password,
     [Required, MaxLength(100)] string DisplayName,
-    [Required, MaxLength(100)] string FarmName
+    // FarmName is required for the standard self-serve flow; ignored when
+    // InviteToken is set (the user is joining an existing farm). The DTO
+    // keeps it as a non-nullable string for validation symmetry — the client
+    // sends a placeholder when an invite is in play.
+    [MaxLength(100)] string FarmName,
+    // Set when the user reached /register from an invite link. The server
+    // verifies the token, skips tenant creation, and attaches the new user
+    // as a member of the invited tenant in the same transaction.
+    string? InviteToken = null
 );
 
 public record LoginRequest(

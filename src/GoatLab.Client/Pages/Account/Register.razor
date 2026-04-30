@@ -5,6 +5,7 @@
 @inject AuthService AuthApi
 @inject CookieAuthStateProvider AuthState
 @inject NavigationManager Nav
+@inject HttpClient Http
 
 <PageTitle>Sign up — GoatLab</PageTitle>
 
@@ -25,19 +26,40 @@
     }
     else
     {
-        <MudText Typo="Typo.h5" GutterBottom="true">Start your free GoatLab account</MudText>
-        <MudText Typo="Typo.body2" Class="mb-4" Color="Color.Secondary">
-            Track your herd, milk production, breeding, health — everything in one place.
-        </MudText>
+        @if (_invite is not null)
+        {
+            <div class="d-flex align-center mb-3" style="gap:10px;">
+                <MudIcon Icon="@Icons.Material.Filled.GroupAdd" Color="Color.Primary" Size="Size.Large" />
+                <div>
+                    <MudText Typo="Typo.h5">Join @_invite.FarmName</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">
+                        You've been invited as a <strong>@_invite.Role.ToString().ToLowerInvariant()</strong>.
+                        Create your account to join.
+                    </MudText>
+                </div>
+            </div>
+        }
+        else
+        {
+            <MudText Typo="Typo.h5" GutterBottom="true">Start your free GoatLab account</MudText>
+            <MudText Typo="Typo.body2" Class="mb-4" Color="Color.Secondary">
+                Track your herd, milk production, breeding, health — everything in one place.
+            </MudText>
+        }
 
         <EditForm Model="@_model" OnValidSubmit="SubmitAsync">
             <DataAnnotationsValidator />
-            <MudTextField @bind-Value="_model.FarmName" Label="Farm / homestead name" Variant="Variant.Outlined"
-                          Required="true" Class="mb-3" HelperText="You can rename this later." />
+            @if (_invite is null)
+            {
+                <MudTextField @bind-Value="_model.FarmName" Label="Farm / homestead name" Variant="Variant.Outlined"
+                              Required="true" Class="mb-3" HelperText="You can rename this later." />
+            }
             <MudTextField @bind-Value="_model.DisplayName" Label="Your name" Variant="Variant.Outlined"
                           Required="true" Class="mb-3" />
             <MudTextField @bind-Value="_model.Email" Label="Email" Variant="Variant.Outlined"
-                          InputType="InputType.Email" Required="true" Class="mb-3" />
+                          InputType="InputType.Email" Required="true" Class="mb-3"
+                          ReadOnly="@(_invite is not null)"
+                          HelperText="@(_invite is not null ? "Locked to the invited address." : null)" />
             <MudTextField @bind-Value="_model.Password" Label="Password" Variant="Variant.Outlined"
                           InputType="InputType.Password" Required="true" Class="mb-4"
                           HelperText="At least 8 characters with upper, lower, digit, and symbol." />
@@ -49,7 +71,9 @@
 
             <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled"
                        Color="Color.Primary" FullWidth="true" Disabled="_busy">
-                @(_busy ? "Creating account…" : "Create account")
+                @(_busy
+                    ? (_invite is not null ? "Joining farm…" : "Creating account…")
+                    : (_invite is not null ? $"Join {_invite.FarmName}" : "Create account"))
             </MudButton>
         </EditForm>
 
@@ -65,11 +89,18 @@
     private bool _busy;
     private string? _pendingConfirmEmail;
     private string? _returnUrl;
+    private string? _inviteToken;
+    private InvitePreview? _invite;
+
+    // Mirrors TeamController.InvitePreviewDto on the server. We deserialize
+    // into this lightweight shape rather than pulling the whole shared DTO
+    // module in just for a registration page.
+    public record InvitePreview(string Email, string FarmName, GoatLab.Shared.Models.TenantRole Role, DateTime ExpiresAt);
 
     // Route preservation: /register?returnUrl=/transfer/XXX lets us hand the
     // user back to the page they came from after they finish signing up.
     // Only in-app relative paths are honored to prevent open-redirect abuse.
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         var uri = new Uri(Nav.Uri);
         var qs = System.Web.HttpUtility.ParseQueryString(uri.Query);
@@ -77,6 +108,35 @@
         if (!string.IsNullOrWhiteSpace(candidate) && candidate.StartsWith('/') && !candidate.StartsWith("//"))
         {
             _returnUrl = candidate;
+        }
+
+        // Invite-aware register: fetch the invite preview so we can hide the
+        // farm-name field, lock the email to the invited address, and route
+        // through the invite-on-register server path.
+        _inviteToken = qs["inviteToken"];
+        if (!string.IsNullOrWhiteSpace(_inviteToken))
+        {
+            try
+            {
+                _invite = await Http.GetFromJsonAsync<InvitePreview>(
+                    $"api/team/invites/preview?token={Uri.EscapeDataString(_inviteToken)}");
+                if (_invite is not null)
+                {
+                    _model.Email = _invite.Email;
+                    // FarmName isn't asked for in the invite flow — use a
+                    // placeholder so server-side validation passes even though
+                    // the field is ignored when InviteToken is set.
+                    _model.FarmName = _invite.FarmName;
+                }
+            }
+            catch
+            {
+                // Token invalid / expired — fall through to standard register
+                // and let the user pick. Better than a hard error: maybe the
+                // token expired but they still want to make an account.
+                _invite = null;
+                _inviteToken = null;
+            }
         }
     }
 
@@ -90,7 +150,7 @@
         _error = null;
 
         var result = await AuthApi.RegisterAsync(new RegisterRequest(
-            _model.Email, _model.Password, _model.DisplayName, _model.FarmName));
+            _model.Email, _model.Password, _model.DisplayName, _model.FarmName, _inviteToken));
         _busy = false;
 
         if (!result.Ok)
@@ -106,7 +166,10 @@
         }
 
         AuthState.NotifyUserChanged(result.User);
-        Nav.NavigateTo(_returnUrl ?? "/dashboard");
+        // On invite acceptance, route to the dashboard of the joined tenant
+        // rather than honoring an upstream returnUrl that pointed back at
+        // /accept-invite (would be a no-op now that they're already a member).
+        Nav.NavigateTo(_invite is not null ? "/dashboard" : (_returnUrl ?? "/dashboard"));
     }
 
     private class RegisterModel
