@@ -18,6 +18,11 @@
                     <MudText Typo="Typo.caption" Style="font-weight:700;">@Percent%</MudText>
                 </div>
             </div>
+            <MudTooltip Text="Hide this checklist for everyone on this farm" Placement="Placement.Left">
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                               OnClick="DismissAsync" Disabled="_dismissing"
+                               aria-label="Skip the onboarding checklist" />
+            </MudTooltip>
         </div>
 
         <MudList T="string" Dense>
@@ -43,6 +48,13 @@
                 </MudListItem>
             }
         </MudList>
+
+        <div class="d-flex justify-end mt-2">
+            <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Default"
+                       OnClick="DismissAsync" Disabled="_dismissing">
+                Skip for now
+            </MudButton>
+        </div>
     </MudPaper>
 }
 
@@ -55,6 +67,7 @@
 
 @code {
     private OnboardingStatus? _status;
+    private bool _dismissing;
     private int Percent => _status is null || _status.TotalCount == 0 ? 0
         : (int)Math.Round(100.0 * _status.DoneCount / _status.TotalCount);
 
@@ -67,5 +80,17 @@
     private void Go(OnboardingStep step)
     {
         if (!step.Done) Nav.NavigateTo(step.Href);
+    }
+
+    // Optimistically hide the card immediately so the click feels instant.
+    // Server stamp on Tenant.OnboardingDismissedAt keeps it hidden across
+    // devices and team members forever, until someone clears the column.
+    private async Task DismissAsync()
+    {
+        if (_dismissing) return;
+        _dismissing = true;
+        _status = new OnboardingStatus(Array.Empty<OnboardingStep>(), 0, 0, AllDone: true);
+        try { await Onboarding.DismissAsync(); }
+        catch { /* server failed but UX already hidden — next page load re-checks */ }
     }
 }

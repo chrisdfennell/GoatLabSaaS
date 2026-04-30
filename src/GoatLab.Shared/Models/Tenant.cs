@@ -77,6 +77,15 @@ public class Tenant
     // resubscription triggers a fresh reminder.
     public DateTime? TrialReminderSentAt { get; set; }
 
+    /// <summary>
+    /// Set when the user clicks "Skip for now" on the dashboard onboarding
+    /// checklist. While non-null, the checklist hides itself for everyone in
+    /// the tenant — meat / brush-clearing / pet operations don't need a milk
+    /// or breeding nudge cluttering their dashboard. Reversible by clearing
+    /// the column (no UI for that yet — easy add later if asked).
+    /// </summary>
+    public DateTime? OnboardingDismissedAt { get; set; }
+
     // --- Alerts ---
 
     /// <summary>

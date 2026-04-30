@@ -10,4 +10,10 @@ public class OnboardingService
 
     public Task<OnboardingStatus?> GetStatusAsync()
         => _http.GetFromJsonAsync<OnboardingStatus>("api/onboarding/status");
+
+    public async Task<bool> DismissAsync()
+    {
+        var resp = await _http.PostAsync("api/onboarding/dismiss", content: null);
+        return resp.IsSuccessStatusCode;
+    }
 }
