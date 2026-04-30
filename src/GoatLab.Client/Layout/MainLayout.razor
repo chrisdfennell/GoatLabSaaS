@@ -240,11 +240,22 @@
     margin: 8px 0 12px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
+/* Sticky footer: MudMainContent is already display:flex / flex-direction:
+   column, but it didn't fill the viewport when the page content was short.
+   Force it to at least viewport-height so margin-top:auto on the footer
+   pushes it to the actual bottom on sparse pages (Team, Forecasts, etc).
+   100dvh on capable browsers handles mobile viewport-bar resize. */
+.mud-main-content {
+    min-height: 100vh;
+    min-height: 100dvh;
+}
 .app-footer {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 16px;
     padding: 24px 4px 8px;
+    margin-top: auto;
     font-size: 0.85rem;
     color: var(--mud-palette-text-secondary);
 }
