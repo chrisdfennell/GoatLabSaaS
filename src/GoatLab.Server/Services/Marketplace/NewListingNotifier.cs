@@ -101,5 +101,82 @@ public class NewListingNotifier
                 .Where(f => idsToStamp.Contains(f.Id))
                 .ExecuteUpdateAsync(setters => setters.SetProperty(f => f.LastNotifiedAt, now), ct);
         }
+
+        // ---- Saved-search marketplace alerts ----
+        // Fan out to anonymous buyers who registered a search criteria that
+        // matches this listing. Goat data is already loaded above.
+
+        var goatBreedSlug = GoatLab.Server.Controllers.PublicController.BreedSlug(goat.Breed);
+        var sexStr = goat.Gender.ToString();
+
+        // Coarse SQL prefilter: by breed slug. Sex / price / state are checked
+        // in-memory because they involve nullable conditionals and case-insensitive
+        // substring matching that's awkward in EF.
+        var alertCandidates = await _db.MarketplaceAlerts.IgnoreQueryFilters()
+            .Where(a => a.IsActive && (a.BreedSlug == null || a.BreedSlug == goatBreedSlug))
+            .Select(a => new
+            {
+                a.Id, a.Email, a.UnsubscribeToken,
+                a.BreedSlug, a.Sex, a.MinPriceCents, a.MaxPriceCents, a.StateMatch
+            })
+            .ToListAsync(ct);
+
+        var alertIdsToStamp = new List<int>();
+        foreach (var a in alertCandidates)
+        {
+            // Sex filter
+            if (!string.IsNullOrEmpty(a.Sex)
+                && !string.Equals(a.Sex, sexStr, StringComparison.OrdinalIgnoreCase)) continue;
+            // Price floor / ceiling — only matchable when the listing has a price
+            if (a.MinPriceCents.HasValue && (goat.AskingPriceCents ?? 0) < a.MinPriceCents.Value) continue;
+            if (a.MaxPriceCents.HasValue && (goat.AskingPriceCents ?? int.MaxValue) > a.MaxPriceCents.Value) continue;
+            // State substring match — null-safe on either side
+            if (!string.IsNullOrEmpty(a.StateMatch))
+            {
+                var loc = await _db.Tenants.IgnoreQueryFilters()
+                    .Where(t => t.Id == goat.TenantId).Select(t => t.Location).FirstOrDefaultAsync(ct);
+                if (string.IsNullOrEmpty(loc)) continue;
+                if (loc.IndexOf(a.StateMatch, StringComparison.OrdinalIgnoreCase) < 0) continue;
+            }
+
+            try
+            {
+                var unsub = $"{origin}/alerts/unsubscribe?token={a.UnsubscribeToken}";
+                var label = BuildCriteriaLabel(a.BreedSlug, a.Sex, a.MinPriceCents, a.MaxPriceCents, a.StateMatch);
+                var (subject, html, text) = EmailTemplates.MarketplaceAlertMatch(
+                    label, goat.TenantName, goat.Name, goat.Breed, sexStr,
+                    goat.AskingPriceCents, photoUrl, listingUrl, unsub);
+                await _email.SendAsync(a.Email, subject, html, text, ct);
+                alertIdsToStamp.Add(a.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to notify saved-search alert {Id}", a.Id);
+            }
+        }
+
+        if (alertIdsToStamp.Count > 0)
+        {
+            var now = DateTime.UtcNow;
+            await _db.MarketplaceAlerts.IgnoreQueryFilters()
+                .Where(a => alertIdsToStamp.Contains(a.Id))
+                .ExecuteUpdateAsync(setters => setters.SetProperty(a => a.LastNotifiedAt, now), ct);
+        }
+    }
+
+    // Builds a human-readable label for the criteria, used in match emails
+    // ("New match: Daisy at Cedar Farm matches your search: Nigerian Dwarf does
+    // under $500 in TX").
+    private static string BuildCriteriaLabel(string? breedSlug, string? sex, int? minPrice, int? maxPrice, string? state)
+    {
+        var parts = new List<string>();
+        parts.Add(string.IsNullOrEmpty(breedSlug) ? "any breed" : breedSlug);
+        if (!string.IsNullOrEmpty(sex)) parts.Add(sex.ToLowerInvariant());
+        if (minPrice.HasValue && maxPrice.HasValue)
+            parts.Add($"${minPrice / 100}-${maxPrice / 100}");
+        else if (minPrice.HasValue) parts.Add($"≥ ${minPrice / 100}");
+        else if (maxPrice.HasValue) parts.Add($"under ${maxPrice / 100}");
+        if (!string.IsNullOrEmpty(state)) parts.Add($"in {state}");
+        return string.Join(" · ", parts);
     }
 }

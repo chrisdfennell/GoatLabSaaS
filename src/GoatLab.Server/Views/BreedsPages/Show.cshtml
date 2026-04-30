@@ -147,6 +147,31 @@ else
     </div>
 }
 
+@* Saved-search subscribe — appears below the listings grid so it's visible
+   after a buyer has scanned current results. The form pre-fills with whatever
+   filters are currently in the URL so subscribing matches the active view. *@
+<section class="alert-subscribe">
+    <div class="alert-subscribe-icon">🔔</div>
+    <div class="alert-subscribe-body">
+        <h3 style="margin:0 0 4px 0;">Get notified about new @displayName listings</h3>
+        <p style="margin:0 0 12px 0;color:#4a5a51;font-size:0.95rem;">
+            Drop your email and we'll send one notification when a new @displayName matching your filters
+            appears anywhere on GoatLab. Unsubscribe in one click.
+        </p>
+        <form id="alert-form" class="alert-form"
+              data-breed="@slug"
+              data-sex="@sex"
+              data-min="@(minPrice?.ToString() ?? "")"
+              data-max="@(maxPrice?.ToString() ?? "")"
+              data-state="@stateFilter">
+            <input type="email" name="email" placeholder="you@example.com" required autocomplete="email"
+                   aria-label="Your email address" />
+            <button type="submit">Save search</button>
+        </form>
+        <div id="alert-status" class="alert-status" role="status"></div>
+    </div>
+</section>
+
 @if (farms.Count > 0)
 {
     <h2 id="farms" style="margin-top: 48px;">@displayName breeders</h2>
@@ -225,4 +250,69 @@ else
     .goat-card-meta { font-size: 0.85rem; color: #6b7a70; margin-top: 2px; }
     .goat-card-farm { font-size: 0.82rem; color: #4a5a51; margin-top: 4px; }
     .goat-card-price { color: #2e7d32; font-weight: 700; font-size: 1.05rem; margin-top: 6px; }
+
+    .alert-subscribe {
+        display: flex; gap: 16px; margin-top: 36px; padding: 18px 20px;
+        background: #fff; border: 1px solid #e0e0e0; border-radius: 10px;
+        align-items: flex-start;
+    }
+    .alert-subscribe-icon { font-size: 32px; line-height: 1; }
+    .alert-subscribe-body { flex: 1; min-width: 0; }
+    .alert-form { display: flex; gap: 8px; flex-wrap: wrap; }
+    .alert-form input { flex: 1; min-width: 200px; padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; font-family: inherit; }
+    .alert-form input:focus { outline: none; border-color: #2e7d32; box-shadow: 0 0 0 2px rgba(46,125,50,0.15); }
+    .alert-form button { padding: 10px 18px; background: #2e7d32; color: #fff; border: 0; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .alert-form button:hover { background: #1b5e20; }
+    .alert-form button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .alert-status { font-size: 0.88rem; margin-top: 8px; min-height: 1.2em; }
+    .alert-status.success { color: #1b5e20; }
+    .alert-status.error { color: #c62828; }
 </style>
+
+<script>
+    (function () {
+        var form = document.getElementById('alert-form');
+        var status = document.getElementById('alert-status');
+        if (!form) return;
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            var input = form.querySelector('input[name="email"]');
+            var btn = form.querySelector('button');
+            if (!input || !btn) return;
+            var email = (input.value || '').trim();
+            if (!email) return;
+            btn.disabled = true; btn.textContent = '…';
+            status.textContent = '';
+            status.className = 'alert-status';
+            var d = form.dataset;
+            try {
+                var resp = await fetch('/api/marketplace/alerts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: email,
+                        breedSlug: d.breed || null,
+                        sex: d.sex || null,
+                        minPriceCents: d.min ? parseInt(d.min, 10) * 100 : null,
+                        maxPriceCents: d.max ? parseInt(d.max, 10) * 100 : null,
+                        state: d.state || null,
+                    })
+                });
+                var data = await resp.json().catch(function () { return null; });
+                if (resp.ok && data && data.ok) {
+                    status.textContent = data.message || "Saved! Check your email to confirm.";
+                    status.className = 'alert-status success';
+                    input.value = '';
+                } else {
+                    status.textContent = (data && data.message) || 'Something went wrong. Try again in a moment.';
+                    status.className = 'alert-status error';
+                }
+            } catch (err) {
+                status.textContent = 'Network error — please try again.';
+                status.className = 'alert-status error';
+            } finally {
+                btn.disabled = false; btn.textContent = 'Save search';
+            }
+        });
+    })();
+</script>

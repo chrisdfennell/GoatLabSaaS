@@ -58,6 +58,29 @@
                              Adornment="Adornment.End" AdornmentText="%" Class="mb-4"
                              Disabled="@(!_publicProfileEnabled)" />
 
+            @if (_publicProfileEnabled)
+            {
+                <MudDivider Class="my-4" />
+                <MudText Typo="Typo.h6" Class="mb-2">Embed on your own website</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                    Paste either of these snippets into your existing website to drive buyers to your
+                    GoatLab listings. Auto-updates whenever you list or unlist a goat.
+                </MudText>
+
+                <MudText Typo="Typo.subtitle2" Class="mb-1">"Available on GoatLab" badge</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">
+                    Small clickable button that shows your current listing count.
+                </MudText>
+                <MudTextField Value="@BadgeSnippet" ReadOnly Variant="Variant.Outlined" Lines="2"
+                              Class="mb-2" Style="font-family:ui-monospace,monospace;font-size:13px;" />
+
+                <MudText Typo="Typo.subtitle2" Class="mb-1 mt-3">Live listings grid (iframe)</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">
+                    Embeds up to 6 of your current listings. Goes anywhere a paragraph of HTML fits.
+                </MudText>
+                <MudTextField Value="@IframeSnippet" ReadOnly Variant="Variant.Outlined" Lines="3"
+                              Class="mb-2" Style="font-family:ui-monospace,monospace;font-size:13px;" />
+            }
 
             @if (!string.IsNullOrEmpty(_error))
             {
@@ -94,6 +117,30 @@
     private string PublicFarmUrl => _settings is null
         ? ""
         : $"{Nav.BaseUri.TrimEnd('/')}/pub/{_settings.Slug}";
+
+    private string BadgeSnippet
+    {
+        get
+        {
+            if (_settings is null) return "";
+            var origin = Nav.BaseUri.TrimEnd('/');
+            return $"<a href=\"{origin}/pub/{_settings.Slug}\" target=\"_blank\">" +
+                   $"<img src=\"{origin}/embed/badge/{_settings.Slug}.svg\" alt=\"Available on GoatLab\" width=\"220\" height=\"56\" />" +
+                   $"</a>";
+        }
+    }
+
+    private string IframeSnippet
+    {
+        get
+        {
+            if (_settings is null) return "";
+            var origin = Nav.BaseUri.TrimEnd('/');
+            return $"<iframe src=\"{origin}/embed/listings/{_settings.Slug}\" " +
+                   "style=\"width:100%;min-height:520px;border:0;\" " +
+                   "loading=\"lazy\" title=\"Goats for sale on GoatLab\"></iframe>";
+        }
+    }
 
     private bool HasChanges =>
         _settings is not null &&

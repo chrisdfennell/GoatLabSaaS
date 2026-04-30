@@ -79,31 +79,8 @@ else
         to view its own lineage. Plain names are recorded but the goat isn't currently on a public GoatLab farm.
     </p>
 
-    <div class="pedigree">
-        @{ var p = Model.Pedigree; var s = p.Sire; var d = p.Dam; }
-        <div class="ped-col ped-col-self">
-            @await RenderCellAsync(p, isFocal: true)
-        </div>
-        <div class="ped-col">
-            <div class="ped-row">@await RenderCellAsync(s, label: "Sire")</div>
-            <div class="ped-row">@await RenderCellAsync(d, label: "Dam")</div>
-        </div>
-        <div class="ped-col">
-            <div class="ped-row">@await RenderCellAsync(s?.Sire)</div>
-            <div class="ped-row">@await RenderCellAsync(s?.Dam)</div>
-            <div class="ped-row">@await RenderCellAsync(d?.Sire)</div>
-            <div class="ped-row">@await RenderCellAsync(d?.Dam)</div>
-        </div>
-        <div class="ped-col">
-            <div class="ped-row">@await RenderCellAsync(s?.Sire?.Sire)</div>
-            <div class="ped-row">@await RenderCellAsync(s?.Sire?.Dam)</div>
-            <div class="ped-row">@await RenderCellAsync(s?.Dam?.Sire)</div>
-            <div class="ped-row">@await RenderCellAsync(s?.Dam?.Dam)</div>
-            <div class="ped-row">@await RenderCellAsync(d?.Sire?.Sire)</div>
-            <div class="ped-row">@await RenderCellAsync(d?.Sire?.Dam)</div>
-            <div class="ped-row">@await RenderCellAsync(d?.Dam?.Sire)</div>
-            <div class="ped-row">@await RenderCellAsync(d?.Dam?.Dam)</div>
-        </div>
+    <div class="pedigree-svg-wrap">
+        @Html.Raw(BuildPedigreeSvg(Model.Pedigree, Model.Pedigree.Sire, Model.Pedigree.Dam))
     </div>
 }
 
@@ -133,43 +110,190 @@ else
 }
 
 @functions {
-    private async Task<Microsoft.AspNetCore.Html.IHtmlContent> RenderCellAsync(
-        LineagePagesController.PedigreeNode? node,
-        string? label = null,
-        bool isFocal = false)
+    // Cell layout constants used by both BuildPedigreeSvg and the connectors.
+    // viewBox is intentionally a fixed shape; the wrapper makes it responsive.
+    private const int VbWidth = 1000;
+    private const int VbHeight = 580;
+
+    // Renders a 4-generation pedigree as a single SVG. Focal goat in column 1
+    // (green), sires colored blue (top branch in their pair), dams pink
+    // (bottom). Cells with a CrossFarmId become clickable <a xlink:href> links
+    // that travel to that ancestor's own lineage page — that's the cross-farm
+    // walk the marketing pitch is built around. Connectors are L-shaped
+    // polylines drawn with the same gender accent as the parent cell so the
+    // lineage flow reads at a glance.
+    private string BuildPedigreeSvg(
+        LineagePagesController.PedigreeNode focal,
+        LineagePagesController.PedigreeNode? sire,
+        LineagePagesController.PedigreeNode? dam)
     {
-        await Task.CompletedTask;
+        var sb = new System.Text.StringBuilder(8 * 1024);
+        sb.Append("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" viewBox=\"0 0 ")
+          .Append(VbWidth).Append(' ').Append(VbHeight).Append("\" preserveAspectRatio=\"xMidYMid meet\" class=\"pedigree-svg\">");
+
+        // Cell positions per generation. Column x-positions are evenly stepped;
+        // y-positions are vertically centered within their generation slice.
+        var col = new[] { 10, 220, 440, 660 };
+        var w = new[] { 200, 200, 200, 200 };
+        var h = new[] { 80, 70, 60, 50 };
+
+        // Generation 0 — focal goat, vertically centered.
+        DrawCell(sb, focal, col[0], (VbHeight - h[0]) / 2, w[0], h[0], gen: 0, isFocal: true);
+
+        // Generation 1 — sire (top), dam (bottom).
+        var g1y = new[] { VbHeight / 4 - h[1] / 2, 3 * VbHeight / 4 - h[1] / 2 };
+        DrawCell(sb, sire, col[1], g1y[0], w[1], h[1], gen: 1, kind: "sire");
+        DrawCell(sb, dam, col[1], g1y[1], w[1], h[1], gen: 1, kind: "dam");
+
+        // Generation 2 — grandparents. 4 rows, evenly distributed.
+        var g2y = Distribute(VbHeight, 4, h[2]);
+        var g2 = new[] { sire?.Sire, sire?.Dam, dam?.Sire, dam?.Dam };
+        var g2Kind = new[] { "sire", "dam", "sire", "dam" };
+        for (int i = 0; i < 4; i++) DrawCell(sb, g2[i], col[2], g2y[i], w[2], h[2], gen: 2, kind: g2Kind[i]);
+
+        // Generation 3 — great-grandparents. 8 rows.
+        var g3y = Distribute(VbHeight, 8, h[3]);
+        var g3 = new[]
+        {
+            sire?.Sire?.Sire, sire?.Sire?.Dam, sire?.Dam?.Sire, sire?.Dam?.Dam,
+            dam?.Sire?.Sire,  dam?.Sire?.Dam,  dam?.Dam?.Sire,  dam?.Dam?.Dam
+        };
+        var g3Kind = new[] { "sire", "dam", "sire", "dam", "sire", "dam", "sire", "dam" };
+        for (int i = 0; i < 8; i++) DrawCell(sb, g3[i], col[3], g3y[i], w[3], h[3], gen: 3, kind: g3Kind[i]);
+
+        // Connectors — drawn UNDER cells but rendered AFTER so the visual
+        // stacking order matches. SVG paints in document order, so we have to
+        // emit connectors before cells. Re-do: actually the simplest way is to
+        // emit connectors first into a separate buffer and prepend below cells.
+        // For clarity, draw connectors LAST with stroke-width less than cell
+        // borders so they read as "behind" anyway.
+        DrawConnector(sb, col[0] + w[0], (VbHeight - h[0]) / 2 + h[0] / 2, col[1], g1y[0] + h[1] / 2, "sire");
+        DrawConnector(sb, col[0] + w[0], (VbHeight - h[0]) / 2 + h[0] / 2, col[1], g1y[1] + h[1] / 2, "dam");
+        for (int i = 0; i < 4; i++)
+        {
+            var parentY = g1y[i / 2] + h[1] / 2;
+            DrawConnector(sb, col[1] + w[1], parentY, col[2], g2y[i] + h[2] / 2, g2Kind[i]);
+        }
+        for (int i = 0; i < 8; i++)
+        {
+            var parentY = g2y[i / 2] + h[2] / 2;
+            DrawConnector(sb, col[2] + w[2], parentY, col[3], g3y[i] + h[3] / 2, g3Kind[i]);
+        }
+
+        sb.Append("</svg>");
+        return sb.ToString();
+    }
+
+    // Vertically distribute N cells across the canvas with equal margins.
+    private static int[] Distribute(int total, int count, int cellHeight)
+    {
+        var ys = new int[count];
+        var slice = total / count;
+        for (int i = 0; i < count; i++)
+            ys[i] = i * slice + (slice - cellHeight) / 2;
+        return ys;
+    }
+
+    private static void DrawCell(
+        System.Text.StringBuilder sb,
+        LineagePagesController.PedigreeNode? node,
+        int x, int y, int w, int h,
+        int gen, bool isFocal = false, string kind = "neutral")
+    {
+        // Empty slot.
         if (node is null)
         {
-            return new Microsoft.AspNetCore.Html.HtmlString("<div class=\"ped-cell ped-empty\">—</div>");
+            sb.Append("<g class=\"ped-cell-svg ped-empty-svg\">")
+              .Append("<rect x=\"").Append(x).Append("\" y=\"").Append(y)
+              .Append("\" width=\"").Append(w).Append("\" height=\"").Append(h)
+              .Append("\" rx=\"8\" fill=\"#fafafa\" stroke=\"#e0e0e0\" stroke-dasharray=\"4 3\" />")
+              .Append("<text x=\"").Append(x + w / 2).Append("\" y=\"").Append(y + h / 2 + 4)
+              .Append("\" text-anchor=\"middle\" fill=\"#bbb\" font-family=\"system-ui\" font-size=\"14\">unknown</text>")
+              .Append("</g>");
+            return;
         }
-        var sb = new System.Text.StringBuilder(256);
-        sb.Append("<div class=\"ped-cell").Append(isFocal ? " ped-focal" : "").Append("\">");
-        if (!string.IsNullOrEmpty(label))
+
+        var (fill, stroke, accent) = isFocal
+            ? ("#e8f5e9", "#2e7d32", "#1b5e20")
+            : kind == "sire"
+                ? ("#e3f2fd", "#90caf9", "#1565c0")
+                : ("#fce4ec", "#f48fb1", "#ad1457");
+
+        sb.Append("<g class=\"ped-cell-svg\">");
+        // Open clickable wrapper if this node links to another lineage.
+        var clickable = node.CrossFarmId.HasValue && !isFocal;
+        if (clickable)
         {
-            sb.Append("<div class=\"ped-label\">").Append(label).Append("</div>");
+            sb.Append("<a xlink:href=\"/lineage/").Append(node.CrossFarmId).Append("\">");
         }
-        if (node.CrossFarmId.HasValue && !isFocal)
+        sb.Append("<rect x=\"").Append(x).Append("\" y=\"").Append(y)
+          .Append("\" width=\"").Append(w).Append("\" height=\"").Append(h)
+          .Append("\" rx=\"8\" fill=\"").Append(fill).Append("\" stroke=\"").Append(stroke).Append("\" stroke-width=\"1.5\" />");
+        // Left accent stripe.
+        sb.Append("<rect x=\"").Append(x).Append("\" y=\"").Append(y)
+          .Append("\" width=\"4\" height=\"").Append(h).Append("\" rx=\"2\" fill=\"").Append(accent).Append("\" />");
+
+        var nameSize = isFocal ? 16 : (gen <= 1 ? 14 : 12);
+        var nameY = y + (h <= 50 ? h / 2 + 5 : h / 2 - 4);
+        var labelY = y + 16;
+
+        // Optional generation label (Sire/Dam only on gen 1).
+        if (gen == 1)
         {
-            sb.Append("<a class=\"ped-link\" href=\"/lineage/").Append(node.CrossFarmId).Append("\">")
-              .Append(System.Net.WebUtility.HtmlEncode(node.Name))
-              .Append("</a>");
-            if (!string.IsNullOrEmpty(node.CrossFarmName))
-            {
-                sb.Append("<div class=\"ped-farm\">@ ").Append(System.Net.WebUtility.HtmlEncode(node.CrossFarmName)).Append("</div>");
-            }
+            sb.Append("<text x=\"").Append(x + 14).Append("\" y=\"").Append(labelY)
+              .Append("\" font-family=\"system-ui\" font-size=\"10\" font-weight=\"600\" fill=\"")
+              .Append(accent).Append("\" letter-spacing=\"1\">")
+              .Append(kind == "sire" ? "SIRE" : "DAM")
+              .Append("</text>");
+            nameY = y + h / 2 + 8;
         }
-        else
+
+        // Name (clickable visual hint via underline when crossFarmId is set).
+        sb.Append("<text x=\"").Append(x + 14).Append("\" y=\"").Append(nameY)
+          .Append("\" font-family=\"system-ui\" font-size=\"").Append(nameSize)
+          .Append("\" font-weight=\"700\" fill=\"#1a2421\"")
+          .Append(clickable ? " text-decoration=\"underline\"" : "")
+          .Append(">")
+          .Append(System.Net.WebUtility.HtmlEncode(Truncate(node.Name, 28)))
+          .Append("</text>");
+
+        // Subline: cross-farm attribution OR registration number.
+        var subline = !string.IsNullOrEmpty(node.CrossFarmName) && clickable
+            ? $"@ {Truncate(node.CrossFarmName!, 26)}"
+            : (!string.IsNullOrEmpty(node.RegistrationNumber)
+                ? Truncate(node.RegistrationNumber!, 26)
+                : null);
+        if (!string.IsNullOrEmpty(subline) && h >= 50)
         {
-            sb.Append("<div class=\"ped-name\">").Append(System.Net.WebUtility.HtmlEncode(node.Name)).Append("</div>");
+            sb.Append("<text x=\"").Append(x + 14).Append("\" y=\"").Append(nameY + 16)
+              .Append("\" font-family=\"system-ui, ui-monospace\" font-size=\"10\" fill=\"#6b7a70\">")
+              .Append(System.Net.WebUtility.HtmlEncode(subline))
+              .Append("</text>");
         }
-        if (!string.IsNullOrEmpty(node.RegistrationNumber))
-        {
-            sb.Append("<div class=\"ped-reg\">").Append(System.Net.WebUtility.HtmlEncode(node.RegistrationNumber)).Append("</div>");
-        }
-        sb.Append("</div>");
-        return new Microsoft.AspNetCore.Html.HtmlString(sb.ToString());
+
+        if (clickable) sb.Append("</a>");
+        sb.Append("</g>");
     }
+
+    // L-shaped connector: child cell right edge → midpoint x → parent cell left edge.
+    private static void DrawConnector(
+        System.Text.StringBuilder sb,
+        int childRightX, int childY,
+        int parentLeftX, int parentY,
+        string kind)
+    {
+        var stroke = kind == "sire" ? "#90caf9" : kind == "dam" ? "#f48fb1" : "#a5d6a7";
+        var midX = childRightX + (parentLeftX - childRightX) / 2;
+        sb.Append("<polyline points=\"")
+          .Append(childRightX).Append(',').Append(childY).Append(' ')
+          .Append(midX).Append(',').Append(childY).Append(' ')
+          .Append(midX).Append(',').Append(parentY).Append(' ')
+          .Append(parentLeftX).Append(',').Append(parentY)
+          .Append("\" fill=\"none\" stroke=\"").Append(stroke).Append("\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" />");
+    }
+
+    private static string Truncate(string s, int max) =>
+        s.Length <= max ? s : s[..(max - 1)] + "…";
 }
 
 <style>
@@ -180,43 +304,24 @@ else
     .lineage-farm { margin: 8px 0 0 0; }
     .lineage-link-count { margin: 14px 0 0 0; padding: 8px 12px; background: #e8f5e9; color: #1b5e20; border-radius: 6px; font-size: 0.92rem; }
 
-    .pedigree {
-        display: grid;
-        grid-template-columns: 1.4fr 1fr 1fr 1fr;
-        gap: 8px;
-        margin-top: 12px;
-    }
-    .ped-col { display: flex; flex-direction: column; gap: 8px; }
-    .ped-col-self { justify-content: center; }
-    .ped-row { flex: 1; display: flex; }
-    .ped-cell {
-        flex: 1;
+    .pedigree-svg-wrap {
         background: #fff;
         border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        padding: 10px 12px;
-        font-size: 0.88rem;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        min-height: 64px;
+        border-radius: 12px;
+        padding: 12px;
+        margin-top: 12px;
+        overflow-x: auto;
     }
-    .ped-focal { background: #e8f5e9; border-color: #2e7d32; }
-    .ped-empty { background: #f7f8f7; border-style: dashed; color: #aaa; align-items: center; }
-    .ped-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #6b7a70; }
-    .ped-name { font-weight: 600; color: #1a2421; }
-    .ped-link { font-weight: 600; color: #2e7d32; text-decoration: underline; }
-    .ped-link:hover { color: #1b5e20; }
-    .ped-farm { font-size: 11px; color: #6b7a70; margin-top: 2px; }
-    .ped-reg { font-size: 11px; color: #6b7a70; margin-top: 2px; font-family: ui-monospace, monospace; }
+    .pedigree-svg { width: 100%; height: auto; min-width: 720px; max-height: 640px; display: block; }
+    .ped-cell-svg a { cursor: pointer; }
+    .ped-cell-svg a:hover rect:not(:first-of-type) { stroke-width: 2.5; }
+    .ped-cell-svg a:hover text { fill: #1b5e20; }
 
     .transfer-trail { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
     .transfer-stop { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px 14px; display: flex; gap: 12px; align-items: center; }
     .transfer-date { font-variant-numeric: tabular-nums; color: #6b7a70; font-size: 0.85rem; min-width: 80px; }
     .transfer-farm { font-size: 0.92rem; }
 
-    @@media (max-width: 800px) {
-        .pedigree { grid-template-columns: 1fr 1fr; font-size: 0.82rem; }
-        .pedigree .ped-col:nth-child(n+3) { display: none; }
-    }
+    /* Mobile: keep SVG horizontal-scrollable rather than collapsing to a partial grid. */
+    @@media (max-width: 800px) { .pedigree-svg-wrap { padding: 8px; } }
 </style>

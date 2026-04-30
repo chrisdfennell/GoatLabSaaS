@@ -217,6 +217,67 @@ public static class EmailTemplates
     );
 
     /// <summary>
+    /// Sent when a buyer subscribes to a saved search at /breeds/{slug}.
+    /// Single-CTA: "View this listing." Each match notification carries its
+    /// own unsubscribe link tied to that buyer's saved search.
+    /// </summary>
+    public static (string Subject, string Html, string Text) MarketplaceAlertMatch(
+        string criteriaLabel, string farmName, string goatName, string? breed,
+        string? gender, int? priceCents, string? primaryPhotoUrl, string listingUrl,
+        string unsubscribeUrl)
+    {
+        var priceLine = priceCents.HasValue
+            ? $"<p style=\"font-size:24px;color:#2e7d32;font-weight:700;margin:12px 0 4px 0;\">${(priceCents.Value / 100m):N0}</p>"
+            : "";
+        var photoLine = string.IsNullOrEmpty(primaryPhotoUrl)
+            ? ""
+            : $"<a href=\"{listingUrl}\"><img src=\"{primaryPhotoUrl}\" alt=\"{System.Net.WebUtility.HtmlEncode(goatName)}\" style=\"width:100%;max-width:480px;border-radius:8px;display:block;margin:16px 0;\" /></a>";
+        var detailsLine = string.Join(" · ", new[] { breed, gender, $"at {farmName}" }.Where(s => !string.IsNullOrWhiteSpace(s)));
+
+        var subject = priceCents.HasValue
+            ? $"New match: {goatName} — ${(priceCents.Value / 100m):N0}"
+            : $"New match: {goatName} at {farmName}";
+
+        var html = $@"<div style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:0 auto;padding:24px;color:#1a2421;"">
+  <p style=""font-size:13px;color:#6b7a70;margin:0;"">Saved search match · {Brand}</p>
+  <h2 style=""color:#2e7d32;margin:4px 0 6px 0;"">{System.Net.WebUtility.HtmlEncode(goatName)}</h2>
+  <p style=""color:#6b7a70;font-size:13px;margin:0 0 8px 0;"">Matches your search: <em>{System.Net.WebUtility.HtmlEncode(criteriaLabel)}</em></p>
+  {photoLine}
+  {priceLine}
+  <p style=""color:#4a5a51;margin:0 0 16px 0;"">{System.Net.WebUtility.HtmlEncode(detailsLine)}</p>
+  <p style=""margin:24px 0;"">
+    <a href=""{listingUrl}"" style=""display:inline-block;background:#2e7d32;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;"">View this listing</a>
+  </p>
+  <p style=""font-size:12px;color:#6b7a70;"">Set up too many alerts? <a href=""{unsubscribeUrl}"">Unsubscribe from this saved search</a> in one click.</p>
+</div>";
+        var text = $"New match for your search ({criteriaLabel}):\n{goatName} · {detailsLine}\n{(priceCents.HasValue ? $"${(priceCents.Value / 100m):N0}\n" : "")}View: {listingUrl}\n\nUnsubscribe: {unsubscribeUrl}";
+        return (subject, html, text);
+    }
+
+    /// <summary>
+    /// Sent when a buyer registers a saved search. Confirms the criteria and
+    /// includes the unsubscribe link.
+    /// </summary>
+    public static (string Subject, string Html, string Text) MarketplaceAlertConfirmation(
+        string criteriaLabel, string browseUrl, string unsubscribeUrl) =>
+    (
+        Subject: $"Saved search confirmed — {Brand}",
+        Html: $@"<div style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:0 auto;padding:24px;color:#1a2421;"">
+  <h2 style=""color:#2e7d32;margin-bottom:8px;"">Your search is saved</h2>
+  <p>You'll get an email from {Brand} when a new listing matches:</p>
+  <p style=""background:#f1f8e9;border-left:4px solid #2e7d32;padding:10px 14px;margin:14px 0;border-radius:4px;"">
+    <strong>{System.Net.WebUtility.HtmlEncode(criteriaLabel)}</strong>
+  </p>
+  <p>One email per match. No daily digests, no marketing.</p>
+  <p style=""margin:24px 0;"">
+    <a href=""{browseUrl}"" style=""display:inline-block;background:#2e7d32;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;"">Browse current listings</a>
+  </p>
+  <p style=""font-size:12px;color:#6b7a70;"">Changed your mind? <a href=""{unsubscribeUrl}"">Unsubscribe</a> in one click.</p>
+</div>",
+        Text: $"Saved search on {Brand}: {criteriaLabel}\nYou'll get one email per match.\nBrowse: {browseUrl}\nUnsubscribe: {unsubscribeUrl}"
+    );
+
+    /// <summary>
     /// Sent when an anonymous follower of a farm subscribes via the
     /// "Follow this farm" form on /pub/{slug}. Confirms the subscription
     /// and includes the unsubscribe link inline.

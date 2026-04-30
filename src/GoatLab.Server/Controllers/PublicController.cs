@@ -209,6 +209,131 @@ public class PublicController : ControllerBase
         return new FollowFarmResponse(true, $"You're now following {tenant.Name}. Check your email to confirm.");
     }
 
+    // ----- Saved-search marketplace alerts -----
+
+    public record AlertRequest(
+        string Email,
+        string? BreedSlug,        // optional; matches `/breeds/{slug}` URLs
+        string? Sex,              // "Male" | "Female" | "Wether" | null
+        int? MinPriceCents,
+        int? MaxPriceCents,
+        string? State);
+
+    public record AlertResponse(bool Ok, string Message);
+
+    [HttpPost("/api/marketplace/alerts")]
+    public async Task<ActionResult<AlertResponse>> CreateAlert(
+        [FromBody] AlertRequest req,
+        [FromServices] IAppEmailSender email,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(req.Email) || !req.Email.Contains('@'))
+            return new AlertResponse(false, "Please enter a valid email address.");
+
+        var emailNorm = req.Email.Trim().ToLowerInvariant();
+        // Normalize the breed slug if the buyer typed a free-form breed name —
+        // BreedSlug is what NewListingNotifier matches against.
+        var slugNorm = string.IsNullOrWhiteSpace(req.BreedSlug)
+            ? null
+            : BreedSlug(req.BreedSlug.Trim());
+
+        // Validate sex against the enum names so a typo doesn't ghost-create a
+        // never-matching alert. Null = any sex.
+        string? sexNorm = null;
+        if (!string.IsNullOrWhiteSpace(req.Sex))
+        {
+            var s = req.Sex.Trim();
+            if (string.Equals(s, "Male", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(s, "Female", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(s, "Wether", StringComparison.OrdinalIgnoreCase))
+                sexNorm = char.ToUpperInvariant(s[0]) + s.Substring(1).ToLowerInvariant();
+            else
+                return new AlertResponse(false, "Sex must be Male, Female, or Wether.");
+        }
+
+        // Idempotent on (Email + criteria). If the same buyer registers the
+        // same search twice, reactivate (in case of prior unsubscribe) and
+        // rotate the token so a stale unsubscribe link can't kill the new one.
+        var existing = await _db.MarketplaceAlerts.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(a => a.Email == emailNorm
+                && a.BreedSlug == slugNorm && a.Sex == sexNorm
+                && a.MinPriceCents == req.MinPriceCents && a.MaxPriceCents == req.MaxPriceCents
+                && a.StateMatch == req.State, ct);
+
+        MarketplaceAlert alert;
+        if (existing is not null)
+        {
+            existing.IsActive = true;
+            existing.UnsubscribedAt = null;
+            existing.UnsubscribeToken = NewToken();
+            alert = existing;
+        }
+        else
+        {
+            alert = new MarketplaceAlert
+            {
+                Email = emailNorm,
+                BreedSlug = slugNorm,
+                Sex = sexNorm,
+                MinPriceCents = req.MinPriceCents,
+                MaxPriceCents = req.MaxPriceCents,
+                StateMatch = string.IsNullOrWhiteSpace(req.State) ? null : req.State.Trim(),
+                UnsubscribeToken = NewToken(),
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+            };
+            _db.MarketplaceAlerts.Add(alert);
+        }
+        await _db.SaveChangesAsync(ct);
+
+        var origin = RequestOrigin();
+        var label = string.Join(" · ", new[]
+        {
+            slugNorm ?? "any breed",
+            sexNorm?.ToLowerInvariant(),
+            req.MinPriceCents.HasValue && req.MaxPriceCents.HasValue
+                ? $"${req.MinPriceCents / 100}-${req.MaxPriceCents / 100}"
+                : req.MaxPriceCents.HasValue ? $"under ${req.MaxPriceCents / 100}"
+                : req.MinPriceCents.HasValue ? $"≥ ${req.MinPriceCents / 100}" : null,
+            string.IsNullOrWhiteSpace(req.State) ? null : $"in {req.State.Trim()}",
+        }.Where(s => !string.IsNullOrEmpty(s)));
+
+        var browseUrl = slugNorm is null ? $"{origin}/breeds" : $"{origin}/breeds/{slugNorm}";
+        var unsubUrl = $"{origin}/alerts/unsubscribe?token={alert.UnsubscribeToken}";
+
+        try
+        {
+            var (subject, html, text) = EmailTemplates.MarketplaceAlertConfirmation(label, browseUrl, unsubUrl);
+            await email.SendAsync(emailNorm, subject, html, text, ct);
+        }
+        catch
+        {
+            // Email failure shouldn't block the subscribe. Logged by decorator.
+        }
+
+        return new AlertResponse(true, "Saved! Check your email to confirm.");
+    }
+
+    [HttpGet("/alerts/unsubscribe")]
+    public async Task<ContentResult> UnsubscribeAlert([FromQuery] string token, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+            return UnsubscribePage(false, "Missing or invalid unsubscribe token.");
+
+        var alert = await _db.MarketplaceAlerts.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(a => a.UnsubscribeToken == token, ct);
+        if (alert is null)
+            return UnsubscribePage(false, "We couldn't find that saved search. It may already be removed.");
+
+        if (alert.IsActive)
+        {
+            alert.IsActive = false;
+            alert.UnsubscribedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync(ct);
+        }
+        return UnsubscribePage(true, "Your saved search has been removed. You'll no longer receive match notifications.");
+    }
+
     // GET so it works from a one-click email link. Returns a tiny HTML page —
     // we don't care about the JSON consumer experience here, only the buyer
     // who clicked the unsubscribe button in their inbox.

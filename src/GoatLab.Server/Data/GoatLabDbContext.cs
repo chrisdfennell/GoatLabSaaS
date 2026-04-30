@@ -99,6 +99,11 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
     // anonymous "Follow this farm" form on /pub/{slug}.
     public DbSet<FarmFollower> FarmFollowers => Set<FarmFollower>();
 
+    // Saved-search marketplace alerts — buyers who follow a CRITERIA (breed,
+    // sex, price, state) instead of a specific farm. Fan-out happens from the
+    // same IsListedForSale=true hook used by FarmFollower notifications.
+    public DbSet<MarketplaceAlert> MarketplaceAlerts => Set<MarketplaceAlert>();
+
     // Time-bounded vet share links: the owner mints one per goat to give a
     // vet temporary read access to that goat's medical history.
     public DbSet<VetShareLink> VetShareLinks => Set<VetShareLink>();
@@ -387,6 +392,14 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(f => f.UnsubscribeToken).IsUnique();
         modelBuilder.Entity<FarmFollower>()
             .HasIndex(f => new { f.TenantId, f.Email }).IsUnique();
+
+        // MarketplaceAlert: token unique (it auths the unsubscribe link);
+        // (BreedSlug, IsActive) helps the per-goat fan-out scan that runs
+        // when a goat flips to listed-for-sale.
+        modelBuilder.Entity<MarketplaceAlert>()
+            .HasIndex(a => a.UnsubscribeToken).IsUnique();
+        modelBuilder.Entity<MarketplaceAlert>()
+            .HasIndex(a => new { a.BreedSlug, a.IsActive });
 
         // VetShareLink: lookup by token (hash) is the hot path — the public
         // /vet/{token} endpoint hashes the inbound token and matches here.

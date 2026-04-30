@@ -213,9 +213,20 @@
             </a>
             <nav>
                 <a href="/breeds">Browse breeders</a>
+                <a href="/compare" id="nav-favs">Favorites</a>
                 <a href="/login">Sign in</a>
                 <a href="/register" class="cta-button">Start free</a>
             </nav>
+            <script>
+                // Show favorite count next to the nav link if any are saved.
+                (function () {
+                    try {
+                        var n = (JSON.parse(localStorage.getItem('goatlab.favorites') || '[]') || []).length;
+                        var el = document.getElementById('nav-favs');
+                        if (el && n > 0) el.textContent = 'Favorites (' + n + ')';
+                    } catch { }
+                })();
+            </script>
         </div>
     </header>
 

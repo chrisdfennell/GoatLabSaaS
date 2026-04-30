@@ -56,6 +56,20 @@ else if (depositStatus == "cancel")
             <div class="price-amount">$@((Model.AskingPriceCents.Value / 100m).ToString("N0"))</div>
         </div>
     }
+    <button id="fav-toggle" type="button" class="fav-btn"
+            data-id="@Model.Id"
+            data-slug="@slug"
+            data-name="@Model.Name"
+            data-breed="@(Model.Breed ?? "")"
+            data-gender="@Model.Gender"
+            data-dob="@(Model.DateOfBirth?.ToString("yyyy-MM-dd") ?? "")"
+            data-price="@(Model.AskingPriceCents?.ToString() ?? "")"
+            data-photo="@(Model.Photos.FirstOrDefault(p => p.IsPrimary)?.Url ?? Model.Photos.FirstOrDefault()?.Url ?? "")"
+            data-farm="@Model.FarmName"
+            aria-label="Save to favorites">
+        <span class="fav-heart" aria-hidden="true">♡</span>
+        <span class="fav-label">Save</span>
+    </button>
 </div>
 
 @if (Model.Photos.Count > 0)
@@ -262,4 +276,75 @@ else if (depositStatus == "cancel")
     .reserve-actions button { padding: 10px 18px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; font-size: 0.95rem; }
     .reserve-actions button[type="button"] { background: #f0f0f0; color: #1a2421; }
     .reserve-actions button.cta-button { background: #2e7d32; color: #fff; }
+
+    .fav-btn {
+        margin-left: 12px;
+        background: #fff;
+        border: 1.5px solid #e0e0e0;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1a2421;
+        cursor: pointer;
+        display: inline-flex; align-items: center; gap: 6px;
+        transition: background 0.12s, border-color 0.12s, color 0.12s;
+    }
+    .fav-btn:hover { border-color: #c2185b; }
+    .fav-btn .fav-heart { font-size: 18px; line-height: 1; color: #c2185b; }
+    .fav-btn.is-saved { background: #fce4ec; border-color: #c2185b; color: #ad1457; }
+    .fav-btn.is-saved .fav-heart::before { content: '♥'; }
+    .fav-btn.is-saved .fav-heart { font-size: 0; }
+    .fav-btn.is-saved .fav-heart::before { font-size: 18px; }
 </style>
+
+<script>
+    (function () {
+        var btn = document.getElementById('fav-toggle');
+        if (!btn) return;
+        var KEY = 'goatlab.favorites';
+        var data = btn.dataset;
+
+        function read() {
+            try { return JSON.parse(localStorage.getItem(KEY) || '[]'); }
+            catch { return []; }
+        }
+        function write(list) {
+            try { localStorage.setItem(KEY, JSON.stringify(list)); } catch { }
+        }
+        function isSaved() {
+            return read().some(function (f) { return f.id == data.id && f.slug === data.slug; });
+        }
+        function refresh() {
+            if (isSaved()) {
+                btn.classList.add('is-saved');
+                btn.querySelector('.fav-label').textContent = 'Saved';
+            } else {
+                btn.classList.remove('is-saved');
+                btn.querySelector('.fav-label').textContent = 'Save';
+            }
+        }
+        btn.addEventListener('click', function () {
+            var list = read().filter(function (f) { return !(f.id == data.id && f.slug === data.slug); });
+            if (!isSaved()) {
+                // limit to 12 to keep /compare manageable
+                if (list.length >= 12) list.shift();
+                list.push({
+                    id: parseInt(data.id, 10),
+                    slug: data.slug,
+                    name: data.name,
+                    breed: data.breed,
+                    gender: data.gender,
+                    dob: data.dob,
+                    priceCents: data.price ? parseInt(data.price, 10) : null,
+                    photoUrl: data.photo,
+                    farm: data.farm,
+                    savedAt: Date.now()
+                });
+            }
+            write(list);
+            refresh();
+        });
+        refresh();
+    })();
+</script>

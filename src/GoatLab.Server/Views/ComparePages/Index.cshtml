@@ -1,0 +1,153 @@
+@{
+    ViewData["Title"] = "Saved goats — GoatLab favorites";
+    ViewData["Description"] = "Goats you've saved while browsing GoatLab. Compare side-by-side.";
+    // Don't index — the page is per-browser personalization with no shared content.
+    ViewData["NoIndex"] = true;
+}
+
+<h1>Your saved goats</h1>
+<p class="lede">Compare goats you've favorited. Stored locally in this browser only — no account needed.</p>
+
+<div id="favs-empty" class="empty-state" style="display:none;">
+    <div class="icon">🐐</div>
+    <p>You haven't saved any goats yet.</p>
+    <p style="font-size:0.9rem;">
+        Click the <strong>Save</strong> heart on any listing to keep it here for later.
+    </p>
+    <p>
+        <a class="cta-button" href="/breeds">Browse the marketplace</a>
+    </p>
+</div>
+
+<div id="favs-toolbar" style="display:none;margin-bottom:18px;">
+    <span id="favs-count" style="color:#6b7a70;font-size:0.9rem;"></span>
+    <button id="favs-clear" type="button" class="link-btn" style="margin-left:14px;">Clear all</button>
+</div>
+
+<div id="favs-grid" class="compare-grid"></div>
+
+<style>
+    .compare-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 16px;
+    }
+    .cmp-card {
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        overflow: hidden;
+        position: relative;
+        text-decoration: none;
+        color: inherit;
+        display: flex;
+        flex-direction: column;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .cmp-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.08); text-decoration: none; }
+    .cmp-photo { aspect-ratio: 4 / 3; background: #f5f5f5; }
+    .cmp-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cmp-photo.empty { display: flex; align-items: center; justify-content: center; font-size: 3rem; color: #bbb; }
+    .cmp-body { padding: 12px 14px; flex: 1; }
+    .cmp-name { font-weight: 700; font-size: 1.05rem; }
+    .cmp-meta { font-size: 0.85rem; color: #6b7a70; margin-top: 2px; }
+    .cmp-farm { font-size: 0.82rem; color: #4a5a51; margin-top: 4px; }
+    .cmp-price { color: #2e7d32; font-weight: 700; font-size: 1.05rem; margin-top: 6px; }
+    .cmp-remove {
+        position: absolute; top: 8px; right: 8px;
+        background: rgba(255,255,255,0.92);
+        border: 1px solid #e0e0e0;
+        border-radius: 999px;
+        width: 28px; height: 28px;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; font-size: 14px; color: #c62828;
+        z-index: 2;
+    }
+    .cmp-remove:hover { background: #fce4ec; border-color: #c2185b; }
+    .link-btn {
+        background: none; border: 0; padding: 0;
+        color: #c62828; font-size: 0.9rem; cursor: pointer; text-decoration: underline;
+    }
+</style>
+
+<script>
+    (function () {
+        var KEY = 'goatlab.favorites';
+        var grid = document.getElementById('favs-grid');
+        var empty = document.getElementById('favs-empty');
+        var toolbar = document.getElementById('favs-toolbar');
+        var count = document.getElementById('favs-count');
+        var clearBtn = document.getElementById('favs-clear');
+
+        function read() {
+            try { return JSON.parse(localStorage.getItem(KEY) || '[]'); }
+            catch { return []; }
+        }
+        function write(list) {
+            try { localStorage.setItem(KEY, JSON.stringify(list)); } catch { }
+        }
+        function ageStr(dob) {
+            if (!dob) return '';
+            var d = new Date(dob);
+            if (isNaN(d.getTime())) return '';
+            var months = Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
+            if (months < 12) return months + ' mo';
+            var y = Math.floor(months / 12), m = months % 12;
+            return m === 0 ? y + ' yr' : (y + ' yr ' + m + ' mo');
+        }
+        function escape(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+        function renderCard(f) {
+            var price = (f.priceCents != null) ? '<div class="cmp-price">$' + (f.priceCents / 100).toLocaleString(undefined, { maximumFractionDigits: 0 }) + '</div>' : '';
+            var photo = f.photoUrl
+                ? '<div class="cmp-photo"><img loading="lazy" src="' + escape(f.photoUrl) + '" alt="' + escape(f.name) + '" /></div>'
+                : '<div class="cmp-photo empty">🐐</div>';
+            var age = ageStr(f.dob);
+            var meta = [escape(f.breed || 'Unknown breed'), escape(f.gender), age].filter(Boolean).join(' · ');
+            var href = '/pub/' + encodeURIComponent(f.slug) + '/' + encodeURIComponent(f.id);
+            return ''
+                + '<a class="cmp-card" href="' + href + '">'
+                +   '<button type="button" class="cmp-remove" data-id="' + f.id + '" data-slug="' + escape(f.slug) + '" aria-label="Remove from favorites" title="Remove">×</button>'
+                +   photo
+                +   '<div class="cmp-body">'
+                +     '<div class="cmp-name">' + escape(f.name) + '</div>'
+                +     '<div class="cmp-meta">' + meta + '</div>'
+                +     '<div class="cmp-farm">' + escape(f.farm || '') + '</div>'
+                +     price
+                +   '</div>'
+                + '</a>';
+        }
+        function refresh() {
+            var list = read();
+            if (list.length === 0) {
+                empty.style.display = '';
+                toolbar.style.display = 'none';
+                grid.innerHTML = '';
+                return;
+            }
+            empty.style.display = 'none';
+            toolbar.style.display = '';
+            count.textContent = list.length + (list.length === 1 ? ' goat saved' : ' goats saved') + ' · stored on this device only';
+            grid.innerHTML = list.slice().reverse().map(renderCard).join('');
+        }
+        grid.addEventListener('click', function (e) {
+            var btn = e.target.closest('.cmp-remove');
+            if (!btn) return;
+            e.preventDefault();
+            e.stopPropagation();
+            var id = btn.dataset.id, slug = btn.dataset.slug;
+            var list = read().filter(function (f) { return !(f.id == id && f.slug === slug); });
+            write(list);
+            refresh();
+        });
+        clearBtn.addEventListener('click', function () {
+            if (!confirm('Remove all saved goats from this browser?')) return;
+            write([]);
+            refresh();
+        });
+        refresh();
+    })();
+</script>

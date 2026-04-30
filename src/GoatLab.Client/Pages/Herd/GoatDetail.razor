@@ -178,6 +178,15 @@ else
                 }
             </MudPaper>
             <style>
+                .photo-dropzone {
+                    display: flex; align-items: center; justify-content: center;
+                    padding: 16px; margin-top: 12px;
+                    border: 2px dashed #c8d3cc;
+                    border-radius: 10px;
+                    background: #fafdf9;
+                    transition: border-color 0.15s ease, background 0.15s ease;
+                }
+                .photo-dropzone.active { border-color: #2e7d32; background: rgba(46,125,50,0.08); }
                 .timeline-month-header { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 1.5px; color: #6b7a70; margin: 16px 0 8px 0; padding-left: 4px; font-weight: 600; }
                 .timeline-list { display: flex; flex-direction: column; gap: 6px; }
                 .timeline-row { display: flex; gap: 12px; padding: 10px 14px; border-radius: 8px; border-left: 3px solid #2e7d32; background: rgba(46,125,50,0.04); align-items: flex-start; }
@@ -286,15 +295,25 @@ else
                                     <MudText Typo="Typo.body2" Class="section-hint">Upload pics — the first one becomes the primary.</MudText>
                                 </div>
                             </div>
-                            <MudFileUpload T="IBrowserFile" FilesChanged="UploadPhoto" Accept=".jpg,.jpeg,.png,.webp,.gif">
+                            <MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="UploadPhotos"
+                                           Accept=".jpg,.jpeg,.png,.webp,.gif">
                                 <ActivatorContent>
                                     <MudButton Variant="Variant.Filled" Color="Color.Primary"
                                                StartIcon="@Icons.Material.Filled.CloudUpload"
                                                Disabled="@uploadingPhoto">
-                                        @(uploadingPhoto ? "Uploading…" : "Upload")
+                                        @(uploadingPhoto ? $"Uploading {_photoUploadProgress}…" : "Upload photos")
                                     </MudButton>
                                 </ActivatorContent>
                             </MudFileUpload>
+                        </div>
+                        <div class="photo-dropzone @(_isDraggingPhotos ? "active" : "")"
+                             @ondragover="@OnPhotoDragOver" @ondragover:preventDefault="true"
+                             @ondragleave="@OnPhotoDragLeave"
+                             @ondrop="@OnPhotoDrop" @ondrop:preventDefault="true">
+                            <MudIcon Icon="@Icons.Material.Filled.PhotoLibrary" Style="font-size:32px;color:#aaa;" />
+                            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="ml-2">
+                                Drag &amp; drop multiple photos here, or use the Upload button. JPG / PNG / WebP / GIF up to 10MB each.
+                            </MudText>
                         </div>
                         @if (goat.Photos?.Count > 0)
                         {
@@ -1651,27 +1670,55 @@ else
         ComputeAdg();
     }
 
-    private async Task UploadPhoto(IBrowserFile? file)
+    private string _photoUploadProgress = "";
+    private bool _isDraggingPhotos;
+
+    // Drag-drop visuals only — Blazor InputFile under MudFileUpload already
+    // wires up `drop` natively. We just track the dragover/leave state to
+    // render the highlight border on the dropzone.
+    private void OnPhotoDragOver() { _isDraggingPhotos = true; }
+    private void OnPhotoDragLeave() { _isDraggingPhotos = false; }
+    private void OnPhotoDrop() { _isDraggingPhotos = false; }
+
+    // Multi-file batch upload. First photo on a goat with no existing photos
+    // becomes the primary; subsequent photos in the same batch don't, since
+    // we don't want the LAST drop to win as primary.
+    private async Task UploadPhotos(IReadOnlyList<IBrowserFile>? files)
     {
-        if (file == null || goat == null) return;
+        if (files == null || files.Count == 0 || goat == null) return;
         uploadingPhoto = true;
+        var firstSlotIsPrimary = (goat.Photos?.Count ?? 0) == 0;
+        var done = 0;
+        var failed = 0;
         try
         {
-            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
-            var isPrimary = goat.Photos?.Count == 0;
-            var saved = await GoatSvc.UploadPhotoAsync(Id, stream, file.Name, caption: null, isPrimary: isPrimary);
-            if (saved != null)
+            for (int i = 0; i < files.Count; i++)
             {
-                Snackbar.Add("Photo uploaded", Severity.Success);
-                goat = await GoatSvc.GetAsync(Id);
+                var f = files[i];
+                _photoUploadProgress = $"({i + 1} of {files.Count})";
+                StateHasChanged();
+                try
+                {
+                    using var stream = f.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                    var primary = firstSlotIsPrimary && i == 0;
+                    var saved = await GoatSvc.UploadPhotoAsync(Id, stream, f.Name, caption: null, isPrimary: primary);
+                    if (saved is not null) done++;
+                    else failed++;
+                }
+                catch
+                {
+                    failed++;
+                }
             }
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Upload failed: {ex.Message}", Severity.Error);
+            goat = await GoatSvc.GetAsync(Id);
+            if (done > 0)
+                Snackbar.Add(failed == 0 ? $"{done} photo(s) uploaded" : $"{done} uploaded, {failed} failed", failed == 0 ? Severity.Success : Severity.Warning);
+            else if (failed > 0)
+                Snackbar.Add($"All {failed} uploads failed", Severity.Error);
         }
         finally
         {
+            _photoUploadProgress = "";
             uploadingPhoto = false;
         }
     }
