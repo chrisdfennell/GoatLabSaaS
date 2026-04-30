@@ -269,12 +269,19 @@ public class AdminController : ControllerBase
 
     public record HardDeleteTenantConfirmation(string ConfirmSlug);
 
-    // Manual hard-delete for a tenant (farm). Mirrors HardDeleteSweepJob's
-    // tenant logic but for one row, skipping the 30-day Hangfire grace.
-    // Same progression rule as users: must be soft-deleted first, and
-    // confirmation requires typing the slug exactly. Cascade behavior is
-    // identical to the sweep — EF FK config drives what gets cleaned up
-    // on Tenants.Remove.
+    // Manual hard-delete for a tenant (farm). Skips the 30-day Hangfire
+    // grace. Same progression rule as users: must be soft-deleted first,
+    // and confirmation requires typing the slug exactly.
+    //
+    // Cleanup strategy: enumerate every EF entity type with a TenantId
+    // property, bulk-delete its rows for this tenant via raw SQL, then
+    // remove the Tenant row. ITenantOwned children with non-cascade FKs
+    // (PushSubscriptions etc.) need this explicit pass — relying on
+    // SQL-level cascades alone would whack-a-mole every time someone
+    // adds an entity without remembering to configure cascade. Multiple
+    // passes handle FKs between sibling tenant-owned tables (e.g.
+    // MedicalRecord → Goat) by retrying anything that fails after its
+    // dependents are gone.
     [HttpPost("tenants/{id}/hard-delete")]
     public async Task<IActionResult> HardDeleteTenant(int id, [FromBody] HardDeleteTenantConfirmation? body, CancellationToken ct)
     {
@@ -291,11 +298,55 @@ public class AdminController : ControllerBase
         var nameForAudit = tenant.Name;
         var slugForAudit = tenant.Slug;
 
-        // Match HardDeleteSweepJob: just remove the tenant row. Cascade FKs
-        // configured on the model handle owned children (TenantMember,
-        // Goats and ITenantOwned tables). If a related row had no
-        // cascade, the DELETE will fail and we surface the SQL error so
-        // the admin can clean up manually before retrying.
+        // Discover every table with a TenantId column. Skip the Tenants
+        // table itself (we'll Remove it via EF below) and TenantInvitations
+        // / TenantMembers which already cascade reliably via their FK config.
+        // Using EF metadata so any new entity with TenantId gets picked up
+        // automatically — no hand-maintained list to drift.
+        var ownedTables = _db.Model.GetEntityTypes()
+            .Where(et => et.GetProperties().Any(p => p.Name == "TenantId")
+                         && et.ClrType != typeof(Tenant))
+            .Select(et => et.GetTableName())
+            .Where(t => !string.IsNullOrEmpty(t))
+            .Distinct()
+            .ToList();
+
+        // Multi-pass deletion: any table that fails on pass N (because its
+        // FK dependents in another tenant-owned table aren't gone yet) gets
+        // retried on pass N+1 after that other table emptied out. Bounded
+        // at 8 passes so a truly cyclic FK structure can't infinite-loop.
+        var pending = new HashSet<string>(ownedTables!);
+        var lastErrors = new Dictionary<string, string>();
+        for (int pass = 0; pending.Count > 0 && pass < 8; pass++)
+        {
+            var nextPending = new HashSet<string>();
+            foreach (var table in pending)
+            {
+                try
+                {
+                    await _db.Database.ExecuteSqlRawAsync(
+                        $"DELETE FROM [{table}] WHERE TenantId = {{0}}", new object[] { id });
+                    lastErrors.Remove(table);
+                }
+                catch (Exception ex)
+                {
+                    lastErrors[table] = ex.InnerException?.Message ?? ex.Message;
+                    nextPending.Add(table);
+                }
+            }
+            pending = nextPending;
+        }
+
+        if (pending.Count > 0)
+        {
+            return Conflict(new
+            {
+                error = "Couldn't hard-delete the farm — some child rows still resist deletion after several passes.",
+                stillBlocking = lastErrors,
+            });
+        }
+
+        // Children gone — drop the tenant itself.
         try
         {
             _db.Tenants.Remove(tenant);
@@ -305,7 +356,7 @@ public class AdminController : ControllerBase
         {
             return Conflict(new
             {
-                error = "Couldn't hard-delete the farm — child records still reference it.",
+                error = "Couldn't hard-delete the farm row even after children were cleared.",
                 detail = ex.InnerException?.Message ?? ex.Message,
             });
         }

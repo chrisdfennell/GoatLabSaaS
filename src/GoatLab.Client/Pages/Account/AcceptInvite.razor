@@ -46,9 +46,26 @@
     }
     else
     {
+        <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Large" Color="Color.Error" />
+        <MudText Typo="Typo.h5" Class="mt-2 mb-2">Invite couldn't be accepted</MudText>
         <MudAlert Severity="Severity.Error" Class="mb-3">@(_error ?? "Couldn't accept this invite.")</MudAlert>
-        <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth Href="/dashboard">
-            Back to dashboard
+
+        @* The most common cause of a non-401 failure here is "this invite was
+           sent to a different email" — i.e. she's logged in to a different
+           GoatLab account (often the phantom one auto-created by the old
+           invite flow). Offer her a sign-out path that returns straight to
+           this invite page rather than dumping her on a stale dashboard. *@
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            If this invite was sent to a different email, sign out and either log in with that email
+            or create a new account from the invite link.
+        </MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth
+                   StartIcon="@Icons.Material.Filled.Logout"
+                   OnClick="LogoutAndRetryAsync" Disabled="_loggingOut">
+            @(_loggingOut ? "Signing out…" : "Sign out and try again")
+        </MudButton>
+        <MudButton Variant="Variant.Text" Color="Color.Default" FullWidth Class="mt-2" Href="/dashboard">
+            Back to my dashboard
         </MudButton>
     }
 </MudPaper>
@@ -58,6 +75,24 @@
     private State _state = State.Working;
     private string? _token;
     private string? _error;
+    private bool _loggingOut;
+
+    // Sign out + return to THIS page so the invite flow can reattempt with
+    // the right account. forceLoad clears WASM state so any cached auth
+    // (CookieAuthStateProvider, MudBlazor circuit) doesn't stick.
+    private async Task LogoutAndRetryAsync()
+    {
+        if (_loggingOut) return;
+        _loggingOut = true;
+        try
+        {
+            await AuthApi.LogoutAsync();
+            AuthState.NotifyUserChanged(null);
+        }
+        catch { /* logout failure shouldn't block the redirect — cookie may already be invalid */ }
+        var dest = string.IsNullOrEmpty(_token) ? "/login" : $"/accept-invite?token={Uri.EscapeDataString(_token)}";
+        Nav.NavigateTo(dest, forceLoad: true);
+    }
 
     private string LoginReturnUrl() =>
         $"/login?returnUrl={Uri.EscapeDataString($"/accept-invite?token={_token}")}";
