@@ -63,10 +63,26 @@
             align-items: center;
             gap: 8px;
         }
+        header.site-header nav {
+            display: flex; align-items: center; gap: 20px;
+        }
         header.site-header nav a {
-            margin-left: 20px;
             font-weight: 500;
             color: #1a2421;
+            white-space: nowrap;
+        }
+        /* Mobile: compress so Sign in + Start free stay on the top bar
+           instead of wrapping to a second line. "Browse breeders" hidden
+           below 540px since the user is usually already on a public page. */
+        @@media (max-width: 600px) {
+            header.site-header { padding: 10px 0; }
+            header.site-header .inner { padding: 0 12px; }
+            header.site-header nav { gap: 10px; }
+            header.site-header nav a { font-size: 14px; }
+            .cta-button { padding: 8px 12px; font-size: 14px; }
+        }
+        @@media (max-width: 540px) {
+            header.site-header nav a[href="/breeds"] { display: none; }
         }
         .cta-button {
             display: inline-block;

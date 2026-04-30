@@ -24,7 +24,11 @@
             <a href="/breeds">Browse breeders</a>
             <a href="#self-host">Self-host</a>
             <a href="#faq">FAQ</a>
-            <a href="/login">Sign in</a>
+            @* Auth pair always visible (including mobile). On a phone the
+               whole content nav collapses, but Sign in + Start free stay
+               anchored top-right where the thumb is — no scrolling to the
+               footer to find the login link. *@
+            <a href="/login" class="nav-signin">Sign in</a>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/register" Class="nav-cta"
                        EndIcon="@Icons.Material.Filled.ArrowForward">Start free</MudButton>
         </nav>
@@ -542,8 +546,24 @@
     }
     .nav-links a:hover { color:#2e7d32; }
     .nav-cta { border-radius:10px !important; }
+    /* "Sign in" gets a button look so the auth pair reads as a unit, not a
+       stranded link next to a CTA. Outlined on desktop, ghost on mobile. */
+    .nav-signin {
+        padding: 8px 14px; border: 1px solid #d6dbd7; border-radius: 10px;
+        font-weight: 600 !important; color: #1a2421 !important;
+        transition: border-color 0.12s, color 0.12s;
+    }
+    .nav-signin:hover { border-color: #2e7d32; color: #2e7d32 !important; }
     @@media (max-width: 720px) {
-        .nav-links a:not(.nav-cta) { display:none; }
+        /* Hide the section anchors on mobile to keep the nav row to one line.
+           Auth pair (Sign in + Start free) stays visible — that's the whole
+           point: don't make a phone user scroll to the footer to log in. */
+        .nav-links a:not(.nav-cta):not(.nav-signin) { display:none; }
+        .nav-links { gap: 8px; }
+        .nav-signin { padding: 6px 10px; font-size: 13px; }
+        .nav-cta { padding: 6px 12px !important; min-width: 0 !important; }
+        /* Hide the CTA's trailing arrow on mobile to keep button compact. */
+        .nav-cta .mud-button-icon-end { display: none; }
     }
 
     /* Hero */
