@@ -100,6 +100,13 @@
     private async Task LoadAsync()
     {
         _team = await TeamApi.GetAsync();
+        // Explicit re-render. Blazor normally re-renders at the end of an
+        // async event handler, but MudDialog's Close → Result chain can
+        // resolve in a context where the auto-render doesn't fire (the
+        // OnClick handler already returned). Force the repaint so the
+        // "Pending invites" table appears the instant a new invite goes
+        // out, no manual reload.
+        StateHasChanged();
     }
 
     private async Task OpenInviteDialogAsync()
