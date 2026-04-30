@@ -290,6 +290,12 @@ else
                     <MudButton Variant="Variant.Filled" Color="Color.Success"
                                StartIcon="@Icons.Material.Filled.Restore" FullWidth
                                OnClick="RestoreAsync">Restore</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" Class="mt-2"
+                               StartIcon="@Icons.Material.Filled.DeleteForever" FullWidth
+                               OnClick="HardDeleteAsync">Permanently delete now</MudButton>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1 d-block">
+                        Skips the 30-day grace. Removes goats, medical, milk, photos — everything tenant-owned.
+                    </MudText>
                 }
             </MudPaper>
         </MudItem>
@@ -505,5 +511,39 @@ else
             await LoadAsync();
         }
         catch (Exception ex) { Snackbar.Add($"Restore failed: {ex.Message}", Severity.Error); }
+    }
+
+    // Two-step destructive flow: ack message box, then a typed-slug dialog.
+    // Server enforces both the existing soft-delete and the slug match, so
+    // bypassing the client checks still won't get past the API. Mirrors the
+    // user hard-delete pattern.
+    private async Task HardDeleteAsync()
+    {
+        if (detail is null) return;
+        var ack = await Dialog.ShowMessageBox(
+            title: "Permanently delete this farm?",
+            message: $"This removes '{detail.Name}' from the database, along with every goat, medical record, milk log, photo, and document tenant-owned. There is no restore button after this.",
+            yesText: "I understand, continue",
+            cancelText: "Cancel");
+        if (ack != true) return;
+
+        var typed = await Dialog.ShowAsync<TypeEmailToConfirmDialog>("Type the slug to confirm",
+            new DialogParameters
+            {
+                ["ExpectedValue"] = detail.Slug,
+                ["Label"] = "farm slug",
+            },
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await typed.Result;
+        if (result is null || result.Canceled || result.Data is not string entered) return;
+
+        var (ok, err) = await Admin.HardDeleteTenantAsync(Id, entered);
+        if (!ok)
+        {
+            Snackbar.Add($"Hard-delete failed: {err}", Severity.Error);
+            return;
+        }
+        Snackbar.Add($"Farm '{detail.Name}' permanently deleted.", Severity.Success);
+        Nav.NavigateTo("/admin/tenants");
     }
 }

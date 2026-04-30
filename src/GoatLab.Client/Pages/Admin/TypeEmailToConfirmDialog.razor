@@ -1,22 +1,22 @@
 <MudDialog>
     <TitleContent>
         <MudText Typo="Typo.h6" Style="color:#c62828;">
-            <MudIcon Icon="@Icons.Material.Filled.Warning" /> Type the email to confirm
+            <MudIcon Icon="@Icons.Material.Filled.Warning" /> Type the @Label to confirm
         </MudText>
     </TitleContent>
     <DialogContent>
         <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
-            This action cannot be undone. To confirm, type the user's email below.
+            This action cannot be undone. To confirm, type the @Label below.
         </MudText>
-        <MudText Typo="Typo.body2" Class="mb-2">
-            Email: <code>@ExpectedEmail</code>
+        <MudText Typo="Typo.body2" Class="mb-2" Style="text-transform:capitalize;">
+            @Label: <code>@ExpectedValue</code>
         </MudText>
         <MudTextField @bind-Value="_typed"
-                      Label="Type the email"
+                      Label="@($"Type the {Label}")"
                       Variant="Variant.Outlined"
                       Immediate
                       AutoFocus
-                      Placeholder="@ExpectedEmail" />
+                      Placeholder="@ExpectedValue" />
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Cancel</MudButton>
@@ -28,19 +28,31 @@
 
 @code {
     [CascadingParameter] private MudDialogInstance MudDialog { get; set; } = default!;
-    [Parameter] public string ExpectedEmail { get; set; } = "";
+
+    /// <summary>
+    /// The exact value the operator must type to enable the destructive action.
+    /// Email for users, slug for tenants — comparison is case-insensitive
+    /// because user emails / slugs are stored lowercased on the server.
+    /// </summary>
+    [Parameter] public string ExpectedValue { get; set; } = "";
+
+    /// <summary>Lowercase noun shown in the prompt — "email", "farm slug", etc.</summary>
+    [Parameter] public string Label { get; set; } = "value";
+
+    /// <summary>Back-compat alias for callers that still pass ExpectedEmail.</summary>
+    [Parameter]
+    public string ExpectedEmail
+    {
+        get => ExpectedValue;
+        set => ExpectedValue = value;
+    }
 
     private string _typed = "";
 
-    // Case-insensitive match — addresses are not case-sensitive locally and
-    // the server does the same comparison anyway.
     private bool IsMatch =>
         !string.IsNullOrEmpty(_typed)
-        && string.Equals(_typed.Trim(), ExpectedEmail, StringComparison.OrdinalIgnoreCase);
+        && string.Equals(_typed.Trim(), ExpectedValue, StringComparison.OrdinalIgnoreCase);
 
     private void Cancel() => MudDialog.Cancel();
-
-    // Pass the typed string back so the caller doesn't have to read it from
-    // a parameter binding after the dialog closes.
     private void Confirm() => MudDialog.Close(DialogResult.Ok(_typed.Trim()));
 }

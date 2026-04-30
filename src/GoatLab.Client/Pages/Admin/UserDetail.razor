@@ -311,7 +311,11 @@ else
         if (ack != true) return;
 
         var typed = await Dialog.ShowAsync<TypeEmailToConfirmDialog>("Type the email to confirm",
-            new DialogParameters { ["ExpectedEmail"] = detail.Email },
+            new DialogParameters
+            {
+                ["ExpectedValue"] = detail.Email,
+                ["Label"] = "email",
+            },
             new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
         var result = await typed.Result;
         if (result is null || result.Canceled || result.Data is not string entered) return;

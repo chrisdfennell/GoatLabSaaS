@@ -267,6 +267,53 @@ public class AdminController : ControllerBase
         return NoContent();
     }
 
+    public record HardDeleteTenantConfirmation(string ConfirmSlug);
+
+    // Manual hard-delete for a tenant (farm). Mirrors HardDeleteSweepJob's
+    // tenant logic but for one row, skipping the 30-day Hangfire grace.
+    // Same progression rule as users: must be soft-deleted first, and
+    // confirmation requires typing the slug exactly. Cascade behavior is
+    // identical to the sweep — EF FK config drives what gets cleaned up
+    // on Tenants.Remove.
+    [HttpPost("tenants/{id}/hard-delete")]
+    public async Task<IActionResult> HardDeleteTenant(int id, [FromBody] HardDeleteTenantConfirmation? body, CancellationToken ct)
+    {
+        _tenantContext.BypassFilter = true;
+        var tenant = await _db.Tenants.IgnoreQueryFilters().FirstOrDefaultAsync(t => t.Id == id, ct);
+        if (tenant is null) return NotFound();
+
+        if (tenant.DeletedAt is null)
+            return BadRequest(new { error = "Soft-delete the farm first, then hard-delete." });
+
+        if (body is null || !string.Equals(body.ConfirmSlug, tenant.Slug, StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { error = "Type the farm slug exactly to confirm." });
+
+        var nameForAudit = tenant.Name;
+        var slugForAudit = tenant.Slug;
+
+        // Match HardDeleteSweepJob: just remove the tenant row. Cascade FKs
+        // configured on the model handle owned children (TenantMember,
+        // Goats and ITenantOwned tables). If a related row had no
+        // cascade, the DELETE will fail and we surface the SQL error so
+        // the admin can clean up manually before retrying.
+        try
+        {
+            _db.Tenants.Remove(tenant);
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex)
+        {
+            return Conflict(new
+            {
+                error = "Couldn't hard-delete the farm — child records still reference it.",
+                detail = ex.InnerException?.Message ?? ex.Message,
+            });
+        }
+
+        await _audit.LogAsync("tenant.hard_delete", "Tenant", id.ToString(), $"{nameForAudit} ({slugForAudit})");
+        return NoContent();
+    }
+
     [HttpPut("tenants/{id}/notes")]
     public async Task<IActionResult> SetNotes(int id, AdminTenantNotesRequest req)
     {

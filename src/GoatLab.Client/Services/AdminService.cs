@@ -43,6 +43,17 @@ public class AdminService
     public Task RestoreTenantAsync(int id) =>
         EnsurePostAsync($"api/admin/tenants/{id}/restore", new { });
 
+    // Server requires the tenant to already be soft-deleted (active → soft →
+    // hard progression) and the typed slug to match exactly.
+    public async Task<(bool ok, string? error)> HardDeleteTenantAsync(int id, string confirmSlug)
+    {
+        var resp = await _http.PostAsJsonAsync($"api/admin/tenants/{id}/hard-delete",
+            new { ConfirmSlug = confirmSlug });
+        if (resp.IsSuccessStatusCode) return (true, null);
+        var raw = await resp.Content.ReadAsStringAsync();
+        return (false, string.IsNullOrWhiteSpace(raw) ? $"HTTP {(int)resp.StatusCode}" : raw);
+    }
+
     public Task SetTenantNotesAsync(int id, string? notes) =>
         EnsurePutAsync($"api/admin/tenants/{id}/notes", new AdminTenantNotesRequest(notes));
 
