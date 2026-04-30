@@ -27,6 +27,7 @@ public class ApiService
     private readonly ISnackbar _snackbar;
     private readonly IDialogService _dialogs;
     private readonly NavigationManager _nav;
+    private readonly CookieAuthStateProvider? _authState;
     // Prevent two upgrade dialogs piling on top of each other when a page fires
     // multiple requests in parallel (e.g. tabs, prefetch, OnInitialized).
     private bool _upgradeDialogOpen;
@@ -34,13 +35,14 @@ public class ApiService
     // try to kick a NavigateTo("/login") on top of each other.
     private bool _redirectingToLogin;
 
-    public ApiService(HttpClient http, IJSRuntime js, ISnackbar snackbar, IDialogService dialogs, NavigationManager nav)
+    public ApiService(HttpClient http, IJSRuntime js, ISnackbar snackbar, IDialogService dialogs, NavigationManager nav, CookieAuthStateProvider authState)
     {
         _http = http;
         _js = js;
         _snackbar = snackbar;
         _dialogs = dialogs;
         _nav = nav;
+        _authState = authState;
     }
 
     public async Task<T?> GetAsync<T>(string url)
@@ -79,6 +81,10 @@ public class ApiService
     {
         if (_redirectingToLogin) return;
         _redirectingToLogin = true;
+        // Tell the auth state provider to drop its cache so any chrome that
+        // re-renders before the navigation completes (footer, snackbar host,
+        // etc.) doesn't flash the soft-deleted user's identity.
+        try { _authState?.Invalidate(); } catch { /* never block the redirect */ }
         // forceLoad clears the WASM app state so the next page is a fresh boot
         // with no stale auth cookie cached in CookieAuthStateProvider.
         _nav.NavigateTo("/login?sessionExpired=1", forceLoad: true);

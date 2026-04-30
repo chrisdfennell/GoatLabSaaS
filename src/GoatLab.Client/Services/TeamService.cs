@@ -42,12 +42,22 @@ public class TeamService
         return (false, await res.Content.ReadAsStringAsync());
     }
 
-    public async Task<(bool ok, string? error, int? tenantId)> AcceptInviteAsync(string token)
+    public async Task<(bool ok, string? error, int? tenantId, int statusCode)> AcceptInviteAsync(string token)
     {
         var res = await _http.PostAsJsonAsync("api/team/invites/accept", new { Token = token });
         if (!res.IsSuccessStatusCode)
-            return (false, await res.Content.ReadAsStringAsync(), null);
+        {
+            // ASP.NET's default 401 returns an empty body — surfacing that as
+            // an empty error string to the page would render a blank alert
+            // box. Caller now also gets the status code so it can route a 401
+            // back to "Sign in to accept" instead of guessing.
+            var raw = await res.Content.ReadAsStringAsync();
+            var msg = string.IsNullOrWhiteSpace(raw)
+                ? $"Server returned {(int)res.StatusCode} {res.ReasonPhrase}."
+                : raw;
+            return (false, msg, null, (int)res.StatusCode);
+        }
         var body = await res.Content.ReadFromJsonAsync<Dictionary<string, int>>();
-        return (true, null, body?.GetValueOrDefault("tenantId"));
+        return (true, null, body?.GetValueOrDefault("tenantId"), 200);
     }
 }

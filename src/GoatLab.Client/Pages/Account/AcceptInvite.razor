@@ -87,10 +87,23 @@
             return;
         }
 
-        var (ok, err, tenantId) = await TeamApi.AcceptInviteAsync(_token);
+        var (ok, err, tenantId, status) = await TeamApi.AcceptInviteAsync(_token);
         if (!ok)
         {
-            _error = err?.Length > 300 ? "Could not accept invite." : err;
+            // 401 = the cookie wasn't accepted by the server. Most likely the
+            // user is signed out (or her session expired between page-load
+            // /api/account/me caching said "yes" and the POST). Route back to
+            // the sign-in flow rather than rendering a blank or confusing
+            // alert. Anything else is a real error: surface a meaningful
+            // string instead of an empty body.
+            if (status == 401)
+            {
+                _state = State.NeedsAuth;
+                return;
+            }
+            _error = string.IsNullOrWhiteSpace(err)
+                ? $"Couldn't accept this invite (HTTP {status})."
+                : (err.Length > 300 ? "Could not accept invite." : err);
             _state = State.Failed;
             return;
         }
