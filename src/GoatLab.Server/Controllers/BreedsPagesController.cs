@@ -99,7 +99,13 @@ public class BreedsPagesController : Controller
                     .OrderByDescending(p => p.IsPrimary)
                     .ThenBy(p => p.UploadedAt)
                     .Select(p => p.FilePath)
-                    .FirstOrDefault()
+                    .FirstOrDefault(),
+                Photos = g.Photos
+                    .OrderByDescending(p => p.IsPrimary)
+                    .ThenBy(p => p.UploadedAt)
+                    .Select(p => p.FilePath)
+                    .Take(5)
+                    .ToList()
             })
             .ToListAsync(ct);
 
@@ -153,7 +159,8 @@ public class BreedsPagesController : Controller
             (string)m.TenantName,
             (string?)m.TenantLocation,
             string.IsNullOrEmpty((string?)m.PrimaryPhoto) ? null : "/" + (string)m.PrimaryPhoto,
-            (DateTime?)m.ListedAt)).ToList();
+            (DateTime?)m.ListedAt,
+            ((List<string>)m.Photos).Select(p => "/" + p).ToList())).ToList();
 
         // Farm summary still derived from the unfiltered match set so users
         // can see "this breed is available at 12 farms, you're seeing 3 after
@@ -206,5 +213,6 @@ public class BreedsPagesController : Controller
         string FarmName,
         string? FarmLocation,
         string? PrimaryPhotoUrl,
-        DateTime? ListedAt = null);
+        DateTime? ListedAt = null,
+        IReadOnlyList<string>? PhotoUrls = null);
 }

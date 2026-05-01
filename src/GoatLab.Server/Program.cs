@@ -134,9 +134,39 @@ builder.Services
 // for browser sessions). The global authorization policy below accepts either.
 // Callers send `Authorization: Bearer gl_<secret>`; ApiKeyAuthHandler hashes,
 // looks up the row, and produces a principal with the tenant_id claim.
+//
+// Buyer cookie scheme is a separate, lightweight auth path for marketplace
+// buyers (no tenant, no password — magic link to email). Stored under a
+// distinct cookie so a buyer signing in doesn't tangle with a seller
+// session on the same browser, and vice versa.
 builder.Services
     .AddAuthentication()
-    .AddScheme<ApiKeyAuthOptions, ApiKeyAuthHandler>(ApiKeyAuthOptions.SchemeName, _ => { });
+    .AddScheme<ApiKeyAuthOptions, ApiKeyAuthHandler>(ApiKeyAuthOptions.SchemeName, _ => { })
+    .AddCookie("Buyer", options =>
+    {
+        options.Cookie.Name = "goatlab.buyer";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.ExpireTimeSpan = TimeSpan.FromDays(60);
+        options.SlidingExpiration = true;
+        options.Events.OnRedirectToLogin = ctx =>
+        {
+            // SSR /buyer/* pages redirect to the magic-link page. JSON
+            // /api/buyer/* gets a 401 instead of an HTML login page.
+            if (ctx.Request.Path.StartsWithSegments("/api"))
+            {
+                ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            }
+            ctx.Response.Redirect("/buyer/sign-in?returnUrl=" + Uri.EscapeDataString(ctx.Request.Path + ctx.Request.QueryString));
+            return Task.CompletedTask;
+        };
+        options.Events.OnRedirectToAccessDenied = ctx =>
+        {
+            ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        };
+    });
 
 // IMemoryCache holds the short-lived WebAuthn challenge between register-start
 // and register-complete (and between login-start and login-complete).

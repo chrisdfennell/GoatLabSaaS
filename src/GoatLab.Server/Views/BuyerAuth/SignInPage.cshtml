@@ -1,0 +1,103 @@
+@{
+    ViewData["Title"] = "Buyer sign-in — GoatLab";
+    var returnUrl = ViewData["ReturnUrl"] as string;
+}
+
+<div class="breadcrumbs">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <a href="/marketplace">Marketplace</a>
+    <span class="sep">›</span>
+    <span>Sign in</span>
+</div>
+
+<div class="signin-card">
+    <h1 style="margin:0 0 6px 0;">Sign in to GoatLab</h1>
+    <p class="lede" style="margin:0 0 18px 0;">
+        Marketplace buyers sign in by email — no password to remember, no signup form.
+        Save listings across devices, track your inquiries, and follow your favorite farms.
+    </p>
+    <form id="buyer-signin-form" data-recaptcha-action="buyer_signin">
+        @if (!string.IsNullOrEmpty(returnUrl))
+        {
+            <input type="hidden" name="returnUrl" value="@returnUrl" />
+        }
+        <label class="signin-label">
+            <span>Your email</span>
+            <input type="email" name="email" required autocomplete="email" placeholder="you@example.com" />
+        </label>
+        <button type="submit" class="cta-button" style="width:100%;margin-top:12px;">Email me a sign-in link</button>
+        <div id="signin-status" class="signin-status" role="status"></div>
+        <p style="font-size:12px;color:#6b7a70;margin-top:16px;">
+            We'll email you a one-time link that expires in 30 minutes. No password required.
+            Buyer accounts are different from breeder farm accounts —
+            <a href="/login">breeders sign in here</a>.
+        </p>
+    </form>
+</div>
+
+<style>
+    .signin-card {
+        max-width: 480px; margin: 24px auto;
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        padding: 28px;
+    }
+    .signin-label { display: block; margin-bottom: 6px; font-size: 0.9rem; font-weight: 500; }
+    .signin-label span { display: block; margin-bottom: 4px; color: #4a5a51; }
+    .signin-label input {
+        width: 100%; padding: 12px 14px;
+        border: 1px solid #ccc; border-radius: 8px;
+        font-size: 1rem; font-family: inherit;
+    }
+    .signin-label input:focus { outline: none; border-color: #2e7d32; box-shadow: 0 0 0 2px rgba(46,125,50,0.2); }
+    .signin-status { font-size: 0.9rem; margin-top: 12px; min-height: 1.2em; }
+    .signin-status.success { color: #1b5e20; }
+    .signin-status.error { color: #c62828; }
+</style>
+
+<script>
+    (function () {
+        var form = document.getElementById('buyer-signin-form');
+        var status = document.getElementById('signin-status');
+        if (!form || !status) return;
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            var input = form.querySelector('input[name="email"]');
+            var btn = form.querySelector('button');
+            var rt = form.querySelector('input[name="returnUrl"]');
+            if (!input || !btn) return;
+            var email = (input.value || '').trim();
+            if (!email) return;
+            btn.disabled = true; btn.textContent = 'Sending…';
+            status.textContent = ''; status.className = 'signin-status';
+            try {
+                var headers = { 'Content-Type': 'application/json' };
+                if (window.goatlabRecaptcha) {
+                    var token = await window.goatlabRecaptcha.execute('buyer_signin');
+                    if (token) headers['X-Recaptcha-Token'] = token;
+                }
+                var resp = await fetch('/api/buyer/auth/start', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({ email: email, returnUrl: rt ? rt.value : null })
+                });
+                var data = await resp.json().catch(function () { return null; });
+                if (resp.ok && data && data.ok) {
+                    status.textContent = data.message;
+                    status.className = 'signin-status success';
+                    input.value = '';
+                } else {
+                    status.textContent = (data && data.message) || 'Could not send the link. Try again in a moment.';
+                    status.className = 'signin-status error';
+                }
+            } catch (err) {
+                status.textContent = 'Network error — please try again.';
+                status.className = 'signin-status error';
+            } finally {
+                btn.disabled = false; btn.textContent = 'Email me a sign-in link';
+            }
+        });
+    })();
+</script>

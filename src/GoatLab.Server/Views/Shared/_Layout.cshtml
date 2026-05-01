@@ -288,9 +288,22 @@
                 <a href="/marketplace">For sale</a>
                 <a href="/breeds">Breeds</a>
                 <a href="/compare" id="nav-favs">Favorites</a>
+                <a href="/buyer/dashboard" id="nav-my-account" style="display:none;">My account</a>
                 <a href="/login">Sign in</a>
                 <a href="/register" class="cta-button">Start free</a>
             </nav>
+            <script>
+                // Show "My account" only when the buyer cookie is set.
+                (async function () {
+                    try {
+                        var resp = await fetch('/api/buyer/me');
+                        if (resp.ok) {
+                            var el = document.getElementById('nav-my-account');
+                            if (el) el.style.display = '';
+                        }
+                    } catch (e) { /* ignore */ }
+                })();
+            </script>
             <script>
                 // Show favorite count next to the nav link if any are saved.
                 (function () {
@@ -307,6 +320,79 @@
     <main>
         @RenderBody()
     </main>
+
+    @* Buyer "Save listing" toggle — shared by /pub and /marketplace. Calls
+       /api/buyer/saved to add/remove; if the user isn't signed in the API
+       returns 401 and we redirect to the buyer sign-in page with a
+       returnUrl pointing at the current page. State is reflected in the
+       button class (.saved) and inner content. *@
+    <script>
+        (async function () {
+            // On page load, fetch my saved IDs once and mark any matching
+            // .save-button or .save-toggle elements with .saved.
+            try {
+                var resp = await fetch('/api/buyer/saved');
+                if (!resp.ok) return; // 401 = anonymous, fine — leave buttons in default state
+                var ids = await resp.json();
+                if (!Array.isArray(ids) || ids.length === 0) return;
+                var set = new Set(ids.map(String));
+                document.querySelectorAll('[data-goat-id]').forEach(function (el) {
+                    if (set.has(String(el.dataset.goatId))) {
+                        el.classList.add('saved');
+                        if (el.tagName === 'BUTTON') el.innerHTML = '⭐ Saved';
+                    }
+                });
+            } catch (e) { /* swallow */ }
+        })();
+
+        window.toggleSaveListing = async function (btn) {
+            var id = btn.dataset.goatId;
+            if (!id) return;
+            var saved = btn.classList.contains('saved');
+            var url = saved ? '/api/buyer/saved/' + encodeURIComponent(id) : '/api/buyer/saved';
+            var opts = saved
+                ? { method: 'DELETE' }
+                : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ goatId: parseInt(id, 10) }) };
+            var resp = await fetch(url, opts);
+            if (resp.status === 401) {
+                window.location = '/buyer/sign-in?returnUrl=' + encodeURIComponent(window.location.pathname + window.location.search);
+                return;
+            }
+            if (resp.ok) {
+                if (saved) {
+                    btn.classList.remove('saved');
+                    if (btn.tagName === 'BUTTON') btn.innerHTML = '⭐ Save to my list';
+                } else {
+                    btn.classList.add('saved');
+                    if (btn.tagName === 'BUTTON') btn.innerHTML = '⭐ Saved';
+                }
+            }
+        };
+    </script>
+
+    @* Card photo carousel — global helper so any SSR view rendering goat
+       cards can use the same prev/next logic. Inline onclick attrs on the
+       buttons call this rather than wiring per-card listeners. *@
+    <script>
+        window.goatlabCarousel = window.goatlabCarousel || {
+            step: function (btn, dir) {
+                var photo = btn.closest('.goat-card-photo');
+                if (!photo) return;
+                var imgs = photo.querySelectorAll('.carousel-track img');
+                var dots = photo.querySelectorAll('.carousel-dots span');
+                if (imgs.length < 2) return;
+                var current = 0;
+                for (var i = 0; i < imgs.length; i++) {
+                    if (imgs[i].classList.contains('active')) { current = i; break; }
+                }
+                var next = (current + dir + imgs.length) % imgs.length;
+                imgs[current].classList.remove('active');
+                imgs[next].classList.add('active');
+                if (dots[current]) dots[current].classList.remove('active');
+                if (dots[next]) dots[next].classList.add('active');
+            }
+        };
+    </script>
 
     <footer class="site-footer">
         <div>

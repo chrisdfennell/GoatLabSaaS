@@ -68,7 +68,13 @@ public class MarketplaceController : Controller
                     .OrderByDescending(p => p.IsPrimary)
                     .ThenBy(p => p.UploadedAt)
                     .Select(p => p.FilePath)
-                    .FirstOrDefault()
+                    .FirstOrDefault(),
+                Photos = g.Photos
+                    .OrderByDescending(p => p.IsPrimary)
+                    .ThenBy(p => p.UploadedAt)
+                    .Select(p => p.FilePath)
+                    .Take(5)
+                    .ToList()
             })
             .ToListAsync(ct);
 
@@ -125,7 +131,8 @@ public class MarketplaceController : Controller
                 (string)m.TenantName,
                 (string?)m.TenantLocation,
                 string.IsNullOrEmpty((string?)m.PrimaryPhoto) ? null : "/" + (string)m.PrimaryPhoto,
-                (DateTime?)m.ListedAt))
+                (DateTime?)m.ListedAt,
+                ((List<string>)m.Photos).Select(p => "/" + p).ToList()))
             .ToList();
 
         // Distinct breed pills for the filter UI — only show breeds with at

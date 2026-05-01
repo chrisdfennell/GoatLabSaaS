@@ -453,6 +453,24 @@ public static class EmailTemplates
         );
     }
 
+    /// <summary>Magic-link sign-in email for marketplace buyer accounts.</summary>
+    public static (string Subject, string Html, string Text) BuyerMagicLink(
+        string email, string verifyUrl, int expiresInMinutes)
+    {
+        return (
+            Subject: $"Sign in to {Brand}",
+            Html: $@"<div style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:0 auto;padding:24px;color:#1a2421;"">
+  <h2 style=""color:#2e7d32;margin-bottom:8px;"">Sign in to {Brand}</h2>
+  <p>Click the button to sign in to your buyer dashboard. The link expires in {expiresInMinutes} minutes and can only be used once.</p>
+  <p style=""margin:24px 0;"">
+    <a href=""{verifyUrl}"" style=""display:inline-block;background:#2e7d32;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;"">Sign in to {Brand}</a>
+  </p>
+  <p style=""font-size:12px;color:#6b7a70;"">If you didn't ask to sign in, you can ignore this email — your address ({System.Net.WebUtility.HtmlEncode(email)}) won't be added to anything.</p>
+</div>",
+            Text: $"Sign in to {Brand} by visiting:\n{verifyUrl}\n\nLink expires in {expiresInMinutes} minutes. If you didn't request this, you can ignore the email."
+        );
+    }
+
     private static bool LooksLikeHtml(string? s) =>
         !string.IsNullOrWhiteSpace(s) &&
         (s!.Contains('<') && s.Contains('>'));

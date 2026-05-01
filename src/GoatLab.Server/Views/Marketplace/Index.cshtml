@@ -166,10 +166,31 @@ else
         @foreach (var g in Model)
         {
             <a class="goat-card" href="/pub/@g.FarmSlug/@g.Id">
-                <div class="goat-card-photo @(string.IsNullOrEmpty(g.PrimaryPhotoUrl) ? "empty" : "")">
-                    @if (!string.IsNullOrEmpty(g.PrimaryPhotoUrl))
+                <div class="goat-card-photo @(string.IsNullOrEmpty(g.PrimaryPhotoUrl) ? "empty" : "")"
+                     data-carousel="@(g.PhotoUrls is { Count: > 1 } ? "1" : "0")">
+                    @if (g.PhotoUrls is { Count: > 0 })
                     {
-                        <img src="@g.PrimaryPhotoUrl" alt="@g.Name" loading="lazy" />
+                        <div class="carousel-track">
+                            @for (var pi = 0; pi < g.PhotoUrls.Count; pi++)
+                            {
+                                <img src="@g.PhotoUrls[pi]" alt="@g.Name @(pi + 1)"
+                                     class="@(pi == 0 ? "active" : "")"
+                                     loading="lazy" />
+                            }
+                        </div>
+                        @if (g.PhotoUrls.Count > 1)
+                        {
+                            <button type="button" class="carousel-nav prev" aria-label="Previous photo"
+                                    onclick="event.preventDefault();event.stopPropagation();window.goatlabCarousel.step(this,-1);">‹</button>
+                            <button type="button" class="carousel-nav next" aria-label="Next photo"
+                                    onclick="event.preventDefault();event.stopPropagation();window.goatlabCarousel.step(this,1);">›</button>
+                            <div class="carousel-dots">
+                                @for (var pi = 0; pi < g.PhotoUrls.Count; pi++)
+                                {
+                                    <span class="@(pi == 0 ? "active" : "")"></span>
+                                }
+                            </div>
+                        }
                     }
                     else
                     {
@@ -484,6 +505,45 @@ else
         overflow: hidden;
         position: relative;
     }
+    .carousel-track { position: absolute; inset: 0; }
+    .carousel-track img {
+        position: absolute; inset: 0;
+        width: 100%; height: 100%;
+        object-fit: cover;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+    .carousel-track img.active { opacity: 1; }
+    .carousel-nav {
+        position: absolute; top: 50%;
+        transform: translateY(-50%);
+        width: 32px; height: 32px;
+        background: rgba(255,255,255,0.85);
+        border: 0; border-radius: 50%;
+        font-size: 1.2rem; font-weight: 700; color: #1b5e20;
+        cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        opacity: 0; transition: opacity 0.15s ease;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        z-index: 2;
+    }
+    .carousel-nav.prev { left: 6px; }
+    .carousel-nav.next { right: 6px; }
+    .goat-card-photo:hover .carousel-nav { opacity: 1; }
+    .carousel-nav:hover { background: #fff; }
+    .carousel-dots {
+        position: absolute; bottom: 6px; left: 0; right: 0;
+        display: flex; justify-content: center; gap: 4px;
+        z-index: 2;
+    }
+    .carousel-dots span {
+        width: 5px; height: 5px;
+        background: rgba(255,255,255,0.6);
+        border-radius: 50%;
+        transition: background 0.15s ease;
+    }
+    .carousel-dots span.active { background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.15); }
+
     .badge-fresh {
         position: absolute;
         top: 8px; left: 8px;

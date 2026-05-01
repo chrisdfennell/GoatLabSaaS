@@ -110,6 +110,12 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<BuyerInquiry> BuyerInquiries => Set<BuyerInquiry>();
     public DbSet<BuyerInquiryMessage> BuyerInquiryMessages => Set<BuyerInquiryMessage>();
 
+    // Lightweight magic-link buyer accounts (no tenant, no password). Used
+    // for cross-device favorites + a unified buyer dashboard.
+    public DbSet<BuyerAccount> BuyerAccounts => Set<BuyerAccount>();
+    public DbSet<BuyerSavedListing> BuyerSavedListings => Set<BuyerSavedListing>();
+    public DbSet<BuyerSignInToken> BuyerSignInTokens => Set<BuyerSignInToken>();
+
     // Time-bounded vet share links: the owner mints one per goat to give a
     // vet temporary read access to that goat's medical history.
     public DbSet<VetShareLink> VetShareLinks => Set<VetShareLink>();
@@ -406,6 +412,23 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(a => a.UnsubscribeToken).IsUnique();
         modelBuilder.Entity<MarketplaceAlert>()
             .HasIndex(a => new { a.BreedSlug, a.IsActive });
+
+        // BuyerAccount: email is the natural key. Magic-link signin tokens
+        // are hashed and looked up by hash, never by id.
+        modelBuilder.Entity<BuyerAccount>()
+            .HasIndex(b => b.Email).IsUnique();
+        modelBuilder.Entity<BuyerSavedListing>()
+            .HasIndex(s => new { s.BuyerAccountId, s.GoatId }).IsUnique();
+        modelBuilder.Entity<BuyerSavedListing>()
+            .HasOne(s => s.Account).WithMany(a => a.Saved)
+            .HasForeignKey(s => s.BuyerAccountId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<BuyerSavedListing>()
+            .HasOne(s => s.Goat).WithMany()
+            .HasForeignKey(s => s.GoatId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<BuyerSignInToken>()
+            .HasIndex(t => t.TokenHash).IsUnique();
+        modelBuilder.Entity<BuyerSignInToken>()
+            .HasIndex(t => new { t.Email, t.ExpiresAt });
 
         // BuyerInquiry: dedup by (TenantId, GoatId, BuyerEmail) so a buyer
         // sending follow-up questions adds messages to the same thread instead
