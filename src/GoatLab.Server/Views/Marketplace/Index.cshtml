@@ -1,0 +1,379 @@
+@using GoatLab.Server.Controllers
+@model IReadOnlyList<BreedsPagesController.MarketplaceListing>
+@{
+    var totalCount = (int)(ViewData["TotalCount"] ?? 0);
+    var totalPages = (int)(ViewData["TotalPages"] ?? 1);
+    var pageNum = (int)(ViewData["Page"] ?? 1);
+    var breedFacets = (ViewData["BreedFacets"] as IReadOnlyList<MarketplaceController.BreedFacet>) ?? Array.Empty<MarketplaceController.BreedFacet>();
+    var fBreed = ViewData["FilterBreed"] as string;
+    var fSex = ViewData["FilterSex"] as string;
+    var fMin = ViewData["FilterMinPrice"] as int?;
+    var fMax = ViewData["FilterMaxPrice"] as int?;
+    var fState = ViewData["FilterState"] as string;
+    var fSort = ViewData["FilterSort"] as string;
+    var anyFilter = !string.IsNullOrEmpty(fBreed) || !string.IsNullOrEmpty(fSex)
+                 || fMin.HasValue || fMax.HasValue
+                 || !string.IsNullOrEmpty(fState) || !string.IsNullOrEmpty(fSort);
+
+    var origin = $"{Context.Request.Scheme}://{Context.Request.Host}";
+    ViewData["Canonical"] = $"{origin}/marketplace";
+
+    string Qs(string? breed = null, string? sex = null, int? minPrice = null, int? maxPrice = null,
+              string? state = null, string? sort = null, int? page = null)
+    {
+        var parts = new List<string>();
+        var b = breed ?? fBreed; if (!string.IsNullOrEmpty(b)) parts.Add($"breed={Uri.EscapeDataString(b)}");
+        var s = sex ?? fSex; if (!string.IsNullOrEmpty(s)) parts.Add($"sex={Uri.EscapeDataString(s)}");
+        var mn = minPrice ?? fMin; if (mn.HasValue) parts.Add($"minPrice={mn}");
+        var mx = maxPrice ?? fMax; if (mx.HasValue) parts.Add($"maxPrice={mx}");
+        var st = state ?? fState; if (!string.IsNullOrEmpty(st)) parts.Add($"state={Uri.EscapeDataString(st)}");
+        var sr = sort ?? fSort; if (!string.IsNullOrEmpty(sr)) parts.Add($"sort={Uri.EscapeDataString(sr)}");
+        if (page.HasValue && page.Value > 1) parts.Add($"page={page}");
+        return parts.Count == 0 ? "" : "?" + string.Join("&", parts);
+    }
+
+    string AgeString(DateTime? dob)
+    {
+        if (!dob.HasValue) return "";
+        var span = DateTime.UtcNow - dob.Value;
+        var years = (int)(span.TotalDays / 365.25);
+        var months = (int)((span.TotalDays % 365.25) / 30.44);
+        if (years == 0 && months == 0) return "<1mo";
+        if (years == 0) return $"{months}mo";
+        if (months == 0) return $"{years}y";
+        return $"{years}y {months}m";
+    }
+}
+
+<div class="breadcrumbs">
+    <a href="/">Home</a>
+    <span class="sep">›</span>
+    <span>Marketplace</span>
+</div>
+
+<div class="eyebrow">GoatLab marketplace</div>
+<h1>Goats for sale</h1>
+<p class="lede">
+    @totalCount active @(totalCount == 1 ? "listing" : "listings") across every farm on GoatLab.
+    Filter by breed, sex, state, or price — verify pedigree across the network — reserve with a Stripe deposit.
+    <a href="/breeds">Browse by breed instead →</a>
+</p>
+
+@if (breedFacets.Count > 0)
+{
+    <div class="breed-pills">
+        <a class="@("pill" + (string.IsNullOrEmpty(fBreed) ? " pill-active" : ""))" href="/marketplace@(Qs(breed: ""))">All breeds</a>
+        @foreach (var b in breedFacets)
+        {
+            var active = string.Equals(b.Slug, fBreed, StringComparison.OrdinalIgnoreCase);
+            <a class="@("pill" + (active ? " pill-active" : ""))" href="/marketplace@(Qs(breed: b.Slug))">@b.DisplayName <span class="pill-count">@b.Count</span></a>
+        }
+    </div>
+}
+
+<form method="get" class="filter-bar" action="/marketplace">
+    @if (!string.IsNullOrEmpty(fBreed))
+    {
+        <input type="hidden" name="breed" value="@fBreed" />
+    }
+    <div class="filter-field">
+        <label>Sex</label>
+        <select name="sex">
+            <option value="">Any</option>
+            <option value="Female" selected="@(fSex == "Female")">Doe</option>
+            <option value="Male" selected="@(fSex == "Male")">Buck</option>
+            <option value="Wether" selected="@(fSex == "Wether")">Wether</option>
+        </select>
+    </div>
+    <div class="filter-field">
+        <label>Min price ($)</label>
+        <input type="number" name="minPrice" min="0" step="50" value="@(fMin?.ToString() ?? "")" placeholder="0" />
+    </div>
+    <div class="filter-field">
+        <label>Max price ($)</label>
+        <input type="number" name="maxPrice" min="0" step="50" value="@(fMax?.ToString() ?? "")" placeholder="any" />
+    </div>
+    <div class="filter-field">
+        <label>State / region</label>
+        <input type="text" name="state" value="@fState" placeholder="e.g. Texas" maxlength="50" />
+    </div>
+    <div class="filter-field">
+        <label>Sort</label>
+        <select name="sort">
+            <option value="" selected="@(string.IsNullOrEmpty(fSort))">Newest</option>
+            <option value="price-asc" selected="@(fSort == "price-asc")">Lowest price</option>
+            <option value="price-desc" selected="@(fSort == "price-desc")">Highest price</option>
+        </select>
+    </div>
+    <div class="filter-actions">
+        <button type="submit" class="cta-button">Apply</button>
+        @if (anyFilter)
+        {
+            <a href="/marketplace" class="filter-clear">Clear</a>
+        }
+    </div>
+</form>
+
+@if (Model.Count == 0)
+{
+    <div class="empty-state">
+        <div class="icon">🔍</div>
+        <h2 style="margin: 4px 0;">No matching listings</h2>
+        <p style="margin: 4px 0;">Try widening your filters, or <a href="/marketplace">clear them</a> to see everything for sale.</p>
+    </div>
+}
+else
+{
+    <div class="goats-grid" style="margin-top: 24px;">
+        @foreach (var g in Model)
+        {
+            <a class="goat-card" href="/pub/@g.FarmSlug/@g.Id">
+                <div class="goat-card-photo @(string.IsNullOrEmpty(g.PrimaryPhotoUrl) ? "empty" : "")">
+                    @if (!string.IsNullOrEmpty(g.PrimaryPhotoUrl))
+                    {
+                        <img src="@g.PrimaryPhotoUrl" alt="@g.Name" loading="lazy" />
+                    }
+                    else
+                    {
+                        <span>🐐</span>
+                    }
+                </div>
+                <div class="goat-card-body">
+                    <div class="goat-card-name">@g.Name</div>
+                    <div class="goat-card-meta">
+                        @g.Gender@(g.DateOfBirth.HasValue ? $" · {AgeString(g.DateOfBirth)}" : "")@(string.IsNullOrEmpty(g.Breed) ? "" : $" · {g.Breed}")
+                    </div>
+                    <div class="goat-card-farm">@g.FarmName@(string.IsNullOrEmpty(g.FarmLocation) ? "" : $" · {g.FarmLocation}")</div>
+                    @if (g.AskingPriceCents.HasValue)
+                    {
+                        <div class="goat-card-price">$@((g.AskingPriceCents.Value / 100m).ToString("N0"))</div>
+                    }
+                    else
+                    {
+                        <div class="goat-card-price-na">Inquire for price</div>
+                    }
+                </div>
+            </a>
+        }
+    </div>
+
+    @if (totalPages > 1)
+    {
+        <nav class="pagination" aria-label="Pagination">
+            @if (pageNum > 1)
+            {
+                <a class="page-link" href="/marketplace@(Qs(page: pageNum - 1))">‹ Prev</a>
+            }
+            <span class="page-current">Page @pageNum of @totalPages</span>
+            @if (pageNum < totalPages)
+            {
+                <a class="page-link" href="/marketplace@(Qs(page: pageNum + 1))">Next ›</a>
+            }
+        </nav>
+    }
+}
+
+<section class="alert-subscribe">
+    <div class="alert-subscribe-icon">🔔</div>
+    <div class="alert-subscribe-body">
+        <h3 style="margin:0 0 4px 0;">Get notified when matching goats are listed</h3>
+        <p style="margin:0 0 12px 0;color:#4a5a51;font-size:0.95rem;">
+            Drop your email and we'll send one notification when a new listing matches your filters anywhere on GoatLab. Unsubscribe in one click.
+        </p>
+        <form id="alert-form" class="alert-form"
+              data-breed="@fBreed"
+              data-sex="@fSex"
+              data-min="@(fMin?.ToString() ?? "")"
+              data-max="@(fMax?.ToString() ?? "")"
+              data-state="@fState">
+            <input type="email" name="email" placeholder="you@example.com" required autocomplete="email"
+                   aria-label="Your email address" />
+            <button type="submit">Save search</button>
+        </form>
+        <div id="alert-status" class="alert-status" role="status"></div>
+    </div>
+</section>
+
+<script>
+    (function () {
+        var form = document.getElementById('alert-form');
+        var status = document.getElementById('alert-status');
+        if (!form || !status) return;
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            var input = form.querySelector('input[name="email"]');
+            var btn = form.querySelector('button');
+            if (!input || !btn) return;
+            var email = (input.value || '').trim();
+            if (!email) return;
+            btn.disabled = true; btn.textContent = '…';
+            status.textContent = '';
+            status.className = 'alert-status';
+            var d = form.dataset;
+            try {
+                var headers = { 'Content-Type': 'application/json' };
+                if (window.goatlabRecaptcha) {
+                    var token = await window.goatlabRecaptcha.execute('marketplace_alert');
+                    if (token) headers['X-Recaptcha-Token'] = token;
+                }
+                var resp = await fetch('/api/marketplace/alerts', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({
+                        email: email,
+                        breedSlug: d.breed || null,
+                        sex: d.sex || null,
+                        minPriceCents: d.min ? parseInt(d.min, 10) * 100 : null,
+                        maxPriceCents: d.max ? parseInt(d.max, 10) * 100 : null,
+                        state: d.state || null,
+                    })
+                });
+                var data = await resp.json().catch(function () { return null; });
+                if (resp.ok && data && data.ok) {
+                    status.textContent = data.message || "Saved! Check your email to confirm.";
+                    status.className = 'alert-status success';
+                    input.value = '';
+                } else {
+                    status.textContent = (data && data.message) || 'Something went wrong. Try again in a moment.';
+                    status.className = 'alert-status error';
+                }
+            } catch (err) {
+                status.textContent = 'Network error — please try again.';
+                status.className = 'alert-status error';
+            } finally {
+                btn.disabled = false; btn.textContent = 'Save search';
+            }
+        });
+    })();
+</script>
+
+<style>
+    .breed-pills {
+        display: flex; flex-wrap: wrap; gap: 8px;
+        margin: 16px 0 20px 0;
+    }
+    .breed-pills .pill {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 6px 12px;
+        border: 1px solid #c5e1a5;
+        background: #f1f8e9;
+        color: #1b5e20;
+        border-radius: 999px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.15s ease;
+    }
+    .breed-pills .pill:hover { background: #dcedc8; border-color: #aed581; text-decoration: none; }
+    .breed-pills .pill-active { background: #2e7d32; color: #fff; border-color: #2e7d32; }
+    .breed-pills .pill-active:hover { background: #1b5e20; color: #fff; }
+    .breed-pills .pill-count {
+        background: rgba(0,0,0,0.08); color: inherit;
+        padding: 1px 7px; border-radius: 999px; font-size: 0.72rem;
+    }
+    .breed-pills .pill-active .pill-count { background: rgba(255,255,255,0.25); }
+
+    .filter-bar {
+        display: flex; flex-wrap: wrap; gap: 12px;
+        align-items: end;
+        padding: 16px;
+        background: #f8f9f7;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        margin-bottom: 16px;
+    }
+    .filter-field { flex: 1; min-width: 130px; }
+    .filter-field label { display: block; font-size: 0.75rem; font-weight: 600; color: #4a5a51; margin-bottom: 4px; }
+    .filter-field input, .filter-field select {
+        width: 100%; padding: 8px 10px;
+        border: 1px solid #ccc; border-radius: 6px;
+        font-size: 0.95rem; font-family: inherit;
+    }
+    .filter-field input:focus, .filter-field select:focus { outline: none; border-color: #2e7d32; box-shadow: 0 0 0 2px rgba(46,125,50,0.2); }
+    .filter-actions { display: flex; gap: 8px; align-items: center; }
+    .filter-clear { color: #6b7a70; font-size: 0.9rem; }
+
+    .goats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 14px;
+    }
+    .goat-card {
+        display: flex; flex-direction: column;
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        overflow: hidden;
+        text-decoration: none;
+        color: inherit;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .goat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(46,125,50,0.12);
+        border-color: #2e7d32;
+        text-decoration: none;
+    }
+    .goat-card-photo {
+        aspect-ratio: 1 / 1;
+        background: #f5f5f5;
+        overflow: hidden;
+    }
+    .goat-card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .goat-card-photo.empty { display: flex; align-items: center; justify-content: center; font-size: 3rem; color: #bbb; }
+    .goat-card-body { padding: 12px 14px; }
+    .goat-card-name { font-weight: 700; font-size: 1.05rem; }
+    .goat-card-meta { font-size: 0.85rem; color: #6b7a70; margin-top: 2px; }
+    .goat-card-farm { font-size: 0.8rem; color: #4a5a51; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .goat-card-price { color: #2e7d32; font-weight: 700; font-size: 1.05rem; margin-top: 8px; }
+    .goat-card-price-na { color: #999; font-size: 0.85rem; margin-top: 8px; font-style: italic; }
+
+    .pagination {
+        display: flex; justify-content: center; align-items: center; gap: 16px;
+        margin: 32px 0;
+    }
+    .page-link {
+        padding: 8px 14px; border: 1px solid #2e7d32; color: #2e7d32;
+        border-radius: 6px; text-decoration: none; font-weight: 500;
+    }
+    .page-link:hover { background: #e8f5e9; text-decoration: none; }
+    .page-current { color: #4a5a51; font-size: 0.95rem; }
+
+    .alert-subscribe {
+        display: flex; gap: 16px;
+        background: linear-gradient(135deg, #f1f8e9, #e8f5e9);
+        border: 1px solid #c5e1a5;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 32px 0;
+    }
+    .alert-subscribe-icon { font-size: 2rem; line-height: 1; }
+    .alert-subscribe-body { flex: 1; }
+    .alert-form { display: flex; gap: 8px; max-width: 420px; }
+    .alert-form input {
+        flex: 1; padding: 10px 12px;
+        border: 1px solid #ccc; border-radius: 6px;
+        font-size: 0.95rem; font-family: inherit;
+    }
+    .alert-form input:focus { outline: none; border-color: #2e7d32; }
+    .alert-form button {
+        padding: 10px 18px;
+        background: #2e7d32; color: #fff;
+        border: 0; border-radius: 6px;
+        font-weight: 600; cursor: pointer;
+    }
+    .alert-form button:hover { background: #1b5e20; }
+    .alert-form button:disabled { opacity: 0.6; cursor: default; }
+    .alert-status { font-size: 0.9rem; margin-top: 8px; min-height: 1.2em; }
+    .alert-status.success { color: #1b5e20; }
+    .alert-status.error { color: #c62828; }
+
+    .empty-state {
+        text-align: center;
+        padding: 48px 20px;
+        border: 1px dashed #ccc;
+        border-radius: 10px;
+        color: #6b7a70;
+    }
+    .empty-state .icon { font-size: 3rem; color: #bbb; margin-bottom: 8px; }
+</style>

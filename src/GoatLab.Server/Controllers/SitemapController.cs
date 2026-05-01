@@ -35,6 +35,7 @@ public class SitemapController : ControllerBase
             new($"{origin}/privacy",  "yearly",  0.3),
             new($"{origin}/changelog","weekly",  0.5),
             new($"{origin}/breeds",   "daily",   0.8),
+            new($"{origin}/marketplace", "daily", 0.9),
         };
 
         // Every breed slug currently represented by an active public listing.
