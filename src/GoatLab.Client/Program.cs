@@ -82,5 +82,6 @@ builder.Services.AddScoped<ApiKeysService>();
 builder.Services.AddScoped<WebhooksService>();
 builder.Services.AddScoped<LegalSettingsService>();
 builder.Services.AddScoped<AdminOpsService>();
+builder.Services.AddScoped<RecaptchaService>();
 
 await builder.Build().RunAsync();

@@ -117,9 +117,14 @@ else
             status.textContent = '';
             status.className = 'farm-follow-status';
             try {
+                var headers = { 'Content-Type': 'application/json' };
+                if (window.goatlabRecaptcha) {
+                    var token = await window.goatlabRecaptcha.execute('follow_farm');
+                    if (token) headers['X-Recaptcha-Token'] = token;
+                }
                 var resp = await fetch(@Json.Serialize($"/api/public/farms/{slug}/follow"), {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: headers,
                     body: JSON.stringify({ email: email })
                 });
                 var data = await resp.json().catch(function () { return null; });

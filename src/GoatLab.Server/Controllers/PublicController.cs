@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using GoatLab.Server.Data;
+using GoatLab.Server.Filters;
 using GoatLab.Server.Services.Billing;
 using GoatLab.Server.Services.Email;
 using GoatLab.Shared.DTOs;
@@ -99,6 +100,7 @@ public class PublicController : ControllerBase
     }
 
     [HttpPost("farms/{slug}/goats/{goatId:int}/reserve")]
+    [RequireRecaptcha("reserve")]
     public async Task<ActionResult<RedirectUrlDto>> Reserve(
         string slug,
         int goatId,
@@ -146,6 +148,7 @@ public class PublicController : ControllerBase
     public record FollowFarmResponse(bool Ok, string Message);
 
     [HttpPost("farms/{slug}/follow")]
+    [RequireRecaptcha("follow_farm")]
     public async Task<ActionResult<FollowFarmResponse>> Follow(
         string slug,
         [FromBody] FollowFarmRequest req,
@@ -222,6 +225,7 @@ public class PublicController : ControllerBase
     public record AlertResponse(bool Ok, string Message);
 
     [HttpPost("/api/marketplace/alerts")]
+    [RequireRecaptcha("marketplace_alert")]
     public async Task<ActionResult<AlertResponse>> CreateAlert(
         [FromBody] AlertRequest req,
         [FromServices] IAppEmailSender email,

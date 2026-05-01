@@ -6,7 +6,12 @@ namespace GoatLab.Client.Services;
 public class TwoFactorService
 {
     private readonly HttpClient _http;
-    public TwoFactorService(HttpClient http) => _http = http;
+    private readonly RecaptchaService _recaptcha;
+    public TwoFactorService(HttpClient http, RecaptchaService recaptcha)
+    {
+        _http = http;
+        _recaptcha = recaptcha;
+    }
 
     public record Status(bool TotpEnabled, int RecoveryCodesRemaining, List<Passkey> Passkeys);
     public record Passkey(int Id, string Name, DateTime CreatedAt, DateTime? LastUsedAt);
@@ -71,8 +76,14 @@ public class TwoFactorService
     // Login 2FA steps
     public async Task<(bool ok, string? error, string? userJson)> VerifyTotpLoginAsync(string code, bool rememberMe, bool rememberMachine)
     {
-        var res = await _http.PostAsJsonAsync("api/account/login/verify-totp",
-            new { Code = code, RememberMe = rememberMe, RememberMachine = rememberMachine });
+        var token = await _recaptcha.ExecuteAsync("login");
+        var req = new HttpRequestMessage(HttpMethod.Post, "api/account/login/verify-totp")
+        {
+            Content = JsonContent.Create(new { Code = code, RememberMe = rememberMe, RememberMachine = rememberMachine })
+        };
+        if (!string.IsNullOrEmpty(token))
+            req.Headers.TryAddWithoutValidation("X-Recaptcha-Token", token);
+        var res = await _http.SendAsync(req);
         var body = await res.Content.ReadAsStringAsync();
         return (res.IsSuccessStatusCode, res.IsSuccessStatusCode ? null : body, res.IsSuccessStatusCode ? body : null);
     }

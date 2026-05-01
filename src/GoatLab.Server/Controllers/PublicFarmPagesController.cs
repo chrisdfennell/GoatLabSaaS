@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using GoatLab.Server.Data;
+using GoatLab.Server.Filters;
 using GoatLab.Server.Services.Billing;
 using GoatLab.Shared.DTOs;
 using GoatLab.Shared.Models;
@@ -152,6 +153,7 @@ public class PublicFarmPagesController : Controller
 
     [HttpPost("/pub/{slug}/{goatId:int}/reserve-form")]
     [ValidateAntiForgeryToken]
+    [RequireRecaptcha("reserve")]
     public async Task<IActionResult> Reserve(string slug, int goatId, ReserveForm form, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(form.BuyerEmail) || string.IsNullOrWhiteSpace(form.BuyerName))

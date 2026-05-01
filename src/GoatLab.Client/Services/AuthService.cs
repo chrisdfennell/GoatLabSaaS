@@ -12,9 +12,26 @@ namespace GoatLab.Client.Services;
 public class AuthService
 {
     private readonly HttpClient _http;
+    private readonly RecaptchaService _recaptcha;
     private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
-    public AuthService(HttpClient http) => _http = http;
+    public AuthService(HttpClient http, RecaptchaService recaptcha)
+    {
+        _http = http;
+        _recaptcha = recaptcha;
+    }
+
+    private async Task<HttpResponseMessage> PostWithRecaptchaAsync<T>(string url, T body, string action)
+    {
+        var token = await _recaptcha.ExecuteAsync(action);
+        var req = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = JsonContent.Create(body)
+        };
+        if (!string.IsNullOrEmpty(token))
+            req.Headers.TryAddWithoutValidation("X-Recaptcha-Token", token);
+        return await _http.SendAsync(req);
+    }
 
     public record RegisterResult(
         bool Ok,
@@ -42,7 +59,7 @@ public class AuthService
 
     public async Task<RegisterResult> RegisterAsync(RegisterRequest req)
     {
-        var response = await _http.PostAsJsonAsync("api/account/register", req);
+        var response = await PostWithRecaptchaAsync("api/account/register", req, "register");
         var body = await response.Content.ReadAsStringAsync();
         if (!response.IsSuccessStatusCode)
             return new RegisterResult(false, body, null, false, null);
@@ -61,7 +78,7 @@ public class AuthService
 
     public async Task<LoginResult> LoginAsync(LoginRequest req)
     {
-        var response = await _http.PostAsJsonAsync("api/account/login", req);
+        var response = await PostWithRecaptchaAsync("api/account/login", req, "login");
         var body = await response.Content.ReadAsStringAsync();
         if (!response.IsSuccessStatusCode)
         {
@@ -103,15 +120,15 @@ public class AuthService
 
     public async Task<(bool ok, string? error)> ForgotPasswordAsync(string email)
     {
-        var resp = await _http.PostAsJsonAsync("api/account/forgot-password", new { Email = email });
+        var resp = await PostWithRecaptchaAsync("api/account/forgot-password", new { Email = email }, "forgot_password");
         if (resp.IsSuccessStatusCode) return (true, null);
         return (false, await resp.Content.ReadAsStringAsync());
     }
 
     public async Task<(bool ok, string? error)> ResetPasswordAsync(string userId, string token, string newPassword)
     {
-        var resp = await _http.PostAsJsonAsync("api/account/reset-password",
-            new { UserId = userId, Token = token, NewPassword = newPassword });
+        var resp = await PostWithRecaptchaAsync("api/account/reset-password",
+            new { UserId = userId, Token = token, NewPassword = newPassword }, "reset_password");
         if (resp.IsSuccessStatusCode) return (true, null);
         return (false, await resp.Content.ReadAsStringAsync());
     }
@@ -126,7 +143,8 @@ public class AuthService
 
     public async Task<(bool ok, string? error)> ResendConfirmationAsync(string email)
     {
-        var resp = await _http.PostAsJsonAsync("api/account/resend-confirmation", new { Email = email });
+        var resp = await PostWithRecaptchaAsync("api/account/resend-confirmation",
+            new { Email = email }, "resend_confirmation");
         if (resp.IsSuccessStatusCode) return (true, null);
         return (false, await resp.Content.ReadAsStringAsync());
     }

@@ -195,7 +195,7 @@ else if (depositStatus == "cancel")
 @if (Model.DepositCents is int dep && dep > 0)
 {
     <dialog id="reserve-dialog" class="reserve-dialog">
-        <form method="post" action="/pub/@slug/@Model.Id/reserve-form" class="reserve-form">
+        <form method="post" action="/pub/@slug/@Model.Id/reserve-form" class="reserve-form" data-recaptcha-action="reserve">
             @Html.AntiForgeryToken()
             <h2 style="margin-top:0;">Reserve @Model.Name</h2>
             <p class="reserve-summary">

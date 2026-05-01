@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace GoatLab.Server.Controllers;
@@ -22,6 +23,22 @@ public class ConfigController : ControllerBase
         var key = _config["GoogleMaps:ApiKey"] ?? string.Empty;
         return new GoogleMapsKeyResponse(key);
     }
+
+    /// <summary>
+    /// Public reCAPTCHA v3 site key — anonymous because the login/register
+    /// pages need it before the user has a session. The key is safe to expose
+    /// (it's loaded into a script tag at runtime); the secret stays on server.
+    /// Empty string when reCAPTCHA isn't configured (dev), in which case the
+    /// client skips the challenge entirely.
+    /// </summary>
+    [HttpGet("recaptcha-key")]
+    [AllowAnonymous]
+    public ActionResult<RecaptchaKeyResponse> GetRecaptchaKey()
+    {
+        var key = _config["Recaptcha:SiteKey"] ?? string.Empty;
+        return new RecaptchaKeyResponse(key);
+    }
 }
 
 public record GoogleMapsKeyResponse(string ApiKey);
+public record RecaptchaKeyResponse(string SiteKey);

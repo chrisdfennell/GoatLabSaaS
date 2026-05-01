@@ -325,50 +325,33 @@ if (hangfireEnabled)
     builder.Services.AddHangfireServer();
 }
 
-// Rate limiting. Two policies: "auth" for login/2FA/confirm/reset (20 req/min/IP),
-// "register" for account creation (5 req/hour/IP — signup spam is slow but persistent).
-// Excess requests get 429; no queueing.
+// Rate limiting: per-endpoint policies (auth, register, transfer) were replaced
+// by Google reCAPTCHA v3 verification on the same endpoints. We keep a generic
+// global IP ceiling as a defense-in-depth backstop in case reCAPTCHA service
+// has an outage or someone scripts around it with a token farm — generous
+// enough to never affect real users (300 req/min/IP).
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-
-    options.AddPolicy("auth", ctx =>
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 20,
+                PermitLimit = 300,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0,
                 AutoReplenishment = true,
             }));
+});
 
-    options.AddPolicy("register", ctx =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 5,
-                Window = TimeSpan.FromHours(1),
-                QueueLimit = 0,
-                AutoReplenishment = true,
-            }));
-
-    // Transfer-initiate: 5 per hour. Partition prefers the authenticated user id
-    // (so two users on the same office NAT aren't joint-throttled), falls back
-    // to IP for the edge case where cookie auth is resolving.
-    options.AddPolicy("transfer", ctx =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: ctx.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-                ?? ctx.Connection.RemoteIpAddress?.ToString()
-                ?? "unknown",
-            factory: _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 5,
-                Window = TimeSpan.FromHours(1),
-                QueueLimit = 0,
-                AutoReplenishment = true,
-            }));
+// reCAPTCHA v3 — used by [RequireRecaptcha("action")] on auth + public POSTs.
+builder.Services.Configure<GoatLab.Server.Services.Security.RecaptchaOptions>(
+    builder.Configuration.GetSection("Recaptcha"));
+builder.Services.AddHttpClient<GoatLab.Server.Services.Security.IRecaptchaVerifier,
+                                GoatLab.Server.Services.Security.RecaptchaVerifier>(c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(10);
 });
 
 var app = builder.Build();

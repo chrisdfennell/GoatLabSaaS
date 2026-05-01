@@ -1,9 +1,11 @@
+@inject Microsoft.Extensions.Configuration.IConfiguration AppConfig
 @{
     var title = ViewData["Title"] as string ?? "GoatLab";
     var description = ViewData["Description"] as string ?? "GoatLab — goat herd management for homesteaders and dairy farms.";
     var canonical = ViewData["Canonical"] as string ?? $"{Context.Request.Scheme}://{Context.Request.Host}{Context.Request.Path}";
     var ogImage = ViewData["OgImage"] as string;
     var jsonLd = ViewData["JsonLd"] as string;
+    var recaptchaSiteKey = AppConfig["Recaptcha:SiteKey"] ?? string.Empty;
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -218,6 +220,61 @@
     @if (!string.IsNullOrEmpty(jsonLd))
     {
         @Html.Raw($"<script type=\"application/ld+json\">{jsonLd}</script>")
+    }
+
+    @if (!string.IsNullOrEmpty(recaptchaSiteKey))
+    {
+        <script src="https://www.google.com/recaptcha/api.js?render=@recaptchaSiteKey" async defer></script>
+        <script>
+            // Global reCAPTCHA helper for SSR pages. Mirrors the Blazor side
+            // so call sites can do: const t = await goatlabRecaptcha.execute('action').
+            // For <form> posts, also intercepts submission and injects a hidden
+            // g-recaptcha-response input that the server-side filter falls back to.
+            (function () {
+                var siteKey = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(recaptchaSiteKey));
+                window.goatlabRecaptcha = {
+                    execute: function (action) {
+                        return new Promise(function (resolve) {
+                            if (typeof grecaptcha === 'undefined') { resolve(null); return; }
+                            grecaptcha.ready(function () {
+                                grecaptcha.execute(siteKey, { action: action })
+                                    .then(function (t) { resolve(t); })
+                                    .catch(function () { resolve(null); });
+                            });
+                        });
+                    }
+                };
+
+                // Auto-wire any <form data-recaptcha-action="X"> on the page —
+                // intercept submit, fetch a token, append a hidden input, then
+                // continue submission. Lets SSR HTML forms participate without
+                // every page writing its own JS.
+                document.addEventListener('DOMContentLoaded', function () {
+                    var forms = document.querySelectorAll('form[data-recaptcha-action]');
+                    forms.forEach(function (form) {
+                        form.addEventListener('submit', function (e) {
+                            if (form.dataset.recaptchaSubmitted === '1') return;
+                            e.preventDefault();
+                            var action = form.getAttribute('data-recaptcha-action') || 'submit';
+                            window.goatlabRecaptcha.execute(action).then(function (token) {
+                                if (token) {
+                                    var input = form.querySelector('input[name="g-recaptcha-response"]');
+                                    if (!input) {
+                                        input = document.createElement('input');
+                                        input.type = 'hidden';
+                                        input.name = 'g-recaptcha-response';
+                                        form.appendChild(input);
+                                    }
+                                    input.value = token;
+                                }
+                                form.dataset.recaptchaSubmitted = '1';
+                                form.submit();
+                            });
+                        });
+                    });
+                });
+            })();
+        </script>
     }
 </head>
 <body>

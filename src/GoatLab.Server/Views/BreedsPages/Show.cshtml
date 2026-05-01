@@ -286,9 +286,14 @@ else
             status.className = 'alert-status';
             var d = form.dataset;
             try {
+                var headers = { 'Content-Type': 'application/json' };
+                if (window.goatlabRecaptcha) {
+                    var token = await window.goatlabRecaptcha.execute('marketplace_alert');
+                    if (token) headers['X-Recaptcha-Token'] = token;
+                }
                 var resp = await fetch('/api/marketplace/alerts', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: headers,
                     body: JSON.stringify({
                         email: email,
                         breedSlug: d.breed || null,

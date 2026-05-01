@@ -7,6 +7,7 @@ using Fido2NetLib;
 using Fido2NetLib.Objects;
 using GoatLab.Server.Data;
 using GoatLab.Server.Data.Auth;
+using GoatLab.Server.Filters;
 using GoatLab.Server.Services;
 using GoatLab.Server.Services.Email;
 using GoatLab.Shared.DTOs;
@@ -15,7 +16,6 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -62,7 +62,7 @@ public class AccountController : ControllerBase
     private bool RequiresConfirmedEmail => _identityOptions.SignIn.RequireConfirmedEmail;
 
     [AllowAnonymous]
-    [EnableRateLimiting("register")]
+    [RequireRecaptcha("register")]
     [HttpPost("register")]
     public async Task<IActionResult> Register(RegisterRequest req)
     {
@@ -190,7 +190,7 @@ public class AccountController : ControllerBase
     }
 
     [AllowAnonymous]
-    [EnableRateLimiting("auth")]
+    [RequireRecaptcha("login")]
     [HttpPost("login")]
     public async Task<IActionResult> Login(LoginRequest req)
     {
@@ -241,7 +241,7 @@ public class AccountController : ControllerBase
     public record VerifyTotpRequest(string Code, bool RememberMe, bool RememberMachine);
 
     [AllowAnonymous]
-    [EnableRateLimiting("auth")]
+    [RequireRecaptcha("login")]
     [HttpPost("login/verify-totp")]
     public async Task<IActionResult> VerifyTotp([FromBody] VerifyTotpRequest req)
     {
@@ -261,7 +261,6 @@ public class AccountController : ControllerBase
     }
 
     [AllowAnonymous]
-    [EnableRateLimiting("auth")]
     [HttpPost("login/passkey-start")]
     public async Task<IActionResult> PasskeyStart()
     {
@@ -286,7 +285,6 @@ public class AccountController : ControllerBase
     public record PasskeyLoginRequest(AuthenticatorAssertionRawResponse Response, bool RememberMe);
 
     [AllowAnonymous]
-    [EnableRateLimiting("auth")]
     [HttpPost("login/passkey-complete")]
     public async Task<IActionResult> PasskeyComplete([FromBody] PasskeyLoginRequest req)
     {
@@ -591,7 +589,7 @@ public class AccountController : ControllerBase
     public record ResetPasswordRequest(string UserId, string Token, string NewPassword);
 
     [AllowAnonymous]
-    [EnableRateLimiting("auth")]
+    [RequireRecaptcha("forgot_password")]
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] EmailRequest req)
     {
@@ -613,7 +611,7 @@ public class AccountController : ControllerBase
     }
 
     [AllowAnonymous]
-    [EnableRateLimiting("auth")]
+    [RequireRecaptcha("reset_password")]
     [HttpPost("reset-password")]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest req)
     {
@@ -629,7 +627,6 @@ public class AccountController : ControllerBase
     }
 
     [AllowAnonymous]
-    [EnableRateLimiting("auth")]
     [HttpPost("confirm-email")]
     public async Task<IActionResult> ConfirmEmail([FromBody] ConfirmEmailRequest req)
     {
@@ -645,7 +642,7 @@ public class AccountController : ControllerBase
     }
 
     [AllowAnonymous]
-    [EnableRateLimiting("auth")]
+    [RequireRecaptcha("resend_confirmation")]
     [HttpPost("resend-confirmation")]
     public async Task<IActionResult> ResendConfirmation([FromBody] EmailRequest req)
     {
