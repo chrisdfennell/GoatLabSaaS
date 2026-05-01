@@ -90,6 +90,7 @@ public class BreedsPagesController : Controller
                 g.Gender,
                 g.DateOfBirth,
                 g.AskingPriceCents,
+                g.ListedAt,
                 TenantId = g.TenantId,
                 TenantSlug = g.Tenant!.Slug,
                 TenantName = g.Tenant.Name,
@@ -151,7 +152,8 @@ public class BreedsPagesController : Controller
             (string)m.TenantSlug,
             (string)m.TenantName,
             (string?)m.TenantLocation,
-            string.IsNullOrEmpty((string?)m.PrimaryPhoto) ? null : "/" + (string)m.PrimaryPhoto)).ToList();
+            string.IsNullOrEmpty((string?)m.PrimaryPhoto) ? null : "/" + (string)m.PrimaryPhoto,
+            (DateTime?)m.ListedAt)).ToList();
 
         // Farm summary still derived from the unfiltered match set so users
         // can see "this breed is available at 12 farms, you're seeing 3 after
@@ -203,5 +205,6 @@ public class BreedsPagesController : Controller
         string FarmSlug,
         string FarmName,
         string? FarmLocation,
-        string? PrimaryPhotoUrl);
+        string? PrimaryPhotoUrl,
+        DateTime? ListedAt = null);
 }

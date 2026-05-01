@@ -32,6 +32,18 @@
         return parts.Count == 0 ? "" : "?" + string.Join("&", parts);
     }
 
+    string ListedAgo(DateTime? listedAt)
+    {
+        if (!listedAt.HasValue) return "";
+        var diff = DateTime.UtcNow - listedAt.Value;
+        if (diff.TotalDays < 1) return "today";
+        if (diff.TotalDays < 2) return "yesterday";
+        if (diff.TotalDays < 30) return $"{(int)diff.TotalDays}d ago";
+        if (diff.TotalDays < 365) return $"{(int)(diff.TotalDays / 30)}mo ago";
+        return $"{(int)(diff.TotalDays / 365)}y ago";
+    }
+    bool IsFresh(DateTime? listedAt) => listedAt.HasValue && (DateTime.UtcNow - listedAt.Value).TotalDays <= 3;
+
     string AgeString(DateTime? dob)
     {
         if (!dob.HasValue) return "";
@@ -45,14 +57,32 @@
     }
 }
 
+@* Leaflet CSS lives inline because the SSR layout has no @@section Head. JS
+   is loaded lazily when the user toggles to map view so the list-view
+   first paint is unaffected. *@
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
 <div class="breadcrumbs">
     <a href="/">Home</a>
     <span class="sep">›</span>
     <span>Marketplace</span>
 </div>
 
-<div class="eyebrow">GoatLab marketplace</div>
-<h1>Goats for sale</h1>
+<div class="marketplace-header">
+    <div>
+        <div class="eyebrow">GoatLab marketplace</div>
+        <h1 style="margin-bottom:4px;">Goats for sale</h1>
+    </div>
+    <div class="view-toggle" role="tablist" aria-label="View mode">
+        <button type="button" class="view-toggle-btn view-toggle-active" data-view="list" aria-selected="true">
+            <span aria-hidden="true">≡</span> List
+        </button>
+        <button type="button" class="view-toggle-btn" data-view="map" aria-selected="false">
+            <span aria-hidden="true">📍</span> Map
+        </button>
+    </div>
+</div>
 <p class="lede">
     @totalCount active @(totalCount == 1 ? "listing" : "listings") across every farm on GoatLab.
     Filter by breed, sex, state, or price — verify pedigree across the network — reserve with a Stripe deposit.
@@ -114,6 +144,14 @@
     </div>
 </form>
 
+@* Map container — hidden until the user toggles to map view, then we lazy
+   load Leaflet JS + the farm-pins endpoint. *@
+<div id="marketplace-map-container" style="display:none;">
+    <div id="marketplace-map" style="width:100%;height:520px;border-radius:10px;border:1px solid #e0e0e0;background:#f5f5f5;"></div>
+    <p class="map-note">Each pin is a farm with at least one active listing. Click for details.</p>
+</div>
+
+<div id="marketplace-list-container">
 @if (Model.Count == 0)
 {
     <div class="empty-state">
@@ -137,6 +175,10 @@ else
                     {
                         <span>🐐</span>
                     }
+                    @if (IsFresh(g.ListedAt))
+                    {
+                        <span class="badge-fresh">Just listed</span>
+                    }
                 </div>
                 <div class="goat-card-body">
                     <div class="goat-card-name">@g.Name</div>
@@ -144,14 +186,20 @@ else
                         @g.Gender@(g.DateOfBirth.HasValue ? $" · {AgeString(g.DateOfBirth)}" : "")@(string.IsNullOrEmpty(g.Breed) ? "" : $" · {g.Breed}")
                     </div>
                     <div class="goat-card-farm">@g.FarmName@(string.IsNullOrEmpty(g.FarmLocation) ? "" : $" · {g.FarmLocation}")</div>
-                    @if (g.AskingPriceCents.HasValue)
-                    {
-                        <div class="goat-card-price">$@((g.AskingPriceCents.Value / 100m).ToString("N0"))</div>
-                    }
-                    else
-                    {
-                        <div class="goat-card-price-na">Inquire for price</div>
-                    }
+                    <div class="goat-card-bottom">
+                        @if (g.AskingPriceCents.HasValue)
+                        {
+                            <div class="goat-card-price">$@((g.AskingPriceCents.Value / 100m).ToString("N0"))</div>
+                        }
+                        else
+                        {
+                            <div class="goat-card-price-na">Inquire for price</div>
+                        }
+                        @if (g.ListedAt.HasValue)
+                        {
+                            <div class="goat-card-listed">Listed @ListedAgo(g.ListedAt)</div>
+                        }
+                    </div>
                 </div>
             </a>
         }
@@ -172,6 +220,7 @@ else
         </nav>
     }
 }
+</div> @* /marketplace-list-container *@
 
 <section class="alert-subscribe">
     <div class="alert-subscribe-icon">🔔</div>
@@ -247,7 +296,122 @@ else
     })();
 </script>
 
+<script>
+    (function () {
+        var btns = document.querySelectorAll('.view-toggle-btn');
+        var listEl = document.getElementById('marketplace-list-container');
+        var mapEl = document.getElementById('marketplace-map-container');
+        var leafletLoaded = false;
+        var mapInstance = null;
+
+        function loadLeaflet() {
+            return new Promise(function (resolve, reject) {
+                if (typeof L !== 'undefined') { resolve(); return; }
+                var s = document.createElement('script');
+                s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                s.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+                s.crossOrigin = '';
+                s.onload = function () { resolve(); };
+                s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        }
+
+        async function initMap() {
+            if (mapInstance) return;
+            try {
+                await loadLeaflet();
+                var resp = await fetch('/api/public/marketplace/farm-pins');
+                if (!resp.ok) throw new Error('Failed to load farm pins');
+                var pins = await resp.json();
+
+                var map = L.map('marketplace-map');
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+                    maxZoom: 18
+                }).addTo(map);
+
+                if (pins.length === 0) {
+                    map.setView([39.5, -98.35], 4); // continental US center
+                    L.popup()
+                        .setLatLng([39.5, -98.35])
+                        .setContent('<strong>No farms have dropped a pin yet.</strong><br>Breeders can pin their farm in farm-settings.')
+                        .openOn(map);
+                } else {
+                    var bounds = L.latLngBounds([]);
+                    pins.forEach(function (p) {
+                        var marker = L.marker([p.latitude, p.longitude]).addTo(map);
+                        var popupHtml =
+                            '<strong>' + escapeHtml(p.name) + '</strong><br>' +
+                            (p.location ? escapeHtml(p.location) + '<br>' : '') +
+                            p.listingCount + ' active ' + (p.listingCount === 1 ? 'listing' : 'listings') + '<br>' +
+                            '<a href="/pub/' + encodeURIComponent(p.slug) + '">Visit farm →</a>';
+                        marker.bindPopup(popupHtml);
+                        bounds.extend([p.latitude, p.longitude]);
+                    });
+                    map.fitBounds(bounds.pad(0.2), { maxZoom: 10 });
+                }
+                mapInstance = map;
+            } catch (e) {
+                console.error('[marketplace map]', e);
+                document.getElementById('marketplace-map').innerHTML =
+                    '<div style="padding:32px;text-align:center;color:#c62828;">Map could not load. Try refreshing.</div>';
+            }
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+            });
+        }
+
+        btns.forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                var view = btn.getAttribute('data-view');
+                btns.forEach(function (b) {
+                    b.classList.toggle('view-toggle-active', b === btn);
+                    b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
+                });
+                if (view === 'map') {
+                    listEl.style.display = 'none';
+                    mapEl.style.display = '';
+                    initMap().then(function () {
+                        if (mapInstance) setTimeout(function () { mapInstance.invalidateSize(); }, 50);
+                    });
+                } else {
+                    mapEl.style.display = 'none';
+                    listEl.style.display = '';
+                }
+            });
+        });
+    })();
+</script>
+
 <style>
+    .marketplace-header {
+        display: flex; justify-content: space-between; align-items: flex-end; gap: 16px;
+        flex-wrap: wrap; margin-bottom: 8px;
+    }
+    .view-toggle {
+        display: inline-flex;
+        background: #f1f4f1;
+        border-radius: 8px;
+        padding: 3px;
+    }
+    .view-toggle-btn {
+        background: transparent;
+        border: 0;
+        padding: 7px 16px;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #4a5a51;
+        cursor: pointer;
+    }
+    .view-toggle-btn:hover { color: #1b5e20; }
+    .view-toggle-active { background: #fff; color: #1b5e20; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .map-note { font-size: 0.85rem; color: #6b7a70; text-align: center; margin: 12px 0; }
+
     .breed-pills {
         display: flex; flex-wrap: wrap; gap: 8px;
         margin: 16px 0 20px 0;
@@ -318,6 +482,32 @@ else
         aspect-ratio: 1 / 1;
         background: #f5f5f5;
         overflow: hidden;
+        position: relative;
+    }
+    .badge-fresh {
+        position: absolute;
+        top: 8px; left: 8px;
+        background: #2e7d32;
+        color: #fff;
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 999px;
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .goat-card-bottom {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    .goat-card-listed {
+        font-size: 0.72rem;
+        color: #6b7a70;
+        white-space: nowrap;
     }
     .goat-card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .goat-card-photo.empty { display: flex; align-items: center; justify-content: center; font-size: 3rem; color: #bbb; }
@@ -325,8 +515,8 @@ else
     .goat-card-name { font-weight: 700; font-size: 1.05rem; }
     .goat-card-meta { font-size: 0.85rem; color: #6b7a70; margin-top: 2px; }
     .goat-card-farm { font-size: 0.8rem; color: #4a5a51; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .goat-card-price { color: #2e7d32; font-weight: 700; font-size: 1.05rem; margin-top: 8px; }
-    .goat-card-price-na { color: #999; font-size: 0.85rem; margin-top: 8px; font-style: italic; }
+    .goat-card-price { color: #2e7d32; font-weight: 700; font-size: 1.05rem; }
+    .goat-card-price-na { color: #999; font-size: 0.85rem; font-style: italic; }
 
     .pagination {
         display: flex; justify-content: center; align-items: center; gap: 16px;

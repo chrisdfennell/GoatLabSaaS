@@ -60,6 +60,13 @@ public class Goat : ITenantOwned
     [MaxLength(2000)]
     public string? SaleNotes { get; set; }
 
+    // Stamped when IsListedForSale flips false → true. Drives "Just listed"
+    // freshness badges on the marketplace and the newest-first sort on
+    // /marketplace. Null on legacy rows imported before this field existed
+    // (the AddGoatListedAt migration backfills from CreatedAt for any goat
+    // currently listed). Cleared when the goat is delisted.
+    public DateTime? ListedAt { get; set; }
+
     // Pedigree
     public int? SireId { get; set; }
     public Goat? Sire { get; set; }

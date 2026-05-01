@@ -8,8 +8,8 @@ public class TenantSettingsService
     private readonly HttpClient _http;
     public TenantSettingsService(HttpClient http) => _http = http;
 
-    public record Settings(int Id, string Name, string Slug, string? Location, TenantUnits Units, bool AlertEmailEnabled, bool PublicProfileEnabled, string? PublicContactEmail, int PublicDepositPercent, DateTime CreatedAt);
-    public record UpdateInput(string Name, string? Location, TenantUnits Units, bool AlertEmailEnabled, bool PublicProfileEnabled, string? PublicContactEmail, int PublicDepositPercent);
+    public record Settings(int Id, string Name, string Slug, string? Location, TenantUnits Units, bool AlertEmailEnabled, bool PublicProfileEnabled, string? PublicContactEmail, int PublicDepositPercent, DateTime CreatedAt, double? PublicLatitude, double? PublicLongitude);
+    public record UpdateInput(string Name, string? Location, TenantUnits Units, bool AlertEmailEnabled, bool PublicProfileEnabled, string? PublicContactEmail, int PublicDepositPercent, double? PublicLatitude, double? PublicLongitude);
 
     public async Task<Settings?> GetAsync()
         => await _http.GetFromJsonAsync<Settings>("api/tenant");

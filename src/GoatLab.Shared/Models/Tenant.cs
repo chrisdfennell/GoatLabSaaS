@@ -120,6 +120,15 @@ public class Tenant
     public string? PublicContactEmail { get; set; }
 
     /// <summary>
+    /// Optional farm location pin shown on the public /marketplace map view.
+    /// Null when the owner hasn't dropped a pin yet (farms without coords are
+    /// excluded from the map but still appear in the list view). Stored as
+    /// degrees lat/lng — buyer's exact street address never leaves GoatLab.
+    /// </summary>
+    public double? PublicLatitude { get; set; }
+    public double? PublicLongitude { get; set; }
+
+    /// <summary>
     /// Percentage (0–100) of a goat's AskingPriceCents collected as a Stripe
     /// one-time payment when a buyer clicks "Reserve with deposit" on the
     /// public listing page. 0 (default) disables the reservation flow and the

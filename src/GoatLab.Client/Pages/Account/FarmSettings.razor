@@ -58,6 +58,23 @@
                              Adornment="Adornment.End" AdornmentText="%" Class="mb-4"
                              Disabled="@(!_publicProfileEnabled)" />
 
+            <MudText Typo="Typo.subtitle2" Class="mb-1">Map pin (optional)</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">
+                Drop a pin so your farm shows up on the marketplace map view. Right-click your barn in
+                <MudLink Href="https://www.google.com/maps" Target="_blank">Google Maps</MudLink>
+                and click the lat/lng to copy, then paste below. Leave blank to stay off the map.
+            </MudText>
+            <MudGrid Class="mb-3">
+                <MudItem xs="6">
+                    <MudNumericField T="double?" @bind-Value="_publicLatitude" Label="Latitude" Min="-90" Max="90" Step="0.0001"
+                                     HelperText="-90 to 90" Disabled="@(!_publicProfileEnabled)" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudNumericField T="double?" @bind-Value="_publicLongitude" Label="Longitude" Min="-180" Max="180" Step="0.0001"
+                                     HelperText="-180 to 180" Disabled="@(!_publicProfileEnabled)" />
+                </MudItem>
+            </MudGrid>
+
             @if (_publicProfileEnabled)
             {
                 <MudDivider Class="my-4" />
@@ -111,6 +128,8 @@
     private bool _publicProfileEnabled;
     private string? _publicContactEmail;
     private int _publicDepositPercent;
+    private double? _publicLatitude;
+    private double? _publicLongitude;
     private string? _error;
     private bool _busy;
 
@@ -150,7 +169,9 @@
          || _alertEmailEnabled != _settings.AlertEmailEnabled
          || _publicProfileEnabled != _settings.PublicProfileEnabled
          || (_publicContactEmail ?? "") != (_settings.PublicContactEmail ?? "")
-         || _publicDepositPercent != _settings.PublicDepositPercent);
+         || _publicDepositPercent != _settings.PublicDepositPercent
+         || _publicLatitude != _settings.PublicLatitude
+         || _publicLongitude != _settings.PublicLongitude);
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
@@ -165,6 +186,8 @@
         _publicProfileEnabled = _settings.PublicProfileEnabled;
         _publicContactEmail = _settings.PublicContactEmail;
         _publicDepositPercent = _settings.PublicDepositPercent;
+        _publicLatitude = _settings.PublicLatitude;
+        _publicLongitude = _settings.PublicLongitude;
     }
 
     private async Task SaveAsync()
@@ -173,7 +196,7 @@
         _error = null;
         try
         {
-            var (ok, err, updated) = await SettingsApi.UpdateAsync(new TenantSettingsService.UpdateInput(_name.Trim(), _location?.Trim(), _units, _alertEmailEnabled, _publicProfileEnabled, _publicContactEmail?.Trim(), _publicDepositPercent));
+            var (ok, err, updated) = await SettingsApi.UpdateAsync(new TenantSettingsService.UpdateInput(_name.Trim(), _location?.Trim(), _units, _alertEmailEnabled, _publicProfileEnabled, _publicContactEmail?.Trim(), _publicDepositPercent, _publicLatitude, _publicLongitude));
             if (!ok)
             {
                 _error = err?.Length > 200 ? "Couldn't save. Check your inputs." : (err ?? "Save failed.");

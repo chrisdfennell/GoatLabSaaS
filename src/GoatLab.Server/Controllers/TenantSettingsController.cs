@@ -38,7 +38,9 @@ public class TenantSettingsController : ControllerBase
         bool PublicProfileEnabled,
         string? PublicContactEmail,
         int PublicDepositPercent,
-        DateTime CreatedAt);
+        DateTime CreatedAt,
+        double? PublicLatitude,
+        double? PublicLongitude);
 
     public record UpdateSettingsInput(
         string Name,
@@ -47,7 +49,9 @@ public class TenantSettingsController : ControllerBase
         bool AlertEmailEnabled,
         bool PublicProfileEnabled,
         string? PublicContactEmail,
-        int PublicDepositPercent);
+        int PublicDepositPercent,
+        double? PublicLatitude,
+        double? PublicLongitude);
 
     [HttpGet]
     public async Task<ActionResult<TenantSettingsDto>> Get(CancellationToken ct)
@@ -55,7 +59,7 @@ public class TenantSettingsController : ControllerBase
         if (_tenantContext.TenantId is not int tenantId) return NotFound();
         var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct);
         if (tenant is null) return NotFound();
-        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.AlertEmailEnabled, tenant.PublicProfileEnabled, tenant.PublicContactEmail, tenant.PublicDepositPercent, tenant.CreatedAt);
+        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.AlertEmailEnabled, tenant.PublicProfileEnabled, tenant.PublicContactEmail, tenant.PublicDepositPercent, tenant.CreatedAt, tenant.PublicLatitude, tenant.PublicLongitude);
     }
 
     [HttpPut]
@@ -80,10 +84,15 @@ public class TenantSettingsController : ControllerBase
         tenant.PublicProfileEnabled = input.PublicProfileEnabled;
         tenant.PublicContactEmail = string.IsNullOrWhiteSpace(input.PublicContactEmail) ? null : input.PublicContactEmail.Trim();
         tenant.PublicDepositPercent = Math.Clamp(input.PublicDepositPercent, 0, 100);
+        // Only persist coordinates that are real lat/lng (-90..90, -180..180);
+        // anything outside is treated as "clear the pin" so a typo doesn't
+        // teleport the farm to invalid space.
+        tenant.PublicLatitude = input.PublicLatitude is double lat && lat >= -90 && lat <= 90 ? lat : null;
+        tenant.PublicLongitude = input.PublicLongitude is double lng && lng >= -180 && lng <= 180 ? lng : null;
         tenant.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
-        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.AlertEmailEnabled, tenant.PublicProfileEnabled, tenant.PublicContactEmail, tenant.PublicDepositPercent, tenant.CreatedAt);
+        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.AlertEmailEnabled, tenant.PublicProfileEnabled, tenant.PublicContactEmail, tenant.PublicDepositPercent, tenant.CreatedAt, tenant.PublicLatitude, tenant.PublicLongitude);
     }
 
     private async Task<bool> IsOwnerAsync(int tenantId, CancellationToken ct)

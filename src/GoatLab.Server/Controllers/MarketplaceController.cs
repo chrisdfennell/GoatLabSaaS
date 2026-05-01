@@ -60,6 +60,7 @@ public class MarketplaceController : Controller
                 g.DateOfBirth,
                 g.AskingPriceCents,
                 g.CreatedAt,
+                g.ListedAt,
                 TenantSlug = g.Tenant!.Slug,
                 TenantName = g.Tenant.Name,
                 TenantLocation = g.Tenant.Location,
@@ -95,13 +96,14 @@ public class MarketplaceController : Controller
 
         var filteredList = filtered.ToList();
 
-        // Default sort = newest first — buyers expect "what's fresh" up top.
-        // Price ascending for shoppers comparing on budget.
+        // Default sort = newest-listed first. Falls back to CreatedAt for any
+        // legacy row that slipped past the AddGoatListedAt backfill so the
+        // sort never throws on a null ListedAt.
         filteredList = (sort?.ToLowerInvariant()) switch
         {
             "price-asc" => filteredList.OrderBy(m => m.AskingPriceCents ?? int.MaxValue).ThenBy(m => (string)m.Name).ToList(),
             "price-desc" => filteredList.OrderByDescending(m => m.AskingPriceCents ?? 0).ToList(),
-            _ => filteredList.OrderByDescending(m => (DateTime)m.CreatedAt).ToList(),
+            _ => filteredList.OrderByDescending(m => (DateTime?)m.ListedAt ?? (DateTime)m.CreatedAt).ToList(),
         };
 
         var totalCount = filteredList.Count;
@@ -122,7 +124,8 @@ public class MarketplaceController : Controller
                 (string)m.TenantSlug,
                 (string)m.TenantName,
                 (string?)m.TenantLocation,
-                string.IsNullOrEmpty((string?)m.PrimaryPhoto) ? null : "/" + (string)m.PrimaryPhoto))
+                string.IsNullOrEmpty((string?)m.PrimaryPhoto) ? null : "/" + (string)m.PrimaryPhoto,
+                (DateTime?)m.ListedAt))
             .ToList();
 
         // Distinct breed pills for the filter UI — only show breeds with at
@@ -162,6 +165,87 @@ public class MarketplaceController : Controller
     }
 
     public record BreedFacet(string Slug, string DisplayName, int Count);
+
+    // Anon JSON endpoint for the homepage "Just listed" preview strip. Cap of
+    // 12 keeps payload small; 30s cache so the landing page isn't hammering
+    // the DB on every visit.
+    [HttpGet("/api/public/marketplace/recent")]
+    public async Task<ActionResult<List<RecentListingDto>>> Recent(
+        [FromQuery] int take = 6, CancellationToken ct = default)
+    {
+        if (take < 1) take = 1;
+        if (take > 12) take = 12;
+
+        Response.Headers.CacheControl = "public, max-age=30";
+
+        var rows = await _db.Goats.IgnoreQueryFilters()
+            .Where(g => g.IsListedForSale && !g.IsExternal
+                        && g.Tenant!.PublicProfileEnabled
+                        && g.Tenant.DeletedAt == null
+                        && g.Tenant.SuspendedAt == null)
+            .OrderByDescending(g => g.ListedAt ?? g.CreatedAt)
+            .Take(take)
+            .Select(g => new RecentListingDto(
+                g.Id,
+                g.Name,
+                g.Breed,
+                g.Gender.ToString(),
+                g.AskingPriceCents,
+                g.Tenant!.Slug,
+                g.Tenant.Name,
+                g.Tenant.Location,
+                g.Photos
+                    .OrderByDescending(p => p.IsPrimary)
+                    .ThenBy(p => p.UploadedAt)
+                    .Select(p => "/" + p.FilePath)
+                    .FirstOrDefault(),
+                g.ListedAt ?? g.CreatedAt))
+            .ToListAsync(ct);
+
+        return rows;
+    }
+
+    public record RecentListingDto(
+        int Id, string Name, string? Breed, string Gender,
+        int? AskingPriceCents, string FarmSlug, string FarmName, string? FarmLocation,
+        string? PrimaryPhotoUrl, DateTime ListedAt);
+
+    // Anon JSON endpoint feeding the /marketplace map toggle. Only returns
+    // farms with both PublicLatitude AND PublicLongitude set — pins-only;
+    // "list everywhere, pin where you can" is the UX. 5 min cache so
+    // toggling map<->list isn't free DDoS bait.
+    [HttpGet("/api/public/marketplace/farm-pins")]
+    public async Task<ActionResult<List<FarmPinDto>>> FarmPins(CancellationToken ct = default)
+    {
+        Response.Headers.CacheControl = "public, max-age=300";
+
+        var rows = await _db.Tenants.IgnoreQueryFilters()
+            .Where(t => t.PublicProfileEnabled
+                     && t.DeletedAt == null
+                     && t.SuspendedAt == null
+                     && t.PublicLatitude != null
+                     && t.PublicLongitude != null)
+            .Select(t => new
+            {
+                t.Slug,
+                t.Name,
+                t.Location,
+                Lat = t.PublicLatitude!.Value,
+                Lng = t.PublicLongitude!.Value,
+                ListingCount = _db.Goats.IgnoreQueryFilters()
+                    .Count(g => g.TenantId == t.Id && g.IsListedForSale && !g.IsExternal)
+            })
+            .Where(r => r.ListingCount > 0)
+            .ToListAsync(ct);
+
+        return rows
+            .Select(r => new FarmPinDto(r.Slug, r.Name, r.Location, r.Lat, r.Lng, r.ListingCount))
+            .ToList();
+    }
+
+    public record FarmPinDto(
+        string Slug, string Name, string? Location,
+        double Latitude, double Longitude, int ListingCount);
 
     private static string BuildItemListJsonLd(
         IReadOnlyList<BreedsPagesController.MarketplaceListing> items, string origin)

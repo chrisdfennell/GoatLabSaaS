@@ -3,6 +3,7 @@
 @layout GoatLab.Client.Layout.LandingLayout
 @inject NavigationManager Nav
 @inject BillingService BillingApi
+@inject HttpClient Http
 
 <PageTitle>GoatLab — Herd management + buyer marketplace for goat farmers</PageTitle>
 
@@ -134,6 +135,66 @@
         </div>
     </div>
 </section>
+
+@* ---------- JUST LISTED — live marketplace strip ---------- *@
+@if (_recentListings is { Count: > 0 })
+{
+    <section class="just-listed">
+        <div class="container">
+            <div class="section-head">
+                <div class="eyebrow dark">
+                    <MudIcon Icon="@Icons.Material.Filled.NewReleases" Style="font-size:16px;" />
+                    <span>Live on the marketplace</span>
+                </div>
+                <h2>Just listed</h2>
+                <p>The freshest goats for sale across every farm on GoatLab — updated minutes ago.</p>
+            </div>
+            <div class="just-listed-grid">
+                @foreach (var l in _recentListings)
+                {
+                    <a class="jl-card" href="@($"/pub/{l.FarmSlug}/{l.Id}")">
+                        <div class="jl-photo @(string.IsNullOrEmpty(l.PrimaryPhotoUrl) ? "empty" : "")">
+                            @if (!string.IsNullOrEmpty(l.PrimaryPhotoUrl))
+                            {
+                                <img src="@l.PrimaryPhotoUrl" alt="@l.Name" loading="lazy" />
+                            }
+                            else
+                            {
+                                <span>🐐</span>
+                            }
+                            @if ((DateTime.UtcNow - l.ListedAt).TotalDays <= 3)
+                            {
+                                <span class="jl-badge">Just listed</span>
+                            }
+                        </div>
+                        <div class="jl-body">
+                            <div class="jl-name">@l.Name</div>
+                            <div class="jl-meta">@l.Gender@(string.IsNullOrEmpty(l.Breed) ? "" : $" · {l.Breed}")</div>
+                            <div class="jl-farm">@l.FarmName@(string.IsNullOrEmpty(l.FarmLocation) ? "" : $" · {l.FarmLocation}")</div>
+                            <div class="jl-bottom">
+                                @if (l.AskingPriceCents.HasValue)
+                                {
+                                    <span class="jl-price">$@((l.AskingPriceCents.Value / 100m).ToString("N0"))</span>
+                                }
+                                else
+                                {
+                                    <span class="jl-price-na">Inquire</span>
+                                }
+                                <span class="jl-listed">@ListedAgo(l.ListedAt)</span>
+                            </div>
+                        </div>
+                    </a>
+                }
+            </div>
+            <div class="just-listed-cta">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                           Href="/marketplace" EndIcon="@Icons.Material.Filled.ArrowForward">
+                    Browse the full marketplace
+                </MudButton>
+            </div>
+        </div>
+    </section>
+}
 
 @* ---------- FEATURES ---------- *@
 <section class="features" id="features">
@@ -675,6 +736,51 @@
     .pv-dot-warn  { background:#ffa726; }
     .pv-dot-green { background:#43a047; }
 
+    /* Just listed (live marketplace strip on the landing page) */
+    .just-listed { padding: 64px 0; background: #fafbf9; border-top: 1px solid #eaeae5; border-bottom: 1px solid #eaeae5; }
+    .just-listed-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 14px;
+        margin-top: 32px;
+    }
+    .jl-card {
+        display: flex; flex-direction: column;
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 12px;
+        overflow: hidden;
+        text-decoration: none;
+        color: inherit;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .jl-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(46,125,50,0.12);
+        border-color: #2e7d32;
+        text-decoration: none;
+    }
+    .jl-photo { aspect-ratio: 1 / 1; background: #f5f5f5; overflow: hidden; position: relative; }
+    .jl-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .jl-photo.empty { display: flex; align-items: center; justify-content: center; font-size: 3rem; color: #bbb; }
+    .jl-badge {
+        position: absolute; top: 8px; left: 8px;
+        background: #2e7d32; color: #fff;
+        font-size: 0.7rem; font-weight: 700;
+        padding: 3px 8px; border-radius: 999px;
+        letter-spacing: 0.3px; text-transform: uppercase;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    .jl-body { padding: 12px 14px; }
+    .jl-name { font-weight: 700; font-size: 1.02rem; }
+    .jl-meta { font-size: 0.84rem; color: #6b7a70; margin-top: 2px; }
+    .jl-farm { font-size: 0.78rem; color: #4a5a51; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .jl-bottom { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 8px; }
+    .jl-price { color: #2e7d32; font-weight: 700; font-size: 1rem; }
+    .jl-price-na { color: #999; font-style: italic; font-size: 0.85rem; }
+    .jl-listed { font-size: 0.7rem; color: #6b7a70; }
+    .just-listed-cta { display: flex; justify-content: center; margin-top: 32px; }
+
     /* Features */
     .features { padding:100px 0; background:#fff; }
     .section-head { max-width:720px; margin:0 auto 56px; text-align:center; }
@@ -918,11 +1024,30 @@
     private const string RepoUrl = "https://github.com/chrisdfennell/GoatLab";
 
     private List<BillingService.PublicPlan>? _plans;
+    private List<RecentListing>? _recentListings;
 
     protected override async Task OnInitializedAsync()
     {
         try { _plans = await BillingApi.GetPublicPlansAsync(); }
         catch { _plans = new(); /* if the API is unreachable, show empty */ }
+
+        try { _recentListings = await Http.GetFromJsonAsync<List<RecentListing>>("api/public/marketplace/recent?take=6"); }
+        catch { _recentListings = new(); }
+    }
+
+    public record RecentListing(
+        int Id, string Name, string? Breed, string Gender,
+        int? AskingPriceCents, string FarmSlug, string FarmName, string? FarmLocation,
+        string? PrimaryPhotoUrl, DateTime ListedAt);
+
+    private static string ListedAgo(DateTime listedAt)
+    {
+        var diff = DateTime.UtcNow - listedAt;
+        if (diff.TotalDays < 1) return "today";
+        if (diff.TotalDays < 2) return "yesterday";
+        if (diff.TotalDays < 30) return $"{(int)diff.TotalDays}d ago";
+        if (diff.TotalDays < 365) return $"{(int)(diff.TotalDays / 30)}mo ago";
+        return $"{(int)(diff.TotalDays / 365)}y ago";
     }
 
     // Middle plan in an odd-count list gets the "Most popular" badge.

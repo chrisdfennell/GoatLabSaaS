@@ -4,6 +4,7 @@ using GoatLab.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GoatLab.Server.Migrations
 {
     [DbContext(typeof(GoatLabDbContext))]
-    partial class GoatLabDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260501190216_AddGoatListedAt")]
+    partial class AddGoatListedAt
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3033,12 +3036,6 @@ namespace GoatLab.Server.Migrations
 
                     b.Property<int>("PublicDepositPercent")
                         .HasColumnType("int");
-
-                    b.Property<double?>("PublicLatitude")
-                        .HasColumnType("float");
-
-                    b.Property<double?>("PublicLongitude")
-                        .HasColumnType("float");
 
                     b.Property<bool>("PublicProfileEnabled")
                         .HasColumnType("bit");

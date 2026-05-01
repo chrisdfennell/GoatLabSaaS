@@ -175,6 +175,9 @@ public class GoatsController : ControllerBase
         goat.UpdatedAt = DateTime.UtcNow;
         goat.StatusChangedAt = DateTime.UtcNow;
         goat.Tags = NormalizeTags(goat.Tags);
+        // Goats created already-listed get the marketplace freshness badge.
+        // Goats created unlisted get null until the owner flips it on.
+        goat.ListedAt = goat.IsListedForSale ? DateTime.UtcNow : null;
         _db.Goats.Add(goat);
         await _db.SaveChangesAsync();
         await _webhooks.DispatchAsync(WebhookEventTypes.GoatCreated, GoatSummary(goat));
@@ -218,9 +221,15 @@ public class GoatsController : ControllerBase
         // out follower notifications on an actual flip, not on every save of
         // an already-listed goat (which would spam buyers on each price tweak).
         var becameListed = !existing.IsListedForSale && goat.IsListedForSale;
+        var becameUnlisted = existing.IsListedForSale && !goat.IsListedForSale;
         existing.IsListedForSale = goat.IsListedForSale;
         existing.AskingPriceCents = goat.AskingPriceCents;
         existing.SaleNotes = goat.SaleNotes;
+        // Stamp ListedAt on the false→true flip so the marketplace freshness
+        // badge is accurate. Clear it on delisting so a goat re-listed later
+        // doesn't keep its old "Just listed" badge.
+        if (becameListed) existing.ListedAt = DateTime.UtcNow;
+        else if (becameUnlisted) existing.ListedAt = null;
         // Normalize tags on save: lowercase + trim each token, drop empties,
         // dedupe, comma-join. Lets the /herd ?tag=foo filter use a simple
         // case-sensitive substring search on the column.
