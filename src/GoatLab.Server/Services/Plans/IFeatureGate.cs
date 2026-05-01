@@ -15,4 +15,10 @@ public interface IFeatureGate
 
     /// <summary>True when the tenant hasn't hit its MaxUsers cap (null = unlimited).</summary>
     Task<bool> CanAddUserAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// True when the tenant hasn't hit its MaxPublicListings cap (null =
+    /// unlimited). Counts goats with IsListedForSale=true and IsExternal=false.
+    /// </summary>
+    Task<bool> CanAddPublicListingAsync(CancellationToken cancellationToken = default);
 }

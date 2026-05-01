@@ -171,6 +171,20 @@ public class GoatsController : ControllerBase
             { StatusCode = StatusCodes.Status402PaymentRequired };
         }
 
+        // Per-plan cap on simultaneous public listings. Free Homestead = 3,
+        // paid tiers unlimited. Only checked when the goat is being created
+        // already-listed; unlisted creates always succeed.
+        if (goat.IsListedForSale && !await _featureGate.CanAddPublicListingAsync())
+        {
+            return new ObjectResult(new
+            {
+                error = "You have reached your plan's public-listing limit. Upgrade to list more goats publicly.",
+                upgradeRequired = true,
+                limit = "MaxPublicListings",
+            })
+            { StatusCode = StatusCodes.Status402PaymentRequired };
+        }
+
         goat.CreatedAt = DateTime.UtcNow;
         goat.UpdatedAt = DateTime.UtcNow;
         goat.StatusChangedAt = DateTime.UtcNow;
@@ -222,6 +236,21 @@ public class GoatsController : ControllerBase
         // an already-listed goat (which would spam buyers on each price tweak).
         var becameListed = !existing.IsListedForSale && goat.IsListedForSale;
         var becameUnlisted = existing.IsListedForSale && !goat.IsListedForSale;
+
+        // Per-plan public-listing cap, only on the false→true flip — already-
+        // listed goats can be edited freely, unlisting is always allowed, and
+        // counting includes the goat being edited so re-saves don't double-count.
+        if (becameListed && !await _featureGate.CanAddPublicListingAsync())
+        {
+            return new ObjectResult(new
+            {
+                error = "You have reached your plan's public-listing limit. Upgrade to list more goats publicly.",
+                upgradeRequired = true,
+                limit = "MaxPublicListings",
+            })
+            { StatusCode = StatusCodes.Status402PaymentRequired };
+        }
+
         existing.IsListedForSale = goat.IsListedForSale;
         existing.AskingPriceCents = goat.AskingPriceCents;
         existing.SaleNotes = goat.SaleNotes;

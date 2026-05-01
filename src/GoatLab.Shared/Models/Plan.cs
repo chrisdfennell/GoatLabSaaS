@@ -28,6 +28,16 @@ public enum AppFeature
     Forecasting = 18,
     BuyerWaitlist = 19,
     WebhooksAndApi = 20,
+
+    // Marketplace upsells. Listing goats publicly stays free for every plan
+    // (network effects — more listings = more buyers), but the premium
+    // marketplace surfaces are paid:
+    //   - MarketplaceMapPin: drop a farm pin on /marketplace's map view
+    //   - StripeDeposits: collect online reservation deposits via Stripe
+    // Per-plan listing volume is capped via Plan.MaxPublicListings, not a
+    // feature flag, so the cap can vary by tier without enum churn.
+    MarketplaceMapPin = 21,
+    StripeDeposits = 22,
 }
 
 public class Plan
@@ -57,6 +67,11 @@ public class Plan
     // Null = unlimited. Enforced by FeatureGate.CanAddGoat/UserAsync.
     public int? MaxGoats { get; set; }
     public int? MaxUsers { get; set; }
+
+    // Cap on simultaneously-public listings (IsListedForSale=true). Lets the
+    // free Homestead tier participate in the marketplace (network effects)
+    // without giving paid features away — paid plans set this to null.
+    public int? MaxPublicListings { get; set; }
 
     // IsPublic controls pricing page visibility; IsActive blocks new
     // subscriptions without affecting existing subscribers.

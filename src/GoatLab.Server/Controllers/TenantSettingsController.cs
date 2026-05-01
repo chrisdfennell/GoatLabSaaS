@@ -1,6 +1,7 @@
 using GoatLab.Server.Data;
 using GoatLab.Server.Data.Auth;
 using GoatLab.Server.Services;
+using GoatLab.Server.Services.Plans;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -17,15 +18,18 @@ public class TenantSettingsController : ControllerBase
     private readonly GoatLabDbContext _db;
     private readonly ITenantContext _tenantContext;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IFeatureGate _featureGate;
 
     public TenantSettingsController(
         GoatLabDbContext db,
         ITenantContext tenantContext,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        IFeatureGate featureGate)
     {
         _db = db;
         _tenantContext = tenantContext;
         _userManager = userManager;
+        _featureGate = featureGate;
     }
 
     public record TenantSettingsDto(
@@ -83,12 +87,24 @@ public class TenantSettingsController : ControllerBase
         tenant.AlertEmailEnabled = input.AlertEmailEnabled;
         tenant.PublicProfileEnabled = input.PublicProfileEnabled;
         tenant.PublicContactEmail = string.IsNullOrWhiteSpace(input.PublicContactEmail) ? null : input.PublicContactEmail.Trim();
-        tenant.PublicDepositPercent = Math.Clamp(input.PublicDepositPercent, 0, 100);
-        // Only persist coordinates that are real lat/lng (-90..90, -180..180);
-        // anything outside is treated as "clear the pin" so a typo doesn't
-        // teleport the farm to invalid space.
-        tenant.PublicLatitude = input.PublicLatitude is double lat && lat >= -90 && lat <= 90 ? lat : null;
-        tenant.PublicLongitude = input.PublicLongitude is double lng && lng >= -180 && lng <= 180 ? lng : null;
+
+        // Plan gates: marketplace map pin + Stripe deposits are paid-tier
+        // features. We silently strip the values rather than 402'ing the
+        // whole save — that way the rest of the form (name, contact email,
+        // etc.) saves cleanly, and the UI hides the inputs anyway. The 402
+        // path is reserved for explicit cap hits (CanAddPublicListing).
+        var depositRequested = Math.Clamp(input.PublicDepositPercent, 0, 100);
+        if (depositRequested > 0 && !await _featureGate.IsEnabledAsync(AppFeature.StripeDeposits, ct))
+        {
+            depositRequested = 0;
+        }
+        tenant.PublicDepositPercent = depositRequested;
+
+        var canPin = await _featureGate.IsEnabledAsync(AppFeature.MarketplaceMapPin, ct);
+        // Only persist coordinates that are real lat/lng (-90..90, -180..180)
+        // AND the plan allows the map pin feature; anything else clears the pin.
+        tenant.PublicLatitude = canPin && input.PublicLatitude is double lat && lat >= -90 && lat <= 90 ? lat : null;
+        tenant.PublicLongitude = canPin && input.PublicLongitude is double lng && lng >= -180 && lng <= 180 ? lng : null;
         tenant.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);

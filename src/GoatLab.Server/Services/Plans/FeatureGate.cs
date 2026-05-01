@@ -72,4 +72,18 @@ public class FeatureGate : IFeatureGate
         }
         finally { _tenantContext.BypassFilter = false; }
     }
+
+    public async Task<bool> CanAddPublicListingAsync(CancellationToken cancellationToken = default)
+    {
+        var plan = await GetCurrentPlanAsync(cancellationToken);
+        if (plan is null) return false;
+        if (plan.MaxPublicListings is not int cap) return true;
+
+        if (_tenantContext.TenantId is not int tenantId) return false;
+        // Count active for-sale, non-external goats. Tenant filter is on by
+        // default at this point so the count is correctly scoped.
+        var count = await _db.Goats.CountAsync(
+            g => g.IsListedForSale && !g.IsExternal, cancellationToken);
+        return count < cap;
+    }
 }
