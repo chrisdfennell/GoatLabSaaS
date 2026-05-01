@@ -240,6 +240,14 @@
                           Lines="4"
                           Placeholder="Clover is the friendliest in the herd — comes running for banana peels..."
                           Counter="2000" MaxLength="2000" />
+
+            <MudTextField @bind-Value="goat.Tags" Variant="Variant.Outlined"
+                          Label="Tags"
+                          Placeholder="halter-trained, show-prospect, blue-eyes"
+                          HelperText="Comma-separated. Useful for tracking color genetics, training, sale plans — anything GoatLab doesn't predict. Filter your herd by tag."
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.LocalOffer"
+                          Counter="500" MaxLength="500" Class="mt-3" />
         </MudPaper>
 
         @* ----- Section: For sale ----- *@

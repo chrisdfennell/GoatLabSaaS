@@ -95,6 +95,18 @@ public class Tenant
     /// </summary>
     public bool AlertEmailEnabled { get; set; } = true;
 
+    // --- iCal subscription feed ---
+
+    /// <summary>
+    /// Opaque token in the iCal subscription URL (/calendar/{token}.ics).
+    /// Anyone with the URL can read the tenant's calendar — that's the point of
+    /// a subscription feed — so it acts as a shared secret. Owners can rotate
+    /// from /calendar settings to invalidate old subscribers. Null until they
+    /// generate one.
+    /// </summary>
+    [MaxLength(64)]
+    public string? CalendarFeedToken { get; set; }
+
     // --- Public profile ---
 
     /// <summary>

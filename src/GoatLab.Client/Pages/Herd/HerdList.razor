@@ -54,6 +54,27 @@
                                  title="Toggle view" Size="Size.Medium" Color="Color.Primary" />
         </MudItem>
     </MudGrid>
+
+    @if (allTags is { Count: > 0 })
+    {
+        <div class="d-flex align-center flex-wrap mt-3" style="gap:6px;">
+            <MudIcon Icon="@Icons.Material.Filled.LocalOffer" Size="Size.Small" Color="Color.Secondary" />
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mr-2">Tags:</MudText>
+            @foreach (var t in allTags)
+            {
+                var active = string.Equals(filterTag, t, StringComparison.OrdinalIgnoreCase);
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(active ? Color.Primary : Color.Default)"
+                         Variant="@(active ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => ToggleTag(t))">@t</MudChip>
+            }
+            @if (!string.IsNullOrEmpty(filterTag))
+            {
+                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Secondary"
+                           StartIcon="@Icons.Material.Filled.Clear" OnClick="ClearTag">Clear</MudButton>
+            }
+        </div>
+    }
 </MudPaper>
 
 @if (goats == null)
@@ -135,6 +156,16 @@ else if (gridView)
                                 <MudIcon Icon="@Icons.Material.Filled.Home" Size="Size.Small" Style="font-size:0.85rem;vertical-align:text-bottom;" /> @goat.Pen.Barn?.Name / @goat.Pen.Name
                             </MudText>
                         }
+                        @if (!string.IsNullOrWhiteSpace(goat.Tags))
+                        {
+                            <div class="d-flex flex-wrap mt-2" style="gap:4px;">
+                                @foreach (var t in goat.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(4))
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Default"
+                                             Style="font-size:0.65rem;height:20px;">@t</MudChip>
+                                }
+                            </div>
+                        }
                     </MudCardContent>
                 </MudCard>
             </MudItem>
@@ -186,9 +217,11 @@ else
 
 @code {
     private List<Goat>? goats;
+    private List<string>? allTags;
     private string? searchText;
     private GoatStatus? filterStatus;
     private Gender? filterGender;
+    private string? filterTag;
     private bool gridView = true;
 
     protected override async Task OnInitializedAsync()
@@ -198,15 +231,29 @@ else
         var qs = System.Web.HttpUtility.ParseQueryString(uri.Query);
         if (Enum.TryParse<GoatStatus>(qs["status"], out var s)) filterStatus = s;
         if (Enum.TryParse<Gender>(qs["gender"], out var g)) filterGender = g;
+        filterTag = qs["tag"];
         await LoadGoats();
+        allTags = await GoatSvc.GetAllTagsAsync();
     }
 
     private async Task LoadGoats()
     {
-        var all = await GoatSvc.GetAllAsync(filterStatus, searchText);
+        var all = await GoatSvc.GetAllAsync(filterStatus, searchText, tag: filterTag);
         goats = filterGender.HasValue
             ? all?.Where(g => g.Gender == filterGender.Value).ToList()
             : all;
+    }
+
+    private async Task ToggleTag(string t)
+    {
+        filterTag = string.Equals(filterTag, t, StringComparison.OrdinalIgnoreCase) ? null : t;
+        await LoadGoats();
+    }
+
+    private async Task ClearTag()
+    {
+        filterTag = null;
+        await LoadGoats();
     }
 
     private async Task OpenImportDialogAsync()

@@ -9,16 +9,20 @@ public class GoatService
     private readonly ApiService _api;
     public GoatService(ApiService api) => _api = api;
 
-    public Task<List<Goat>?> GetAllAsync(GoatStatus? status = null, string? search = null, bool includeExternal = false)
+    public Task<List<Goat>?> GetAllAsync(GoatStatus? status = null, string? search = null, bool includeExternal = false, string? tag = null)
     {
         var url = "api/goats";
         var qs = new List<string>();
         if (status.HasValue) qs.Add($"status={status}");
         if (!string.IsNullOrWhiteSpace(search)) qs.Add($"search={Uri.EscapeDataString(search)}");
         if (includeExternal) qs.Add("includeExternal=true");
+        if (!string.IsNullOrWhiteSpace(tag)) qs.Add($"tag={Uri.EscapeDataString(tag)}");
         if (qs.Count > 0) url += "?" + string.Join("&", qs);
         return _api.GetAsync<List<Goat>>(url);
     }
+
+    public Task<List<string>?> GetAllTagsAsync() =>
+        _api.GetAsync<List<string>>("api/goats/tags");
 
     public Task<Goat?> GetAsync(int id) => _api.GetAsync<Goat>($"api/goats/{id}");
     public Task<Goat?> GetPedigreeAsync(int id) => _api.GetAsync<Goat>($"api/goats/{id}/pedigree");

@@ -85,6 +85,15 @@ public class Goat : ITenantOwned
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>
+    /// Free-form tags, comma-separated and lowercased on save. Lets owners
+    /// track stuff GoatLab doesn't predict — color genetics, halter-trained,
+    /// hauling weight, "needs hoof trim," "show prospect," etc. Filterable
+    /// on /herd via ?tag= and exact-match per token.
+    /// </summary>
+    [MaxLength(500)]
+    public string? Tags { get; set; }
+
     // Stamped only when Status changes. Mortality report and any other
     // "when did this animal die / sell" query reads this rather than
     // UpdatedAt, which moves on every unrelated edit. Null on legacy rows

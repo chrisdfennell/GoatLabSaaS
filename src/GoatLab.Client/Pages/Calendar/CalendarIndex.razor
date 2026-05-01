@@ -1,6 +1,8 @@
 @page "/calendar"
 @inject CalendarService CalSvc
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <PageTitle>Calendar — GoatLab</PageTitle>
 
@@ -184,6 +186,75 @@
             }
         </MudPaper>
     </MudTabPanel>
+
+    <MudTabPanel Text="Subscribe" Icon="@Icons.Material.Filled.Sync">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Sync" />
+                    <div>
+                        <MudText Typo="Typo.h6">iCal subscription feed</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">
+                            Add this URL to Google Calendar, Apple Calendar, or Outlook to see GoatLab events alongside the rest of your life.
+                        </MudText>
+                    </div>
+                </div>
+            </div>
+
+            @if (feedLoading)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (string.IsNullOrEmpty(feedToken))
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.Sync" />
+                    <MudText Typo="Typo.body1">Calendar feed is off</MudText>
+                    <MudText Typo="Typo.body2">Generate a subscription URL to read your GoatLab events from any calendar app.</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Bolt"
+                               OnClick="EnableFeed" Class="mt-3">Generate URL</MudButton>
+                </div>
+            }
+            else
+            {
+                <MudPaper Class="pa-4 mb-3" Outlined Style="border-radius:12px;">
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">Subscription URL</MudText>
+                    <MudTextField Value="@FeedUrl" ReadOnly Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.ContentCopy"
+                                  OnAdornmentClick="CopyFeedUrl" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2">
+                        Anyone with this URL can read your calendar. Rotate it if you've shared it somewhere you didn't mean to.
+                    </MudText>
+                </MudPaper>
+
+                <div class="d-flex gap-2 flex-wrap">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ContentCopy"
+                               OnClick="CopyFeedUrl">Copy URL</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Refresh"
+                               OnClick="RegenerateFeed">Rotate token</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.PowerSettingsNew"
+                               OnClick="DisableFeed">Turn off</MudButton>
+                </div>
+
+                <MudExpansionPanels Elevation="0" Class="mt-4">
+                    <MudExpansionPanel Text="How to subscribe">
+                        <MudText Typo="Typo.body2" Class="mb-2"><b>Google Calendar</b></MudText>
+                        <MudText Typo="Typo.body2" Class="mb-3">
+                            Other calendars → + → From URL → paste the link → Add calendar.
+                        </MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2"><b>Apple Calendar (Mac)</b></MudText>
+                        <MudText Typo="Typo.body2" Class="mb-3">
+                            File → New Calendar Subscription → paste the link → Subscribe.
+                        </MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2"><b>Outlook</b></MudText>
+                        <MudText Typo="Typo.body2">
+                            Add calendar → Subscribe from web → paste the link → Import.
+                        </MudText>
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
+        </MudPaper>
+    </MudTabPanel>
 </MudTabs>
 
 @code {
@@ -196,13 +267,58 @@
     private DateTime checklistDate = DateTime.Today;
     private DateTime? checklistDatePicker = DateTime.Today;
 
+    private string? feedToken;
+    private bool feedLoading = true;
+    private string FeedUrl => string.IsNullOrEmpty(feedToken)
+        ? string.Empty
+        : $"{Nav.BaseUri.TrimEnd('/')}/calendar/{feedToken}.ics";
+
     private int UpcomingCount => events?.Count(e => e.Start >= DateTime.Now && e.Start <= DateTime.Now.AddDays(30)) ?? 0;
     private int TodayTotal => checklists?.SelectMany(c => c.Items).Count() ?? 0;
     private int TodayCompleted => completions?.Count(c => c.IsCompleted) ?? 0;
 
     protected override async Task OnInitializedAsync()
     {
-        await Task.WhenAll(LoadEvents(), LoadChecklists(), LoadCompletions());
+        await Task.WhenAll(LoadEvents(), LoadChecklists(), LoadCompletions(), LoadFeed());
+    }
+
+    private async Task LoadFeed()
+    {
+        feedLoading = true;
+        try
+        {
+            var info = await CalSvc.GetFeedInfoAsync();
+            feedToken = info?.Token;
+        }
+        finally { feedLoading = false; }
+    }
+
+    private async Task EnableFeed()
+    {
+        var info = await CalSvc.RegenerateFeedAsync();
+        feedToken = info?.Token;
+        Snackbar.Add("Calendar feed enabled", Severity.Success);
+    }
+
+    private async Task RegenerateFeed()
+    {
+        var info = await CalSvc.RegenerateFeedAsync();
+        feedToken = info?.Token;
+        Snackbar.Add("Token rotated — old subscriptions will stop syncing", Severity.Success);
+    }
+
+    private async Task DisableFeed()
+    {
+        await CalSvc.DisableFeedAsync();
+        feedToken = null;
+        Snackbar.Add("Calendar feed turned off", Severity.Info);
+    }
+
+    private async Task CopyFeedUrl()
+    {
+        if (string.IsNullOrEmpty(FeedUrl)) return;
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", FeedUrl);
+        Snackbar.Add("Copied to clipboard", Severity.Success);
     }
 
     private async Task LoadEvents() => events = await CalSvc.GetEventsAsync();

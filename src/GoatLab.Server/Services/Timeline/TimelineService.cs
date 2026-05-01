@@ -177,17 +177,42 @@ public class TimelineService : ITimelineService
                 Sessions = g.Count(),
                 LastDate = g.Max(x => x.Date)
             })
-            .OrderByDescending(g => g.LastDate)
-            .Take(36) // 3 years of monthly milk roll-ups is plenty
+            .OrderBy(g => g.LastDate)
             .ToList();
-        foreach (var mm in milkByMonth)
+        // Flag month-over-month drops ≥25% as warnings — drop in milk yield is
+        // an early-warning signal for mastitis, heat stress, parasites, or
+        // ration changes worth surfacing on the timeline.
+        for (var i = 0; i < milkByMonth.Count; i++)
         {
+            var mm = milkByMonth[i];
             var monthLabel = new DateTime(mm.Year, mm.Month, 1).ToString("MMM yyyy");
+            var sev = SevInfo;
+            string? extra = null;
+            if (i > 0)
+            {
+                var prev = milkByMonth[i - 1];
+                var diff = mm.Total - prev.Total;
+                var pct = prev.Total > 0 ? diff / prev.Total : 0;
+                if (pct <= -0.25 && prev.Total >= 5)
+                {
+                    sev = SevWarning;
+                    extra = $"Down {Math.Abs(diff):F1} lbs ({pct * 100:F0}%) vs prior month";
+                }
+            }
+            var detail = $"{mm.Sessions} {(mm.Sessions == 1 ? "session" : "sessions")} · avg {mm.Total / mm.Sessions:F1} lbs/session";
+            if (extra != null) detail = $"{detail} · {extra}";
             entries.Add(new TimelineEntryDto(
                 mm.LastDate, "milk",
                 $"{mm.Total:F1} lbs milked in {monthLabel}",
-                $"{mm.Sessions} {(mm.Sessions == 1 ? "session" : "sessions")} · avg {mm.Total / mm.Sessions:F1} lbs/session",
-                $"/production?goatId={goatId}", SevInfo, "water_drop"));
+                detail,
+                $"/production?goatId={goatId}", sev, "water_drop"));
+        }
+        // Cap to most recent 36 months after the fact so we keep the drop-detection
+        // logic simple but don't bloat older goats' timelines.
+        var milkEntries = entries.Where(e => e.Kind == "milk").OrderByDescending(e => e.Date).Skip(36).ToList();
+        if (milkEntries.Count > 0)
+        {
+            entries.RemoveAll(e => milkEntries.Contains(e));
         }
 
         // ---- Breeding records (the doe is the focal goat) ----

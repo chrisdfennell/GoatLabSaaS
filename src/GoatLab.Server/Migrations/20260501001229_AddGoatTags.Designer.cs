@@ -4,6 +4,7 @@ using GoatLab.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GoatLab.Server.Migrations
 {
     [DbContext(typeof(GoatLabDbContext))]
-    partial class GoatLabDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260501001229_AddGoatTags")]
+    partial class AddGoatTags
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2904,10 +2907,6 @@ namespace GoatLab.Server.Migrations
 
                     b.Property<bool>("AlertEmailEnabled")
                         .HasColumnType("bit");
-
-                    b.Property<string>("CalendarFeedToken")
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");

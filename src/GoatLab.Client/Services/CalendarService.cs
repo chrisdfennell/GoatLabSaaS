@@ -48,6 +48,21 @@ public class CalendarService
 
     public Task UncompleteOccurrenceAsync(int eventId, DateTime occurrenceDate) =>
         _api.DeleteAsync($"api/calendar/events/{eventId}/complete?occurrenceDate={occurrenceDate:yyyy-MM-dd}");
+
+    public Task<CalendarFeedInfo?> GetFeedInfoAsync() =>
+        _api.GetAsync<CalendarFeedInfo>("api/calendar/feed");
+    public async Task<CalendarFeedInfo?> RegenerateFeedAsync()
+    {
+        var resp = await _api.Http.PostAsync("api/calendar/feed/regenerate", null);
+        resp.EnsureSuccessStatusCode();
+        return await resp.Content.ReadFromJsonAsync<CalendarFeedInfo>();
+    }
+    public Task DisableFeedAsync() => _api.DeleteAsync("api/calendar/feed");
+}
+
+public class CalendarFeedInfo
+{
+    public string? Token { get; set; }
 }
 
 public class ExpandedOccurrence

@@ -1,4 +1,5 @@
 using GoatLab.Server.Data;
+using GoatLab.Server.Services;
 using GoatLab.Server.Services.Plans;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +13,12 @@ namespace GoatLab.Server.Controllers;
 public class CalendarController : ControllerBase
 {
     private readonly GoatLabDbContext _db;
-    public CalendarController(GoatLabDbContext db) => _db = db;
+    private readonly ITenantContext _tenantContext;
+    public CalendarController(GoatLabDbContext db, ITenantContext tenantContext)
+    {
+        _db = db;
+        _tenantContext = tenantContext;
+    }
 
     // --- Calendar Events ---
 
@@ -283,7 +289,49 @@ public class CalendarController : ControllerBase
         await _db.SaveChangesAsync();
         return NoContent();
     }
+
+    // --- iCal subscription feed ---
+
+    [HttpGet("feed")]
+    public async Task<ActionResult<CalendarFeedInfo>> GetFeedInfo()
+    {
+        if (_tenantContext.TenantId is not int tid) return Unauthorized();
+        var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == tid);
+        if (tenant is null) return NotFound();
+        return new CalendarFeedInfo(tenant.CalendarFeedToken);
+    }
+
+    [HttpPost("feed/regenerate")]
+    public async Task<ActionResult<CalendarFeedInfo>> RegenerateFeed()
+    {
+        if (_tenantContext.TenantId is not int tid) return Unauthorized();
+        var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == tid);
+        if (tenant is null) return NotFound();
+        tenant.CalendarFeedToken = GenerateToken();
+        await _db.SaveChangesAsync();
+        return new CalendarFeedInfo(tenant.CalendarFeedToken);
+    }
+
+    [HttpDelete("feed")]
+    public async Task<IActionResult> DisableFeed()
+    {
+        if (_tenantContext.TenantId is not int tid) return Unauthorized();
+        var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == tid);
+        if (tenant is null) return NotFound();
+        tenant.CalendarFeedToken = null;
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    private static string GenerateToken()
+    {
+        Span<byte> bytes = stackalloc byte[24];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
 }
+
+public record CalendarFeedInfo(string? Token);
 
 public class CompleteOccurrenceRequest
 {

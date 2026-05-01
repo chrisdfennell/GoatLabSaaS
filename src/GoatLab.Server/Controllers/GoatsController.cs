@@ -42,6 +42,7 @@ public class GoatsController : ControllerBase
     public async Task<ActionResult<List<Goat>>> GetAll(
         [FromQuery] GoatStatus? status,
         [FromQuery] string? search,
+        [FromQuery] string? tag,
         [FromQuery] bool includeExternal = false)
     {
         var query = _db.Goats
@@ -65,7 +66,49 @@ public class GoatsController : ControllerBase
                 || (g.Microchip != null && g.Microchip.Contains(search))
                 || (g.BreederName != null && g.BreederName.Contains(search)));
 
+        // Tag filter — matches a token within the comma-separated Tags column.
+        // Wrapping the column with leading/trailing commas means a search for
+        // ",foo," will match exactly the token foo (not a substring of "food").
+        if (!string.IsNullOrWhiteSpace(tag))
+        {
+            var t = "," + tag.Trim().ToLowerInvariant() + ",";
+            query = query.Where(g => g.Tags != null
+                && ("," + g.Tags + ",").Contains(t));
+        }
+
         return await query.OrderBy(g => g.Name).ToListAsync();
+    }
+
+    /// <summary>
+    /// Returns the union of all tags currently applied to any goat in the
+    /// tenant. Powers the chip suggestions on /herd. Single SQL query —
+    /// loads the Tags column into memory and tokenizes server-side.
+    /// </summary>
+    [HttpGet("tags")]
+    public async Task<ActionResult<List<string>>> AllTags()
+    {
+        var raw = await _db.Goats
+            .Where(g => g.Tags != null && g.Tags != "")
+            .Select(g => g.Tags!)
+            .ToListAsync();
+
+        return raw
+            .SelectMany(t => t.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Select(t => t.ToLowerInvariant())
+            .Distinct()
+            .OrderBy(t => t)
+            .ToList();
+    }
+
+    private static string? NormalizeTags(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        var tokens = raw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(t => t.ToLowerInvariant())
+            .Where(t => t.Length is > 0 and <= 40)
+            .Distinct()
+            .ToList();
+        return tokens.Count == 0 ? null : string.Join(",", tokens);
     }
 
     [HttpGet("{id}")]
@@ -131,6 +174,7 @@ public class GoatsController : ControllerBase
         goat.CreatedAt = DateTime.UtcNow;
         goat.UpdatedAt = DateTime.UtcNow;
         goat.StatusChangedAt = DateTime.UtcNow;
+        goat.Tags = NormalizeTags(goat.Tags);
         _db.Goats.Add(goat);
         await _db.SaveChangesAsync();
         await _webhooks.DispatchAsync(WebhookEventTypes.GoatCreated, GoatSummary(goat));
@@ -177,6 +221,10 @@ public class GoatsController : ControllerBase
         existing.IsListedForSale = goat.IsListedForSale;
         existing.AskingPriceCents = goat.AskingPriceCents;
         existing.SaleNotes = goat.SaleNotes;
+        // Normalize tags on save: lowercase + trim each token, drop empties,
+        // dedupe, comma-join. Lets the /herd ?tag=foo filter use a simple
+        // case-sensitive substring search on the column.
+        existing.Tags = NormalizeTags(goat.Tags);
         existing.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
