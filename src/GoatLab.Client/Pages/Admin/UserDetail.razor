@@ -30,6 +30,9 @@
             </div>
             <MudText Typo="Typo.caption" Color="Color.Secondary">@detail.Email</MudText>
         </div>
+        <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Edit"
+                   OnClick="OpenRenameAsync">Rename</MudButton>
     }
 </div>
 
@@ -293,6 +296,36 @@ else
             await LoadAsync();
         }
         catch (Exception ex) { Snackbar.Add($"Restore failed: {ex.Message}", Severity.Error); }
+    }
+
+    // Display-name only — email is intentionally not editable from here
+    // (re-verification, security stamp, etc). Reuses the same TextPromptDialog
+    // the tenant rename uses, so the UX is consistent and there's no new
+    // dialog component to maintain.
+    private async Task OpenRenameAsync()
+    {
+        if (detail is null) return;
+        var parameters = new DialogParameters
+        {
+            ["Title"] = "Rename user",
+            ["Label"] = "Display name",
+            ["InitialValue"] = detail.DisplayName,
+        };
+        var dlg = await Dialog.ShowAsync<TextPromptDialog>("Rename user", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true });
+        var result = await dlg.Result;
+        if (result is null || result.Canceled) return;
+
+        var newName = result.Data as string;
+        if (string.IsNullOrWhiteSpace(newName) || newName.Trim() == detail.DisplayName) return;
+
+        try
+        {
+            await Admin.RenameUserAsync(Id, newName.Trim());
+            Snackbar.Add("User renamed.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex) { Snackbar.Add($"Rename failed: {ex.Message}", Severity.Error); }
     }
 
     // Type-the-email confirmation pattern (AWS / GitHub style). The simple

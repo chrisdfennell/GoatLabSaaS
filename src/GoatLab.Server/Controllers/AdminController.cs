@@ -630,6 +630,30 @@ public class AdminController : ControllerBase
         return NoContent();
     }
 
+    // Display-name only — email changes are a bigger deal (re-verification,
+    // identity-stamp rotation, login disruption) so they're explicitly out
+    // of scope here. The user can always reset their own display name from
+    // /account/settings; this endpoint is for the "my wife typed her farm
+    // name in the name field" cleanup case.
+    [HttpPut("users/{id}/display-name")]
+    public async Task<IActionResult> RenameUser(string id, AdminRenameUserRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.DisplayName) || req.DisplayName.Length > 100)
+            return BadRequest(new { error = "Display name required, 1–100 chars." });
+
+        var user = await _userManager.FindByIdAsync(id);
+        if (user is null) return NotFound();
+
+        var old = user.DisplayName;
+        user.DisplayName = req.DisplayName.Trim();
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+            return StatusCode(500, new { errors = result.Errors.Select(e => e.Description) });
+
+        await _audit.LogAsync("user.rename", "User", id, $"{old} → {user.DisplayName}");
+        return NoContent();
+    }
+
     public record HardDeleteConfirmation(string ConfirmEmail);
 
     // Manual hard-delete. Mirrors HardDeleteSweepJob's logic but for a single

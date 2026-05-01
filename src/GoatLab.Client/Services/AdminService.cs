@@ -99,6 +99,9 @@ public class AdminService
     public Task RestoreUserAsync(string id) =>
         EnsurePostAsync($"api/admin/users/{id}/restore", new { });
 
+    public Task RenameUserAsync(string id, string displayName) =>
+        EnsurePutAsync($"api/admin/users/{id}/display-name", new AdminRenameUserRequest(displayName));
+
     public record HardDeleteResultDto(int OrphanedTenantsSoftDeleted);
 
     // Server requires the user to already be soft-deleted (progression

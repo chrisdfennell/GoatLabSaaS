@@ -89,6 +89,8 @@ public record AdminUserDetail(
 );
 
 public record AdminRenameTenantRequest(string Name);
+
+public record AdminRenameUserRequest(string DisplayName);
 public record AdminToggleSuperAdminRequest(bool IsSuperAdmin);
 public record AdminResetPasswordResponse(string NewPassword);
 
