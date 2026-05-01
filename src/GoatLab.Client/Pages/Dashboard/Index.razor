@@ -124,7 +124,7 @@
 
 @* --- Stat Cards (clickable to filtered views) --- *@
 <MudGrid Spacing="3" Class="mb-4">
-    <MudItem xs="6" sm="4" md="2">
+    <MudItem xs="6" sm="4" md="3">
         <MudCard Class="stat-card stat-card-green cursor-pointer" Elevation="0" @onclick='@(() => Nav.NavigateTo("/herd"))'>
             <MudCardContent Class="pa-3">
                 <MudText Class="stat-value">@(stats?.Total ?? 0)</MudText>
@@ -133,7 +133,7 @@
             </MudCardContent>
         </MudCard>
     </MudItem>
-    <MudItem xs="6" sm="4" md="2">
+    <MudItem xs="6" sm="4" md="3">
         <MudCard Class="stat-card stat-card-teal cursor-pointer" Elevation="0" @onclick='@(() => Nav.NavigateTo("/herd?gender=Female"))'>
             <MudCardContent Class="pa-3">
                 <MudText Class="stat-value">@(stats?.Does ?? 0)</MudText>
@@ -142,7 +142,7 @@
             </MudCardContent>
         </MudCard>
     </MudItem>
-    <MudItem xs="6" sm="4" md="2">
+    <MudItem xs="6" sm="4" md="3">
         <MudCard Class="stat-card stat-card-blue cursor-pointer" Elevation="0" @onclick='@(() => Nav.NavigateTo("/herd?gender=Male"))'>
             <MudCardContent Class="pa-3">
                 <MudText Class="stat-value">@(stats?.Bucks ?? 0)</MudText>
@@ -151,7 +151,16 @@
             </MudCardContent>
         </MudCard>
     </MudItem>
-    <MudItem xs="6" sm="4" md="2">
+    <MudItem xs="6" sm="4" md="3">
+        <MudCard Class="stat-card stat-card-grey cursor-pointer" Elevation="0" @onclick='@(() => Nav.NavigateTo("/herd?gender=Wether"))'>
+            <MudCardContent Class="pa-3">
+                <MudText Class="stat-value">@(stats?.Wethers ?? 0)</MudText>
+                <MudText Class="stat-label">Wethers</MudText>
+                <MudIcon Icon="@Icons.Material.Filled.Transgender" Class="stat-icon" />
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="6" sm="4" md="3">
         <MudCard Class="stat-card stat-card-pink cursor-pointer" Elevation="0" @onclick='@(() => Nav.NavigateTo("/breeding"))'>
             <MudCardContent Class="pa-3">
                 <MudText Class="stat-value">@(stats?.Pregnant ?? 0)</MudText>
@@ -160,7 +169,7 @@
             </MudCardContent>
         </MudCard>
     </MudItem>
-    <MudItem xs="6" sm="4" md="2">
+    <MudItem xs="6" sm="4" md="3">
         <MudCard Class="stat-card stat-card-orange cursor-pointer" Elevation="0" @onclick='@(() => Nav.NavigateTo("/herd?status=Sick"))'>
             <MudCardContent Class="pa-3">
                 <MudText Class="stat-value">@(stats?.Sick ?? 0)</MudText>
@@ -169,7 +178,7 @@
             </MudCardContent>
         </MudCard>
     </MudItem>
-    <MudItem xs="6" sm="4" md="2">
+    <MudItem xs="6" sm="4" md="3">
         <MudCard Class="stat-card stat-card-purple cursor-pointer" Elevation="0" @onclick='@(() => Nav.NavigateTo("/herd?status=AtVet"))'>
             <MudCardContent Class="pa-3">
                 <MudText Class="stat-value">@(stats?.AtVet ?? 0)</MudText>

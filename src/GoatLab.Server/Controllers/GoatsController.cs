@@ -367,7 +367,8 @@ public class GoatsController : ControllerBase
         var pregnant = await _db.BreedingRecords.CountAsync(b => b.Outcome == BreedingOutcome.Confirmed && b.EstimatedDueDate > DateTime.UtcNow);
         var bucks = await _db.Goats.CountAsync(g => !g.IsExternal && g.Gender == Gender.Male && g.Status == GoatStatus.Healthy);
         var does = await _db.Goats.CountAsync(g => !g.IsExternal && g.Gender == Gender.Female && g.Status == GoatStatus.Healthy);
+        var wethers = await _db.Goats.CountAsync(g => !g.IsExternal && g.Gender == Gender.Wether && g.Status == GoatStatus.Healthy);
 
-        return new { total, sick, atVet, pregnant, bucks, does };
+        return new { total, sick, atVet, pregnant, bucks, does, wethers };
     }
 }

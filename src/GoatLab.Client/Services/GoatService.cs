@@ -71,4 +71,5 @@ public class HerdStats
     public int Pregnant { get; set; }
     public int Bucks { get; set; }
     public int Does { get; set; }
+    public int Wethers { get; set; }
 }

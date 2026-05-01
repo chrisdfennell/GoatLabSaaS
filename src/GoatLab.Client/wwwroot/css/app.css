@@ -58,6 +58,7 @@ html, body {
 .stat-card-pink { background: linear-gradient(135deg, #ad1457, #e91e63) !important; }
 .stat-card-orange { background: linear-gradient(135deg, #e65100, #fb8c00) !important; }
 .stat-card-purple { background: linear-gradient(135deg, #4527a0, #7e57c2) !important; }
+.stat-card-grey { background: linear-gradient(135deg, #455a64, #607d8b) !important; }
 
 /* Dark mode stat card adjustments */
 .mud-theme-dark .stat-card-green { background: linear-gradient(135deg, #1b5e20, #2e7d32) !important; }
@@ -66,6 +67,7 @@ html, body {
 .mud-theme-dark .stat-card-pink { background: linear-gradient(135deg, #880e4f, #ad1457) !important; }
 .mud-theme-dark .stat-card-orange { background: linear-gradient(135deg, #bf360c, #e65100) !important; }
 .mud-theme-dark .stat-card-purple { background: linear-gradient(135deg, #311b92, #4527a0) !important; }
+.mud-theme-dark .stat-card-grey { background: linear-gradient(135deg, #263238, #455a64) !important; }
 
 /* Section cards with subtle top border accent */
 .section-card {
