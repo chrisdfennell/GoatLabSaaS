@@ -83,5 +83,6 @@ builder.Services.AddScoped<WebhooksService>();
 builder.Services.AddScoped<LegalSettingsService>();
 builder.Services.AddScoped<AdminOpsService>();
 builder.Services.AddScoped<RecaptchaService>();
+builder.Services.AddScoped<BuyerInquiriesService>();
 
 await builder.Build().RunAsync();

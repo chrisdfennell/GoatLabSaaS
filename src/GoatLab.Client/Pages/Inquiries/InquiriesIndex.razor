@@ -1,0 +1,261 @@
+@page "/inquiries"
+@page "/inquiries/{Id:int}"
+@inject BuyerInquiriesService Inq
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Buyer Inquiries — GoatLab</PageTitle>
+
+<div class="page-hero page-hero-indigo">
+    <div class="page-hero-icon">
+        <MudIcon Icon="@Icons.Material.Filled.Forum" />
+    </div>
+    <div class="page-hero-text">
+        <MudText Typo="Typo.overline" Class="page-hero-eyebrow">Marketplace</MudText>
+        <MudText Typo="Typo.h4" Class="page-hero-title">Buyer Inquiries</MudText>
+        <MudText Typo="Typo.body2" Class="page-hero-sub">
+            Messages buyers sent through your public listings.
+        </MudText>
+    </div>
+</div>
+
+<MudGrid>
+    <MudItem xs="12" md="5" lg="4">
+        <MudPaper Class="polished-section" Elevation="0">
+            <div class="polished-section-header">
+                <div class="polished-section-header-title">
+                    <MudIcon Icon="@Icons.Material.Filled.Inbox" />
+                    <div>
+                        <MudText Typo="Typo.h6">Inbox</MudText>
+                        <MudText Typo="Typo.body2" Class="section-hint">@(_list?.Count ?? 0) thread(s)</MudText>
+                    </div>
+                </div>
+            </div>
+            @if (_list is null)
+            {
+                <MudProgressLinear Indeterminate Color="Color.Primary" />
+            }
+            else if (_list.Count == 0)
+            {
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.MarkunreadMailbox" />
+                    <MudText Typo="Typo.body1">No inquiries yet</MudText>
+                    <MudText Typo="Typo.body2">
+                        Buyers contacting you through your public listing show up here.
+                    </MudText>
+                </div>
+            }
+            else
+            {
+                <MudList T="InquiryListItem" Dense Class="pa-0">
+                    @foreach (var i in _list)
+                    {
+                        var active = Id == i.Id;
+                        <MudListItem T="InquiryListItem"
+                                     OnClick="() => Open(i.Id)"
+                                     Class="@(active ? "mud-selected-item" : "")">
+                            <div class="d-flex align-center" style="gap:8px;">
+                                @if (i.UnreadForSeller)
+                                {
+                                    <MudBadge Dot Color="Color.Primary" Overlap />
+                                }
+                                <div style="flex:1;min-width:0;">
+                                    <div class="d-flex justify-space-between align-center">
+                                        <MudText Typo="Typo.body1" Style="@(i.UnreadForSeller ? "font-weight:600;" : "")">
+                                            @i.BuyerName
+                                        </MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                            @TimeAgo(i.LastMessageAt)
+                                        </MudText>
+                                    </div>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary"
+                                             Style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                        @i.GoatName · @i.MessageCount @(i.MessageCount == 1 ? "msg" : "msgs")
+                                        @if (i.Status == "Closed")
+                                        {
+                                            <span> · closed</span>
+                                        }
+                                    </MudText>
+                                </div>
+                            </div>
+                        </MudListItem>
+                    }
+                </MudList>
+            }
+        </MudPaper>
+    </MudItem>
+
+    <MudItem xs="12" md="7" lg="8">
+        @if (Id is null)
+        {
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="inline-empty">
+                    <MudIcon Icon="@Icons.Material.Filled.ChatBubbleOutline" />
+                    <MudText Typo="Typo.body1">Select an inquiry to read it</MudText>
+                </div>
+            </MudPaper>
+        }
+        else if (_detail is null)
+        {
+            <MudProgressLinear Indeterminate Color="Color.Primary" />
+        }
+        else
+        {
+            <MudPaper Class="polished-section" Elevation="0">
+                <div class="polished-section-header">
+                    <div class="polished-section-header-title">
+                        <MudIcon Icon="@Icons.Material.Filled.Person" />
+                        <div>
+                            <MudText Typo="Typo.h6">@_detail.BuyerName</MudText>
+                            <MudText Typo="Typo.body2" Class="section-hint">
+                                <MudLink Href="@($"mailto:{_detail.BuyerEmail}")">@_detail.BuyerEmail</MudLink>
+                                @if (!string.IsNullOrEmpty(_detail.BuyerPhone))
+                                {
+                                    <span> · @_detail.BuyerPhone</span>
+                                }
+                            </MudText>
+                        </div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Pets"
+                                   Href="@($"/herd/{_detail.GoatId}")">@_detail.GoatName</MudButton>
+                        @if (_detail.Status == "Open")
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Default" Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.Check" OnClick="CloseThread">Close</MudButton>
+                        }
+                        else
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+                                       StartIcon="@Icons.Material.Filled.Refresh" OnClick="ReopenThread">Reopen</MudButton>
+                        }
+                    </div>
+                </div>
+
+                <div class="inquiry-thread">
+                    @foreach (var m in _detail.Messages)
+                    {
+                        <div class="@($"inquiry-message inquiry-{(m.FromSeller ? "seller" : "buyer")}")">
+                            <div class="inquiry-meta">
+                                @(m.FromSeller ? "You" : _detail.BuyerName) ·
+                                @m.CreatedAt.ToLocalTime().ToString("MMM d, h:mm tt")
+                            </div>
+                            <div class="inquiry-body">@m.Body</div>
+                        </div>
+                    }
+                </div>
+
+                @if (_detail.Status == "Open")
+                {
+                    <MudPaper Class="pa-3 mt-3" Outlined Style="border-radius:12px;">
+                        <MudTextField @bind-Value="_replyDraft" Label="Your reply"
+                                      Variant="Variant.Outlined" Lines="4"
+                                      Placeholder="Hi! Thanks for reaching out..."
+                                      Counter="4000" MaxLength="4000" />
+                        <div class="d-flex justify-end mt-2">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                       StartIcon="@Icons.Material.Filled.Send"
+                                       OnClick="SendReply"
+                                       Disabled="@(_sending || string.IsNullOrWhiteSpace(_replyDraft))">
+                                @(_sending ? "Sending…" : "Send")
+                            </MudButton>
+                        </div>
+                    </MudPaper>
+                }
+            </MudPaper>
+        }
+    </MudItem>
+</MudGrid>
+
+<style>
+    .inquiry-thread { display: flex; flex-direction: column; gap: 10px; padding: 12px 4px; }
+    .inquiry-message { max-width: 80%; padding: 10px 14px; border-radius: 12px; }
+    .inquiry-buyer { align-self: flex-start; background: #f1f4f1; border-bottom-left-radius: 4px; }
+    .inquiry-seller { align-self: flex-end; background: #e8f5e9; border-bottom-right-radius: 4px; }
+    .inquiry-meta { font-size: 0.72rem; color: #6b7a70; margin-bottom: 4px; }
+    .inquiry-body { white-space: pre-wrap; word-break: break-word; font-size: 0.95rem; }
+</style>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+
+    private List<InquiryListItem>? _list;
+    private InquiryDetailDto? _detail;
+    private string _replyDraft = "";
+    private bool _sending;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadList();
+        if (Id.HasValue) await LoadDetail();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Id.HasValue && _detail?.Id != Id) await LoadDetail();
+        if (!Id.HasValue) _detail = null;
+    }
+
+    private async Task LoadList() => _list = await Inq.ListAsync();
+    private async Task LoadDetail()
+    {
+        if (!Id.HasValue) return;
+        _detail = await Inq.GetAsync(Id.Value);
+        // Refresh list so the unread dot disappears after we open
+        _list = await Inq.ListAsync();
+    }
+
+    private void Open(int id) => Nav.NavigateTo($"/inquiries/{id}");
+
+    private async Task SendReply()
+    {
+        if (_detail is null || string.IsNullOrWhiteSpace(_replyDraft)) return;
+        _sending = true;
+        try
+        {
+            var ok = await Inq.ReplyAsync(_detail.Id, _replyDraft);
+            if (ok)
+            {
+                Snackbar.Add("Reply sent", Severity.Success);
+                _replyDraft = "";
+                await LoadDetail();
+            }
+            else
+            {
+                Snackbar.Add("Couldn't send reply. Try again.", Severity.Error);
+            }
+        }
+        finally { _sending = false; }
+    }
+
+    private async Task CloseThread()
+    {
+        if (_detail is null) return;
+        if (await Inq.CloseAsync(_detail.Id))
+        {
+            Snackbar.Add("Thread closed", Severity.Info);
+            await LoadDetail();
+        }
+    }
+
+    private async Task ReopenThread()
+    {
+        if (_detail is null) return;
+        if (await Inq.ReopenAsync(_detail.Id))
+        {
+            Snackbar.Add("Thread reopened", Severity.Info);
+            await LoadDetail();
+        }
+    }
+
+    private static string TimeAgo(DateTime utc)
+    {
+        var diff = DateTime.UtcNow - utc;
+        if (diff.TotalMinutes < 1) return "just now";
+        if (diff.TotalMinutes < 60) return $"{(int)diff.TotalMinutes}m";
+        if (diff.TotalHours < 24) return $"{(int)diff.TotalHours}h";
+        if (diff.TotalDays < 7) return $"{(int)diff.TotalDays}d";
+        return utc.ToLocalTime().ToString("MMM d");
+    }
+}

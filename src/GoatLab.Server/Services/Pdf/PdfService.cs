@@ -1,6 +1,7 @@
 using GoatLab.Server.Data;
 using GoatLab.Server.Services.Pdf.Templates;
 using GoatLab.Shared.Models;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using QuestPDF.Fluent;
 
@@ -13,12 +14,22 @@ namespace GoatLab.Server.Services.Pdf;
 public class PdfService
 {
     private readonly GoatLabDbContext _db;
+    private readonly IWebHostEnvironment _env;
 
-    public PdfService(GoatLabDbContext db) => _db = db;
+    public PdfService(GoatLabDbContext db, IWebHostEnvironment env)
+    {
+        _db = db;
+        _env = env;
+    }
 
-    public async Task<byte[]?> GeneratePedigreeAsync(int goatId, string tenantName, CancellationToken cancellationToken = default)
+    public async Task<byte[]?> GeneratePedigreeAsync(
+        int goatId,
+        string tenantName,
+        string? verificationUrl = null,
+        CancellationToken cancellationToken = default)
     {
         var goat = await _db.Goats
+            .Include(g => g.Photos)
             .Include(g => g.Sire).ThenInclude(s => s!.Sire).ThenInclude(ss => ss!.Sire)
             .Include(g => g.Sire).ThenInclude(s => s!.Sire).ThenInclude(ss => ss!.Dam)
             .Include(g => g.Sire).ThenInclude(s => s!.Dam).ThenInclude(sd => sd!.Sire)
@@ -30,7 +41,31 @@ public class PdfService
             .FirstOrDefaultAsync(g => g.Id == goatId, cancellationToken);
         if (goat is null) return null;
 
-        return new PedigreeDocument(goat, tenantName).GeneratePdf();
+        var photoBytes = TryLoadPrimaryPhoto(goat);
+
+        return new PedigreeDocument(goat, tenantName, photoBytes, verificationUrl).GeneratePdf();
+    }
+
+    private byte[]? TryLoadPrimaryPhoto(Goat goat)
+    {
+        var photo = goat.Photos
+            .OrderByDescending(p => p.IsPrimary)
+            .ThenBy(p => p.UploadedAt)
+            .FirstOrDefault();
+        if (photo is null || string.IsNullOrEmpty(photo.FilePath)) return null;
+
+        // FilePath is stored as a URL-relative path ("media/goats/{id}/{file}").
+        // Disk path = ContentRootPath + same relative segment.
+        try
+        {
+            var diskPath = Path.Combine(_env.ContentRootPath, photo.FilePath.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(diskPath)) return null;
+            return File.ReadAllBytes(diskPath);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public async Task<byte[]?> GenerateSalesContractAsync(int saleId, string tenantName, CancellationToken cancellationToken = default)

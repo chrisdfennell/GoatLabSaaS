@@ -403,6 +403,56 @@ public static class EmailTemplates
         return (subject, html, text);
     }
 
+    /// <summary>Sent to the seller when a buyer sends an inquiry on a listing.</summary>
+    public static (string Subject, string Html, string Text) BuyerInquiryNew(
+        string buyerName, string buyerEmail, string? buyerPhone, string goatName, string farmName,
+        string messageBody, string inboxUrl)
+    {
+        var phoneLine = string.IsNullOrEmpty(buyerPhone) ? "" :
+            $@"<p style=""margin:4px 0;color:#4a5a51;""><strong>Phone:</strong> {System.Net.WebUtility.HtmlEncode(buyerPhone)}</p>";
+        return (
+            Subject: $"New inquiry on {goatName} from {buyerName}",
+            Html: $@"<div style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:0 auto;padding:24px;color:#1a2421;"">
+  <h2 style=""color:#2e7d32;margin-bottom:4px;"">New buyer inquiry</h2>
+  <p style=""margin:0 0 16px 0;color:#6b7a70;"">on <strong>{System.Net.WebUtility.HtmlEncode(goatName)}</strong></p>
+  <div style=""background:#f5f5f5;padding:14px 16px;border-radius:8px;margin-bottom:16px;"">
+    <p style=""margin:4px 0;""><strong>{System.Net.WebUtility.HtmlEncode(buyerName)}</strong></p>
+    <p style=""margin:4px 0;color:#4a5a51;""><strong>Email:</strong> {System.Net.WebUtility.HtmlEncode(buyerEmail)}</p>
+    {phoneLine}
+  </div>
+  <p style=""margin:16px 0 8px 0;font-weight:600;"">Their message:</p>
+  <blockquote style=""margin:0;padding:12px 16px;background:#fff;border-left:4px solid #2e7d32;color:#1a2421;white-space:pre-wrap;"">{System.Net.WebUtility.HtmlEncode(messageBody)}</blockquote>
+  <p style=""margin:24px 0;"">
+    <a href=""{inboxUrl}"" style=""display:inline-block;background:#2e7d32;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;"">Reply on {Brand}</a>
+  </p>
+  <p style=""font-size:12px;color:#6b7a70;"">{System.Net.WebUtility.HtmlEncode(farmName)} · Replies sent from your inbox go directly to {System.Net.WebUtility.HtmlEncode(buyerEmail)}.</p>
+</div>",
+            Text: $"New inquiry on {goatName} from {buyerName} ({buyerEmail}{(string.IsNullOrEmpty(buyerPhone) ? "" : ", " + buyerPhone)}):\n\n{messageBody}\n\nReply at: {inboxUrl}"
+        );
+    }
+
+    /// <summary>Sent to the buyer when the seller replies inside the app.</summary>
+    public static (string Subject, string Html, string Text) BuyerInquiryReply(
+        string buyerName, string sellerName, string farmName, string goatName, string replyBody,
+        string listingUrl)
+    {
+        var greeting = string.IsNullOrWhiteSpace(buyerName) ? "Hi there," : $"Hi {buyerName.Trim()},";
+        return (
+            Subject: $"{farmName} replied about {goatName}",
+            Html: $@"<div style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:0 auto;padding:24px;color:#1a2421;"">
+  <h2 style=""color:#2e7d32;margin-bottom:4px;"">{System.Net.WebUtility.HtmlEncode(sellerName)} replied</h2>
+  <p style=""margin:0 0 16px 0;color:#6b7a70;"">about <strong>{System.Net.WebUtility.HtmlEncode(goatName)}</strong> at {System.Net.WebUtility.HtmlEncode(farmName)}</p>
+  <p>{System.Net.WebUtility.HtmlEncode(greeting)}</p>
+  <blockquote style=""margin:16px 0;padding:12px 16px;background:#f5f5f5;border-left:4px solid #2e7d32;color:#1a2421;white-space:pre-wrap;"">{System.Net.WebUtility.HtmlEncode(replyBody)}</blockquote>
+  <p style=""margin:24px 0;"">
+    <a href=""{listingUrl}"" style=""display:inline-block;background:#2e7d32;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;"">View the listing</a>
+  </p>
+  <p style=""font-size:12px;color:#6b7a70;"">Reply to this email to continue the conversation. Your reply will reach {System.Net.WebUtility.HtmlEncode(farmName)} directly.</p>
+</div>",
+            Text: $"{greeting}\n\n{sellerName} from {farmName} replied about {goatName}:\n\n{replyBody}\n\nView the listing: {listingUrl}\n\nReply to this email to continue the conversation."
+        );
+    }
+
     private static bool LooksLikeHtml(string? s) =>
         !string.IsNullOrWhiteSpace(s) &&
         (s!.Contains('<') && s.Contains('>'));

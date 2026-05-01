@@ -1,5 +1,6 @@
 @inject AuthService AuthApi
 @inject CookieAuthStateProvider AuthState
+@inject BuyerInquiriesService InqSvc
 @implements IDisposable
 
 <MudNavMenu>
@@ -51,6 +52,14 @@
         }
 
         <div class="nav-section-header">Account</div>
+        <MudNavLink Href="/inquiries" Icon="@Icons.Material.Filled.Forum">
+            Inquiries
+            @if (_unreadInquiries > 0)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Filled"
+                         Style="margin-left:8px;height:18px;font-size:0.7rem;">@_unreadInquiries</MudChip>
+            }
+        </MudNavLink>
         <MudNavLink Href="/billing" Icon="@Icons.Material.Filled.CreditCard">Billing</MudNavLink>
         <MudNavLink Href="/farm-settings" Icon="@Icons.Material.Filled.Agriculture">Farm settings</MudNavLink>
         <MudNavLink Href="/team" Icon="@Icons.Material.Filled.Group">Team</MudNavLink>
@@ -83,6 +92,7 @@
 @code {
     private HashSet<string> _enabledFeatures = new(StringComparer.OrdinalIgnoreCase);
     private bool _isSuperAdmin;
+    private int _unreadInquiries;
 
     protected override async Task OnInitializedAsync()
     {
@@ -90,6 +100,14 @@
         // Seed cache via the state provider (it calls /api/account/me on first read).
         _ = await AuthState.GetAuthenticationStateAsync();
         ApplyUser(AuthState.CurrentUser);
+        await RefreshUnreadInquiries();
+    }
+
+    private async Task RefreshUnreadInquiries()
+    {
+        if (AuthState.CurrentUser?.CurrentTenantId is null) { _unreadInquiries = 0; return; }
+        var n = await InqSvc.UnreadCountAsync();
+        _unreadInquiries = n ?? 0;
     }
 
     private void HandleAuthChanged(Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState> _)

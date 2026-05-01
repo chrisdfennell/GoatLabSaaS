@@ -1,7 +1,22 @@
 using GoatLab.Server.Services.Pdf;
 using GoatLab.Shared.Models;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.FileProviders;
 
 namespace GoatLab.Tests;
+
+// Stub IWebHostEnvironment for PdfService — points ContentRootPath at the OS
+// temp dir so the optional photo-load step misses cleanly without throwing.
+internal class FakeWebHostEnv : IWebHostEnvironment
+{
+    public static readonly FakeWebHostEnv Instance = new();
+    public string ApplicationName { get; set; } = "GoatLab.Tests";
+    public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+    public string ContentRootPath { get; set; } = Path.GetTempPath();
+    public string EnvironmentName { get; set; } = "Test";
+    public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
+    public string WebRootPath { get; set; } = Path.GetTempPath();
+}
 
 // PDF templates need to render without throwing for the realistic data shapes
 // we hand them. We don't visually inspect output here — just confirm the byte
@@ -41,7 +56,7 @@ public class PdfServiceTests
         db.Context.Goats.Add(goat);
         db.Context.SaveChanges();
 
-        var svc = new PdfService(db.Context);
+        var svc = new PdfService(db.Context, FakeWebHostEnv.Instance);
         var bytes = await svc.GeneratePedigreeAsync(goat.Id, "Acme Farms");
 
         Assert.NotNull(bytes);
@@ -54,7 +69,7 @@ public class PdfServiceTests
         using var db = new TestDb();
         db.SeedDefaultPlans();
         db.Tenant.TenantId = 1;
-        var svc = new PdfService(db.Context);
+        var svc = new PdfService(db.Context, FakeWebHostEnv.Instance);
         Assert.Null(await svc.GeneratePedigreeAsync(99999, "Acme"));
     }
 
@@ -82,7 +97,7 @@ public class PdfServiceTests
         db.Context.Sales.Add(sale);
         db.Context.SaveChanges();
 
-        var svc = new PdfService(db.Context);
+        var svc = new PdfService(db.Context, FakeWebHostEnv.Instance);
         var bytes = await svc.GenerateSalesContractAsync(sale.Id, "Acme Farms");
 
         Assert.NotNull(bytes);
@@ -102,7 +117,7 @@ public class PdfServiceTests
         db.Context.Goats.Add(goat);
         db.Context.SaveChanges();
 
-        var svc = new PdfService(db.Context);
+        var svc = new PdfService(db.Context, FakeWebHostEnv.Instance);
         var bytes = await svc.GenerateHealthCertificateAsync(goat.Id, "Acme Farms");
 
         Assert.NotNull(bytes);

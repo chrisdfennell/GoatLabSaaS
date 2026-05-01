@@ -104,6 +104,12 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
     // same IsListedForSale=true hook used by FarmFollower notifications.
     public DbSet<MarketplaceAlert> MarketplaceAlerts => Set<MarketplaceAlert>();
 
+    // Buyer ↔ seller messaging on public goat listings. The buyer is
+    // anonymous (no account) and is contacted by email; the seller sees
+    // threads in /inquiries inside the app.
+    public DbSet<BuyerInquiry> BuyerInquiries => Set<BuyerInquiry>();
+    public DbSet<BuyerInquiryMessage> BuyerInquiryMessages => Set<BuyerInquiryMessage>();
+
     // Time-bounded vet share links: the owner mints one per goat to give a
     // vet temporary read access to that goat's medical history.
     public DbSet<VetShareLink> VetShareLinks => Set<VetShareLink>();
@@ -400,6 +406,23 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(a => a.UnsubscribeToken).IsUnique();
         modelBuilder.Entity<MarketplaceAlert>()
             .HasIndex(a => new { a.BreedSlug, a.IsActive });
+
+        // BuyerInquiry: dedup by (TenantId, GoatId, BuyerEmail) so a buyer
+        // sending follow-up questions adds messages to the same thread instead
+        // of cluttering the seller's inbox. Inbox listings sort by
+        // LastMessageAt within a tenant — the composite index makes that fast.
+        modelBuilder.Entity<BuyerInquiry>()
+            .HasIndex(i => new { i.TenantId, i.GoatId, i.BuyerEmail }).IsUnique();
+        modelBuilder.Entity<BuyerInquiry>()
+            .HasIndex(i => new { i.TenantId, i.LastMessageAt });
+        modelBuilder.Entity<BuyerInquiry>()
+            .HasOne(i => i.Goat).WithMany()
+            .HasForeignKey(i => i.GoatId).OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<BuyerInquiryMessage>()
+            .HasIndex(m => new { m.InquiryId, m.CreatedAt });
+        modelBuilder.Entity<BuyerInquiryMessage>()
+            .HasOne(m => m.Inquiry).WithMany(i => i.Messages)
+            .HasForeignKey(m => m.InquiryId).OnDelete(DeleteBehavior.Cascade);
 
         // VetShareLink: lookup by token (hash) is the hot path — the public
         // /vet/{token} endpoint hashes the inbound token and matches here.

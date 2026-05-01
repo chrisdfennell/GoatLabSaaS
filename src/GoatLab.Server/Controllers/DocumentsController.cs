@@ -25,7 +25,8 @@ public class DocumentsController : ControllerBase
     {
         if (_tenant.TenantId is not int tid) return Unauthorized();
         var name = await _pdf.GetTenantNameAsync(tid, cancellationToken);
-        var bytes = await _pdf.GeneratePedigreeAsync(id, name, cancellationToken);
+        var verificationUrl = $"{Request.Scheme}://{Request.Host}/herd/{id}";
+        var bytes = await _pdf.GeneratePedigreeAsync(id, name, verificationUrl, cancellationToken);
         if (bytes is null) return NotFound();
         return File(bytes, "application/pdf", $"pedigree-{id}.pdf");
     }
