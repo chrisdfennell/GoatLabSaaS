@@ -329,21 +329,33 @@
     <script>
         (async function () {
             // On page load, fetch my saved IDs once and mark any matching
-            // .save-button or .save-toggle elements with .saved.
+            // [data-goat-id] elements with .saved. Text-labeled buttons get
+            // their text swapped (data-save-label / data-saved-label drive
+            // the strings); icon-only buttons (data-save-icon-only) keep
+            // their inner SVG and just toggle the class.
             try {
                 var resp = await fetch('/api/buyer/saved');
-                if (!resp.ok) return; // 401 = anonymous, fine — leave buttons in default state
+                if (!resp.ok) return;
                 var ids = await resp.json();
                 if (!Array.isArray(ids) || ids.length === 0) return;
                 var set = new Set(ids.map(String));
                 document.querySelectorAll('[data-goat-id]').forEach(function (el) {
                     if (set.has(String(el.dataset.goatId))) {
                         el.classList.add('saved');
-                        if (el.tagName === 'BUTTON') el.innerHTML = '⭐ Saved';
+                        applySaveLabel(el, true);
                     }
                 });
             } catch (e) { /* swallow */ }
         })();
+
+        function applySaveLabel(btn, saved) {
+            if (btn.tagName !== 'BUTTON') return;
+            // Icon-only buttons (cards) — leave the SVG alone.
+            if (btn.querySelector('svg')) return;
+            var savedLabel = btn.dataset.savedLabel || '⭐ Saved';
+            var unsavedLabel = btn.dataset.saveLabel || '⭐ Save to my list';
+            btn.innerHTML = saved ? savedLabel : unsavedLabel;
+        }
 
         window.toggleSaveListing = async function (btn) {
             var id = btn.dataset.goatId;
@@ -359,13 +371,8 @@
                 return;
             }
             if (resp.ok) {
-                if (saved) {
-                    btn.classList.remove('saved');
-                    if (btn.tagName === 'BUTTON') btn.innerHTML = '⭐ Save to my list';
-                } else {
-                    btn.classList.add('saved');
-                    if (btn.tagName === 'BUTTON') btn.innerHTML = '⭐ Saved';
-                }
+                btn.classList.toggle('saved', !saved);
+                applySaveLabel(btn, !saved);
             }
         };
     </script>
