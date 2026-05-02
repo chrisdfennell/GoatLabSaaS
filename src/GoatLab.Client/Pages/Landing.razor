@@ -21,6 +21,7 @@
         <nav class="nav-links">
             <a href="#features">Features</a>
             <a href="#workflow">How it works</a>
+            <a href="#compare">Compare</a>
             <a href="#pricing">Pricing</a>
             <a href="/marketplace">For sale</a>
             <a href="/breeds">Breeds</a>
@@ -331,6 +332,122 @@
                 <p>Reports, forecasts, COI calculations, mate recommendations — so you can act, not guess.</p>
             </div>
         </div>
+    </div>
+</section>
+
+@* ---------- COMPARISON ---------- *@
+@* Capability-focused, no competitor prices on purpose — competitor pricing
+   shifts often and "we're cheaper" is a fragile pitch. Differentiation is
+   the marketplace + cross-farm pedigree, which spreadsheets and single-farm
+   herd apps both lack. *@
+<section class="compare" id="compare">
+    <div class="container">
+        <div class="section-head">
+            <div class="eyebrow dark">
+                <MudIcon Icon="@Icons.Material.Filled.CompareArrows" Style="font-size:16px;" />
+                <span>vs. the alternatives</span>
+            </div>
+            <h2>Spreadsheets, generic herd apps, or Facebook groups?</h2>
+            <p>Most goat farms juggle three tools today. GoatLab is one tool that does all three jobs — and a few more.</p>
+        </div>
+
+        <div class="compare-table-wrap">
+            <table class="compare-table">
+                <thead>
+                    <tr>
+                        <th>Capability</th>
+                        <th class="us">GoatLab</th>
+                        <th>Spreadsheets</th>
+                        <th>Generic herd app</th>
+                        <th>Facebook&nbsp;group</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Goat records (health, breeding, milk, finance)</td>
+                        <td class="us">✅</td>
+                        <td>⚠️ DIY</td>
+                        <td>✅</td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td>Public farm page with goats for sale</td>
+                        <td class="us">✅</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                        <td>⚠️ posts only</td>
+                    </tr>
+                    <tr>
+                        <td>Cross-farm marketplace at <code>/marketplace</code></td>
+                        <td class="us">✅</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                        <td>⚠️ scrolling timeline</td>
+                    </tr>
+                    <tr>
+                        <td>Pedigree that walks across farms</td>
+                        <td class="us">✅</td>
+                        <td>❌</td>
+                        <td>❌ trapped per-farm</td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td>Stripe deposits direct from listing</td>
+                        <td class="us">✅</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td>Buyer messaging in one inbox</td>
+                        <td class="us">✅</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                        <td>⚠️ DM chaos</td>
+                    </tr>
+                    <tr>
+                        <td>Goat transfer carries the full record</td>
+                        <td class="us">✅</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td>Vet share-link without a login</td>
+                        <td class="us">✅</td>
+                        <td>❌</td>
+                        <td>⚠️ varies</td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td>Works offline in the barn (PWA)</td>
+                        <td class="us">✅</td>
+                        <td>⚠️ if local</td>
+                        <td>⚠️ varies</td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td>Open source, self-host on your hardware</td>
+                        <td class="us">✅</td>
+                        <td>—</td>
+                        <td>❌</td>
+                        <td>❌</td>
+                    </tr>
+                    <tr>
+                        <td>Free tier that's actually useful</td>
+                        <td class="us">✅ Homestead</td>
+                        <td>✅ free</td>
+                        <td>⚠️ varies</td>
+                        <td>✅ free</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p class="compare-footnote">
+            ✅ = built-in &nbsp; ⚠️ = partial / depends on you &nbsp; ❌ = not available &nbsp; — = not applicable.
+            We don't list specific competitor prices because they change — focus on what each tool actually does for your farm.
+        </p>
     </div>
 </section>
 
@@ -869,6 +986,51 @@
     }
     .step h3 { font-size:17px; font-weight:700; margin:0 0 8px; }
     .step p { font-size:14px; color:#3a4a3e; line-height:1.55; margin:0; }
+
+    /* Comparison table */
+    .compare { padding: 90px 0; background: #fafbf9; border-top: 1px solid #eaeae5; border-bottom: 1px solid #eaeae5; }
+    .compare-table-wrap { margin-top: 32px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .compare-table {
+        width: 100%; min-width: 720px;
+        border-collapse: collapse;
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        border: 1px solid #e0e0e0;
+    }
+    .compare-table th, .compare-table td {
+        padding: 14px 16px;
+        text-align: left;
+        font-size: 0.92rem;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    .compare-table thead th {
+        background: #f8f9f7;
+        font-weight: 700;
+        font-size: 0.82rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #4a5a51;
+        border-bottom: 2px solid #e0e0e0;
+    }
+    .compare-table thead th.us {
+        background: #2e7d32;
+        color: #fff;
+    }
+    .compare-table tbody td.us {
+        background: rgba(46,125,50,0.06);
+        font-weight: 600;
+        color: #1b5e20;
+    }
+    .compare-table tbody tr:hover td { background: #fafbf9; }
+    .compare-table tbody tr:hover td.us { background: rgba(46,125,50,0.1); }
+    .compare-table tbody tr:last-child td { border-bottom: 0; }
+    .compare-table code { background: #f1f4f1; padding: 1px 6px; border-radius: 4px; font-size: 0.85em; color: #1b5e20; }
+    .compare-footnote { margin-top: 20px; font-size: 0.85rem; color: #6b7a70; text-align: center; max-width: 720px; margin-left: auto; margin-right: auto; line-height: 1.6; }
+    @@media (max-width: 720px) {
+        .compare-table thead th, .compare-table tbody td { padding: 10px 12px; font-size: 0.85rem; }
+    }
 
     /* Pricing */
     .pricing { padding:100px 0; background:#fff; }
