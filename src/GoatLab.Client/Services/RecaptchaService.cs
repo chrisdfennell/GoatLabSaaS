@@ -45,6 +45,14 @@ public class RecaptchaService
         }
     }
 
+    /// <summary>
+    /// Triggers the site-key fetch + JS load eagerly so by the time the user
+    /// clicks Submit the script is already in flight (or done). Fire-and-
+    /// forget from auth pages' OnInitializedAsync — fixes the mobile race
+    /// where users hit Submit faster than 3G could download grecaptcha.
+    /// </summary>
+    public Task WarmupAsync() => EnsureLoadedAsync();
+
     private async Task EnsureLoadedAsync()
     {
         if (_siteKeyResolved) return;
