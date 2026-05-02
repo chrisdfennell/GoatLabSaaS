@@ -11,10 +11,12 @@ public class RecaptchaOptions
 
     /// <summary>
     /// reCAPTCHA v3 returns a 0.0–1.0 score where 1.0 is "very likely a human".
-    /// 0.5 is Google's recommended default. Tighten to 0.7 for high-risk
-    /// endpoints, loosen to 0.3 if you're getting too many false positives.
+    /// 0.3 is the Google-recommended default for forms with mobile users —
+    /// real mobile traffic routinely scores 0.3–0.5, so a 0.5 floor locks
+    /// out a meaningful chunk of legitimate phone users. Tighten to 0.7 for
+    /// high-risk endpoints; loosen below 0.3 if false-positives persist.
     /// </summary>
-    public double MinimumScore { get; set; } = 0.5;
+    public double MinimumScore { get; set; } = 0.3;
 }
 
 public interface IRecaptchaVerifier
@@ -54,7 +56,10 @@ public class RecaptchaVerifier : IRecaptchaVerifier
 
         if (string.IsNullOrWhiteSpace(token))
         {
-            _log.LogInformation("Recaptcha rejected: missing token (action={Action})", action);
+            // Warning so prod logs surface it — usually means the client
+            // submitted before grecaptcha loaded (slow mobile network) or
+            // a privacy browser blocked the script entirely.
+            _log.LogWarning("Recaptcha rejected: missing token (action={Action})", action);
             return false;
         }
 
@@ -75,23 +80,26 @@ public class RecaptchaVerifier : IRecaptchaVerifier
             var data = await resp.Content.ReadFromJsonAsync<RecaptchaResponse>(cancellationToken: ct);
             if (data is null || !data.Success)
             {
-                _log.LogInformation("Recaptcha rejected: success=false (action={Action}, errors={Errors})",
+                _log.LogWarning("Recaptcha rejected: success=false (action={Action}, errors={Errors})",
                     action, string.Join(",", data?.ErrorCodes ?? Array.Empty<string>()));
                 return false;
             }
             if (!string.IsNullOrEmpty(data.Action) &&
                 !string.Equals(data.Action, action, StringComparison.OrdinalIgnoreCase))
             {
-                _log.LogInformation("Recaptcha rejected: action mismatch (got={Got}, expected={Expected})",
+                _log.LogWarning("Recaptcha rejected: action mismatch (got={Got}, expected={Expected})",
                     data.Action, action);
                 return false;
             }
             if (data.Score < _opts.MinimumScore)
             {
-                _log.LogInformation("Recaptcha rejected: score {Score} below threshold {Threshold} (action={Action})",
+                _log.LogWarning("Recaptcha rejected: score {Score} below threshold {Threshold} (action={Action})",
                     data.Score, _opts.MinimumScore, action);
                 return false;
             }
+            // Successful pass — log at Information so admins can see the
+            // distribution of real-user scores and tune the threshold.
+            _log.LogInformation("Recaptcha pass: score {Score} (action={Action})", data.Score, action);
             return true;
         }
         catch (Exception ex)
