@@ -1,11 +1,24 @@
 // GoatLab service worker (published)
 // Strategy:
-//   - App shell / _framework / static assets: cache-first (fetched once, reused offline)
-//   - GET /api/* : stale-while-revalidate (serve cache instantly, refresh in background)
-//   - Non-GET /api/* : network-only; if offline, respond with 503 so the app shows a toast
-//   - Navigation requests: network, fallback to cached index.html (SPA offline boot)
-const SHELL_CACHE = 'goatlab-shell-v3';
-const API_CACHE   = 'goatlab-api-v3';
+//   - _framework / _content / images / css : cache-first (content-hashed by
+//     Blazor build → safe to cache forever; refresh on shell version bump)
+//   - /js/*.js : stale-while-revalidate (hand-written, no content hash, so
+//     a new deploy must propagate without waiting for a cache version bump)
+//   - GET /api/* : stale-while-revalidate (serve cache instantly, refresh
+//     in background)
+//   - Non-GET /api/* : network-only; if offline, respond with 503 so the
+//     app shows a toast
+//   - Navigation requests: network, fallback to cached index.html (SPA
+//     offline boot)
+//
+// IMPORTANT: bump the cache version when a critical fix lands in a non-
+// hashed JS file or in index.html. The activate handler deletes any
+// cache key that doesn't match the current names, so existing users lose
+// the stale cache as soon as the new SW takes over.
+//   v3 → v4 : recaptcha-interop.js race fix wasn't reaching mobile users
+//             whose SW served the stale cache-first copy.
+const SHELL_CACHE = 'goatlab-shell-v4';
+const API_CACHE   = 'goatlab-api-v4';
 
 const SHELL_ASSETS = [
     '/',
@@ -33,11 +46,11 @@ self.addEventListener('activate', event => {
 
 function isApi(url)  { return url.pathname.startsWith('/api/'); }
 function isNav(req)  { return req.mode === 'navigate'; }
+function isJs(url)   { return url.pathname.startsWith('/js/'); }
 function isShellAsset(url) {
     return url.pathname.startsWith('/_framework/')
         || url.pathname.startsWith('/_content/')
         || url.pathname.startsWith('/css/')
-        || url.pathname.startsWith('/js/')
         || url.pathname.startsWith('/images/')
         || url.pathname.endsWith('.webmanifest')
         || url.pathname === '/'
@@ -102,6 +115,16 @@ self.addEventListener('fetch', event => {
             )));
             return;
         }
+        event.respondWith(staleWhileRevalidate(req));
+        return;
+    }
+
+    if (req.method === 'GET' && isJs(url)) {
+        // Hand-written JS isn't content-hashed, so cache-first traps
+        // critical fixes (e.g. the reCAPTCHA mobile race) until a cache
+        // version bump. Stale-while-revalidate serves cache instantly AND
+        // refetches in the background so the next visit always has the
+        // newest version.
         event.respondWith(staleWhileRevalidate(req));
         return;
     }
