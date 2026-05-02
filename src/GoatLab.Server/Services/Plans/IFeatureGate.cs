@@ -21,4 +21,10 @@ public interface IFeatureGate
     /// unlimited). Counts goats with IsListedForSale=true and IsExternal=false.
     /// </summary>
     Task<bool> CanAddPublicListingAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// True when the goat hasn't hit its plan's MaxPhotosPerGoat cap (null =
+    /// unlimited). Used by the photo-upload endpoint to 402 over the cap.
+    /// </summary>
+    Task<bool> CanAddPhotoAsync(int goatId, CancellationToken cancellationToken = default);
 }

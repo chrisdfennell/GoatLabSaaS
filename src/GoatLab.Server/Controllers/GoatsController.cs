@@ -306,6 +306,18 @@ public class GoatsController : ControllerBase
         var goat = await _db.Goats.FindAsync(id);
         if (goat is null) return NotFound();
 
+        // Per-plan cap on photos per individual goat.
+        if (!await _featureGate.CanAddPhotoAsync(id))
+        {
+            return new ObjectResult(new
+            {
+                error = "You have reached your plan's photo limit for this goat. Upgrade for more photos per listing.",
+                upgradeRequired = true,
+                limit = "MaxPhotosPerGoat",
+            })
+            { StatusCode = StatusCodes.Status402PaymentRequired };
+        }
+
         var uploadsDir = Path.Combine(_env.ContentRootPath, "media", "goats", id.ToString());
         Directory.CreateDirectory(uploadsDir);
 

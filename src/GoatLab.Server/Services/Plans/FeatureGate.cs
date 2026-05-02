@@ -86,4 +86,16 @@ public class FeatureGate : IFeatureGate
             g => g.IsListedForSale && !g.IsExternal, cancellationToken);
         return count < cap;
     }
+
+    public async Task<bool> CanAddPhotoAsync(int goatId, CancellationToken cancellationToken = default)
+    {
+        var plan = await GetCurrentPlanAsync(cancellationToken);
+        if (plan is null) return false;
+        if (plan.MaxPhotosPerGoat is not int cap) return true;
+
+        // Photos table participates in the tenant filter via Goat → Tenant,
+        // but we filter directly on GoatId so that's redundant scope-wise.
+        var count = await _db.GoatPhotos.CountAsync(p => p.GoatId == goatId, cancellationToken);
+        return count < cap;
+    }
 }

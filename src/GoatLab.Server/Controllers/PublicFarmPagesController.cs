@@ -66,6 +66,8 @@ public class PublicFarmPagesController : Controller
         ViewData["FarmName"] = tenant.Name;
         ViewData["FarmLocation"] = tenant.Location;
         ViewData["ContactEmail"] = tenant.PublicContactEmail;
+        ViewData["AccentColor"] = tenant.PublicAccentColor;
+        ViewData["WelcomeMessage"] = tenant.PublicWelcomeMessage;
         ViewData["Canonical"] = canonical;
         ViewData["Title"] = $"{tenant.Name} — Goats for sale on GoatLab";
         ViewData["Description"] = goats.Count switch

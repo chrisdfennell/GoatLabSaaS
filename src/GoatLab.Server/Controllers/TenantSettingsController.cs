@@ -44,7 +44,9 @@ public class TenantSettingsController : ControllerBase
         int PublicDepositPercent,
         DateTime CreatedAt,
         double? PublicLatitude,
-        double? PublicLongitude);
+        double? PublicLongitude,
+        string? PublicAccentColor,
+        string? PublicWelcomeMessage);
 
     public record UpdateSettingsInput(
         string Name,
@@ -55,7 +57,9 @@ public class TenantSettingsController : ControllerBase
         string? PublicContactEmail,
         int PublicDepositPercent,
         double? PublicLatitude,
-        double? PublicLongitude);
+        double? PublicLongitude,
+        string? PublicAccentColor,
+        string? PublicWelcomeMessage);
 
     [HttpGet]
     public async Task<ActionResult<TenantSettingsDto>> Get(CancellationToken ct)
@@ -63,7 +67,7 @@ public class TenantSettingsController : ControllerBase
         if (_tenantContext.TenantId is not int tenantId) return NotFound();
         var tenant = await _db.Tenants.FirstOrDefaultAsync(t => t.Id == tenantId, ct);
         if (tenant is null) return NotFound();
-        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.AlertEmailEnabled, tenant.PublicProfileEnabled, tenant.PublicContactEmail, tenant.PublicDepositPercent, tenant.CreatedAt, tenant.PublicLatitude, tenant.PublicLongitude);
+        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.AlertEmailEnabled, tenant.PublicProfileEnabled, tenant.PublicContactEmail, tenant.PublicDepositPercent, tenant.CreatedAt, tenant.PublicLatitude, tenant.PublicLongitude, tenant.PublicAccentColor, tenant.PublicWelcomeMessage);
     }
 
     [HttpPut]
@@ -105,11 +109,25 @@ public class TenantSettingsController : ControllerBase
         // AND the plan allows the map pin feature; anything else clears the pin.
         tenant.PublicLatitude = canPin && input.PublicLatitude is double lat && lat >= -90 && lat <= 90 ? lat : null;
         tenant.PublicLongitude = canPin && input.PublicLongitude is double lng && lng >= -180 && lng <= 180 ? lng : null;
+
+        // Custom branding (Dairy-only feature). Strip if the plan doesn't
+        // grant it. Accent color must match #RRGGBB to keep CSS injection
+        // out of the public farm page.
+        var canBrand = await _featureGate.IsEnabledAsync(AppFeature.CustomBranding, ct);
+        tenant.PublicAccentColor = canBrand && IsHexColor(input.PublicAccentColor) ? input.PublicAccentColor : null;
+        tenant.PublicWelcomeMessage = canBrand && !string.IsNullOrWhiteSpace(input.PublicWelcomeMessage)
+            ? input.PublicWelcomeMessage.Trim()
+            : null;
+
         tenant.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(ct);
-        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.AlertEmailEnabled, tenant.PublicProfileEnabled, tenant.PublicContactEmail, tenant.PublicDepositPercent, tenant.CreatedAt, tenant.PublicLatitude, tenant.PublicLongitude);
+        return new TenantSettingsDto(tenant.Id, tenant.Name, tenant.Slug, tenant.Location, tenant.Units, tenant.AlertEmailEnabled, tenant.PublicProfileEnabled, tenant.PublicContactEmail, tenant.PublicDepositPercent, tenant.CreatedAt, tenant.PublicLatitude, tenant.PublicLongitude, tenant.PublicAccentColor, tenant.PublicWelcomeMessage);
     }
+
+    private static readonly System.Text.RegularExpressions.Regex HexColorRx =
+        new("^#[0-9a-fA-F]{6}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static bool IsHexColor(string? s) => !string.IsNullOrEmpty(s) && HexColorRx.IsMatch(s);
 
     private async Task<bool> IsOwnerAsync(int tenantId, CancellationToken ct)
     {

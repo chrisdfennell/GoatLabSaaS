@@ -38,6 +38,11 @@ public enum AppFeature
     // feature flag, so the cap can vary by tier without enum churn.
     MarketplaceMapPin = 21,
     StripeDeposits = 22,
+
+    // Dairy-only cosmetic upgrade — owners can pick an accent color and a
+    // custom welcome message that render on /pub/{slug}. Lets serious
+    // breeders make their farm page feel branded instead of generic-green.
+    CustomBranding = 23,
 }
 
 public class Plan
@@ -72,6 +77,10 @@ public class Plan
     // free Homestead tier participate in the marketplace (network effects)
     // without giving paid features away — paid plans set this to null.
     public int? MaxPublicListings { get; set; }
+
+    // Cap on uploaded photos per individual goat. Listings with more photos
+    // sell faster, so this is a real upgrade trigger. Null = unlimited.
+    public int? MaxPhotosPerGoat { get; set; }
 
     // IsPublic controls pricing page visibility; IsActive blocks new
     // subscriptions without affecting existing subscribers.

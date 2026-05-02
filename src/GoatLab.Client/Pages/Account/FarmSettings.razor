@@ -96,6 +96,38 @@
                 </MudAlert>
             }
 
+            @if (_canCustomBranding)
+            {
+                <MudText Typo="Typo.subtitle2" Class="mb-1">Custom branding</MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">
+                    Make your public farm page yours — pick an accent color (header band) and a short welcome message buyers see at the top of your listings.
+                </MudText>
+                <MudGrid Class="mb-3">
+                    <MudItem xs="12" sm="4">
+                        <MudTextField @bind-Value="_publicAccentColor" Label="Accent color (hex)"
+                                      Placeholder="#1b5e20" HelperText="Format: #RRGGBB"
+                                      Disabled="@(!_publicProfileEnabled)" />
+                        @if (!string.IsNullOrEmpty(_publicAccentColor))
+                        {
+                            <div style="@($"margin-top:8px;height:28px;border-radius:6px;background:{_publicAccentColor};border:1px solid #ccc;")"></div>
+                        }
+                    </MudItem>
+                    <MudItem xs="12" sm="8">
+                        <MudTextField @bind-Value="_publicWelcomeMessage" Label="Welcome message"
+                                      Lines="3" Counter="500" MaxLength="500"
+                                      Placeholder="Welcome to our farm! We breed registered Nubians focused on milk production..."
+                                      Disabled="@(!_publicProfileEnabled)" />
+                    </MudItem>
+                </MudGrid>
+            }
+            else
+            {
+                <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mb-4" Icon="@Icons.Material.Filled.Lock">
+                    <strong>Custom branding</strong> (accent color + welcome message on your public farm page) is part of the Dairy plan.
+                    <MudLink Href="/billing">Upgrade</MudLink> to make your page stand out.
+                </MudAlert>
+            }
+
             @if (_publicProfileEnabled)
             {
                 <MudDivider Class="my-4" />
@@ -153,6 +185,9 @@
     private double? _publicLongitude;
     private bool _canMapPin;
     private bool _canStripeDeposits;
+    private bool _canCustomBranding;
+    private string? _publicAccentColor;
+    private string? _publicWelcomeMessage;
     private string? _error;
     private bool _busy;
 
@@ -194,7 +229,9 @@
          || (_publicContactEmail ?? "") != (_settings.PublicContactEmail ?? "")
          || _publicDepositPercent != _settings.PublicDepositPercent
          || _publicLatitude != _settings.PublicLatitude
-         || _publicLongitude != _settings.PublicLongitude);
+         || _publicLongitude != _settings.PublicLongitude
+         || (_publicAccentColor ?? "") != (_settings.PublicAccentColor ?? "")
+         || (_publicWelcomeMessage ?? "") != (_settings.PublicWelcomeMessage ?? ""));
 
     protected override async Task OnInitializedAsync()
     {
@@ -204,6 +241,7 @@
         var features = AuthState.CurrentUser?.EnabledFeatures;
         _canMapPin = features?.Contains("MarketplaceMapPin") ?? false;
         _canStripeDeposits = features?.Contains("StripeDeposits") ?? false;
+        _canCustomBranding = features?.Contains("CustomBranding") ?? false;
 
         await LoadAsync();
     }
@@ -221,6 +259,8 @@
         _publicDepositPercent = _settings.PublicDepositPercent;
         _publicLatitude = _settings.PublicLatitude;
         _publicLongitude = _settings.PublicLongitude;
+        _publicAccentColor = _settings.PublicAccentColor;
+        _publicWelcomeMessage = _settings.PublicWelcomeMessage;
     }
 
     private async Task SaveAsync()
@@ -229,7 +269,7 @@
         _error = null;
         try
         {
-            var (ok, err, updated) = await SettingsApi.UpdateAsync(new TenantSettingsService.UpdateInput(_name.Trim(), _location?.Trim(), _units, _alertEmailEnabled, _publicProfileEnabled, _publicContactEmail?.Trim(), _publicDepositPercent, _publicLatitude, _publicLongitude));
+            var (ok, err, updated) = await SettingsApi.UpdateAsync(new TenantSettingsService.UpdateInput(_name.Trim(), _location?.Trim(), _units, _alertEmailEnabled, _publicProfileEnabled, _publicContactEmail?.Trim(), _publicDepositPercent, _publicLatitude, _publicLongitude, string.IsNullOrWhiteSpace(_publicAccentColor) ? null : _publicAccentColor.Trim(), string.IsNullOrWhiteSpace(_publicWelcomeMessage) ? null : _publicWelcomeMessage.Trim()));
             if (!ok)
             {
                 _error = err?.Length > 200 ? "Couldn't save. Check your inputs." : (err ?? "Save failed.");

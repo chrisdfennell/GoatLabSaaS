@@ -129,6 +129,22 @@ public class Tenant
     public double? PublicLongitude { get; set; }
 
     /// <summary>
+    /// Hex accent color (e.g. "#9c27b0") applied to the public farm page
+    /// header band. Gated by AppFeature.CustomBranding. Null = use default
+    /// GoatLab green. Validated server-side to /^#[0-9a-fA-F]{6}$/.
+    /// </summary>
+    [MaxLength(7)]
+    public string? PublicAccentColor { get; set; }
+
+    /// <summary>
+    /// Optional welcome message shown above the listings on /pub/{slug}.
+    /// Gated by AppFeature.CustomBranding. Plain text only; rendered with
+    /// HtmlEncode to prevent injection.
+    /// </summary>
+    [MaxLength(500)]
+    public string? PublicWelcomeMessage { get; set; }
+
+    /// <summary>
     /// Percentage (0–100) of a goat's AskingPriceCents collected as a Stripe
     /// one-time payment when a buyer clicks "Reserve with deposit" on the
     /// public listing page. 0 (default) disables the reservation flow and the
