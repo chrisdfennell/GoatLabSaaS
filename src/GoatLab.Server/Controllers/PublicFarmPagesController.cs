@@ -98,6 +98,10 @@ public class PublicFarmPagesController : Controller
             return View("NotFoundFarm", slug);
         }
 
+        // Don't filter by IsListedForSale at the query level — the buyer
+        // dashboard, saved listings, inquiry links, and email shares can all
+        // reach this URL after the seller delists. We want a graceful "no
+        // longer listed" page instead of a 404 dead-end on those stale links.
         var goat = await _db.Goats.IgnoreQueryFilters()
             .Include(g => g.Photos)
             .Include(g => g.Sire).ThenInclude(s => s!.Sire)
@@ -105,11 +109,22 @@ public class PublicFarmPagesController : Controller
             .Include(g => g.Dam).ThenInclude(d => d!.Sire)
             .Include(g => g.Dam).ThenInclude(d => d!.Dam)
             .FirstOrDefaultAsync(g => g.Id == goatId && g.TenantId == tenant.Id
-                                      && g.IsListedForSale && !g.IsExternal, ct);
+                                      && !g.IsExternal, ct);
         if (goat is null)
         {
             Response.StatusCode = StatusCodes.Status404NotFound;
             return View("NotFoundGoat");
+        }
+        if (!goat.IsListedForSale)
+        {
+            // The goat exists in the public farm's herd but is no longer
+            // listed for sale. Show a basic "no longer listed" view that
+            // still confirms the listing was real (helps buyers feel
+            // they're not chasing a phantom record), with a link back to
+            // the farm's other listings.
+            ViewData["FarmSlug"] = tenant.Slug;
+            ViewData["FarmName"] = tenant.Name;
+            return View("NoLongerListed", goat);
         }
 
         var depositCents = ComputeDepositCents(tenant, goat);

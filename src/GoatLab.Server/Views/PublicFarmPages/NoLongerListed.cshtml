@@ -1,0 +1,67 @@
+@using GoatLab.Shared.Models
+@model Goat
+@{
+    var slug = ViewData["FarmSlug"] as string ?? "";
+    var farmName = ViewData["FarmName"] as string ?? slug;
+    ViewData["Title"] = $"{Model.Name} — no longer listed — GoatLab";
+    ViewData["Description"] = $"{Model.Name} is no longer listed for sale at {farmName}. Browse the farm's current listings on GoatLab.";
+    // Discourage indexing of stale listings — let Google focus on the live ones.
+    ViewData["Robots"] = "noindex, follow";
+}
+
+<div class="breadcrumbs">
+    <a href="/">GoatLab</a>
+    <span class="sep">›</span>
+    <a href="/breeds">Browse breeders</a>
+    <span class="sep">›</span>
+    <a href="/pub/@slug">@farmName</a>
+    <span class="sep">›</span>
+    <span>@Model.Name</span>
+</div>
+
+<div class="not-listed-card">
+    <div class="not-listed-icon">🐐</div>
+    <div class="eyebrow">No longer listed</div>
+    <h1 style="margin:6px 0 8px 0;">@Model.Name</h1>
+    <p class="not-listed-meta">
+        @if (!string.IsNullOrEmpty(Model.Breed))
+        {
+            <span>@Model.Breed · </span>
+        }
+        @Model.Gender@(Model.DateOfBirth.HasValue ? $" · born {Model.DateOfBirth.Value:MMM yyyy}" : "")
+    </p>
+    <p class="not-listed-msg">
+        This goat is no longer listed for sale at <strong>@farmName</strong>.
+        It may have been sold, retained by the farm, or temporarily delisted.
+    </p>
+    <div class="not-listed-actions">
+        <a class="cta-button" href="/pub/@slug">See @farmName's other listings</a>
+        <a class="ghost-button" href="/marketplace">Browse the full marketplace</a>
+    </div>
+</div>
+
+<style>
+    .not-listed-card {
+        max-width: 640px; margin: 32px auto;
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 14px;
+        padding: 36px 28px;
+        text-align: center;
+    }
+    .not-listed-icon { font-size: 3rem; opacity: 0.55; line-height: 1; margin-bottom: 8px; }
+    .not-listed-meta { color: #6b7a70; margin: 0 0 16px 0; }
+    .not-listed-msg { color: #1a2421; font-size: 1.05rem; line-height: 1.6; margin: 0 0 28px 0; }
+    .not-listed-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .ghost-button {
+        display: inline-block;
+        padding: 10px 18px;
+        background: transparent;
+        color: #2e7d32;
+        border: 1.5px solid #2e7d32;
+        border-radius: 8px;
+        font-weight: 600;
+        text-decoration: none;
+    }
+    .ghost-button:hover { background: #e8f5e9; text-decoration: none; }
+</style>

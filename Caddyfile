@@ -28,11 +28,23 @@ goatlab.app, www.goatlab.app {
         -Server
     }
 
-    # Long cache for hashed/static assets — Blazor framework files have content-hashed names.
-    @static {
-        path /_framework/* /css/* /js/* /images/* /lib/*
+    # Year-long immutable cache for *content-hashed* assets only —
+    # Blazor's build emits hashed filenames under /_framework, and our /lib
+    # third-party files are versioned. Caching these forever is safe.
+    @immutable {
+        path /_framework/* /lib/* /images/*
     }
-    header @static Cache-Control "public, max-age=31536000, immutable"
+    header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+    # /js/* and /css/* are hand-written and NOT content-hashed (e.g.
+    # /js/recaptcha-interop.js). A year-long immutable cache here means
+    # critical JS fixes never reach existing users until they manually
+    # clear cache. Short cache + must-revalidate forces the browser to
+    # re-check ETags, so a redeploy propagates within minutes.
+    @short {
+        path /css/* /js/*
+    }
+    header @short Cache-Control "public, max-age=300, must-revalidate"
 
     # Service worker should never be cached.
     @sw {

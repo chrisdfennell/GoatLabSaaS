@@ -158,7 +158,11 @@
                 <PushPrompt />
             </Authorized>
         </AuthorizeView>
-        @Body
+        @* Re-key on every navigation so the CSS keyframe restarts and the
+           new page fades in. Costs nothing; respects prefers-reduced-motion. *@
+        <div class="page-transition" @key="_routeKey">
+            @Body
+        </div>
 
         <footer class="app-footer">
             <span>© @DateTime.Now.Year GoatLab</span>
@@ -279,6 +283,20 @@
 .trial-banner.warning { background: #ef6c00; }
 .trial-banner.error { background: #c62828; }
 .trial-banner .mud-button { color: #1a2421; background: #fff; }
+
+/* Subtle page fade-in on route change. The wrapper has @@key=_routeKey,
+   so each navigation remounts it and the keyframe restarts. 220ms is fast
+   enough to feel snappy and slow enough to register as deliberate. */
+.page-transition {
+    animation: page-fade-in 220ms ease-out both;
+}
+@@keyframes page-fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@@media (prefers-reduced-motion: reduce) {
+    .page-transition { animation: none; }
+}
 </style>
 
 @code {
@@ -292,6 +310,7 @@
     private GoatLab.Shared.DTOs.ImpersonationState? _impersonation;
     private GoatLab.Shared.DTOs.AdminMaintenanceStatus? _maintenance;
     private List<GoatLab.Shared.DTOs.ActiveAnnouncement> _announcements = new();
+    private int _routeKey;
 
     private readonly MudTheme _theme = new()
     {
@@ -365,6 +384,8 @@
 
     protected override async Task OnInitializedAsync()
     {
+        Nav.LocationChanged += OnLocationChanged;
+
         try { _user = await AuthApi.GetCurrentUserAsync(); }
         catch { /* unauthenticated — leave _user null */ }
 
@@ -460,5 +481,15 @@
         return InvokeAsync(StateHasChanged);
     }
 
-    public void Dispose() => _pwaRef?.Dispose();
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        _routeKey++;
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        _pwaRef?.Dispose();
+    }
 }

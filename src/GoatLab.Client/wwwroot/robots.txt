@@ -19,15 +19,27 @@ Disallow: /alerts
 Disallow: /tools
 Disallow: /scan
 Disallow: /team
+Disallow: /herd
+Disallow: /reports
+Disallow: /forecasts
+Disallow: /map
+Disallow: /care-guide
+Disallow: /inquiries
 Disallow: /farm-settings
 Disallow: /select-farm
 Disallow: /confirm-email
 Disallow: /accept-invite
 Disallow: /reset-password
 Disallow: /forgot-password
+# Buyer-side magic-link auth — these URLs carry one-time tokens, never
+# any SEO value, and the verify link should never be re-fetched anyway.
+Disallow: /buyer/sign-in
+Disallow: /buyer/dashboard
+Disallow: /buyer/auth/
 
 # /pub/ is intentionally crawlable — those pages are server-rendered for
 # breeders' for-sale listings and we WANT search engines to index them.
+# /breeds/ + /marketplace + /lineage/ + /compare are likewise public.
 
 # Block AI training crawlers (flip to Allow if you want them indexing you)
 User-agent: GPTBot

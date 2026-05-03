@@ -6,6 +6,7 @@
     var ogImage = ViewData["OgImage"] as string;
     var jsonLd = ViewData["JsonLd"] as string;
     var recaptchaSiteKey = AppConfig["Recaptcha:SiteKey"] ?? string.Empty;
+    var robots = ViewData["Robots"] as string;
 }
 <!DOCTYPE html>
 <html lang="en">
@@ -14,6 +15,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>@title</title>
     <meta name="description" content="@description" />
+    @if (!string.IsNullOrEmpty(robots))
+    {
+        <meta name="robots" content="@robots" />
+    }
     <link rel="canonical" href="@canonical" />
 
     <meta property="og:type" content="website" />
@@ -97,7 +102,32 @@
         }
         .cta-button:hover { background: #1b5e20; text-decoration: none; }
 
-        main { max-width: 1100px; margin: 0 auto; padding: 32px 20px 48px; }
+        main {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 32px 20px 48px;
+            animation: page-fade-in 220ms ease-out both;
+        }
+        @@keyframes page-fade-in {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @@media (prefers-reduced-motion: reduce) {
+            main { animation: none; }
+        }
+        /* Polished focus ring for keyboard nav — visible on every interactive
+           element without overriding their visual style. */
+        a:focus-visible, button:focus-visible, input:focus-visible,
+        textarea:focus-visible, select:focus-visible, [tabindex]:focus-visible {
+            outline: 2px solid #2e7d32;
+            outline-offset: 2px;
+            border-radius: 4px;
+        }
+        /* Smooth in-page anchor jumps (e.g. landing nav → #features). */
+        html { scroll-behavior: smooth; }
+        @@media (prefers-reduced-motion: reduce) {
+            html { scroll-behavior: auto; }
+        }
         h1 { font-size: 2.25rem; font-weight: 800; margin: 0 0 12px 0; color: #1a2421; }
         h2 { font-size: 1.5rem; font-weight: 700; }
         .eyebrow { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; color: #2e7d32; font-weight: 600; }
@@ -328,17 +358,35 @@
        button class (.saved) and inner content. *@
     <script>
         (async function () {
-            // On page load, fetch my saved IDs once and mark any matching
-            // [data-goat-id] elements with .saved. Text-labeled buttons get
-            // their text swapped (data-save-label / data-saved-label drive
-            // the strings); icon-only buttons (data-save-icon-only) keep
-            // their inner SVG and just toggle the class.
+            // On page load: (1) fetch my saved IDs to highlight matching
+            // [data-goat-id] elements, (2) flush any "pending save" the
+            // buyer queued before they signed in. The pending-save flow
+            // makes the marketplace Save button work even when the buyer
+            // is anonymous: anon click → store ID locally → magic-link
+            // sign-in → return to the original URL → this code auto-fires
+            // the save the buyer intended.
             try {
                 var resp = await fetch('/api/buyer/saved');
                 if (!resp.ok) return;
                 var ids = await resp.json();
-                if (!Array.isArray(ids) || ids.length === 0) return;
-                var set = new Set(ids.map(String));
+                var set = new Set((Array.isArray(ids) ? ids : []).map(String));
+
+                // Flush a pending pre-signin save, if any.
+                var pending = null;
+                try { pending = localStorage.getItem('goatlab.pendingSaveId'); } catch (e) { }
+                if (pending && !set.has(String(pending))) {
+                    try {
+                        await fetch('/api/buyer/saved', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ goatId: parseInt(pending, 10) })
+                        });
+                        set.add(String(pending));
+                    } catch (e) { /* ignore */ }
+                }
+                try { localStorage.removeItem('goatlab.pendingSaveId'); } catch (e) { }
+
+                if (set.size === 0) return;
                 document.querySelectorAll('[data-goat-id]').forEach(function (el) {
                     if (set.has(String(el.dataset.goatId))) {
                         el.classList.add('saved');
@@ -367,6 +415,9 @@
                 : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ goatId: parseInt(id, 10) }) };
             var resp = await fetch(url, opts);
             if (resp.status === 401) {
+                // Stash the buyer's intent so the auto-flush above completes
+                // the save after they finish the magic-link sign-in flow.
+                try { localStorage.setItem('goatlab.pendingSaveId', String(id)); } catch (e) { }
                 window.location = '/buyer/sign-in?returnUrl=' + encodeURIComponent(window.location.pathname + window.location.search);
                 return;
             }
