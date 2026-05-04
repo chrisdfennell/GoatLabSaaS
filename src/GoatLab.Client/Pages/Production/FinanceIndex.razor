@@ -236,11 +236,12 @@
         try
         {
             var bytes = await FinSvc.GetTaxExportAsync(taxYear);
+            // ApiService already toasted whatever went wrong; just stop quietly.
+            if (bytes is null) return;
             var base64 = Convert.ToBase64String(bytes);
             await JS.InvokeVoidAsync("goatLab.downloadFile", $"goatlab-tax-{taxYear}.csv", "text/csv", base64);
             Snackbar.Add($"{taxYear} tax export downloaded", Severity.Success);
         }
-        catch (Exception ex) { Snackbar.Add($"Export failed: {ex.Message}", Severity.Error); }
         finally { taxBusy = false; }
     }
 

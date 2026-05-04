@@ -322,9 +322,24 @@ public class ApiService
         return await resp.Content.ReadFromJsonAsync<T>();
     }
 
-    public async Task<byte[]> GetBytesAsync(string url)
+    // Returns the response body bytes on success, or null on any failure
+    // (after toasting via HandleClientErrorAsync, opening the upgrade dialog
+    // on 402, or redirecting to /login on 401). Mirrors GetAsync<T>'s contract
+    // so callers can null-check instead of try/catching a generic
+    // HttpRequestException that swallowed the real server message.
+    public async Task<byte[]?> GetBytesAsync(string url)
     {
-        return await _http.GetByteArrayAsync(url);
+        HttpResponseMessage resp;
+        try { resp = await _http.GetAsync(url); }
+        catch (HttpRequestException ex)
+        {
+            await HandleTransportErrorAsync("GET", url, null, ex);
+            return null;
+        }
+
+        if (await HandleUpgradeAsync(resp)) return null;
+        if (await HandleClientErrorAsync(resp)) return null;
+        return await resp.Content.ReadAsByteArrayAsync();
     }
 
     public async Task<string> GetStringAsync(string url)

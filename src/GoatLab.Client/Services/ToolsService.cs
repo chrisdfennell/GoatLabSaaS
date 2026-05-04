@@ -36,8 +36,8 @@ public class ToolsService
         var resp = await _api.Http.PostAsync("api/tools/restore/database", content);
         resp.EnsureSuccessStatusCode();
     }
-    public Task<byte[]> ExportGoatsCsvAsync() => _api.GetBytesAsync("api/tools/export/goats");
-    public Task<byte[]> GetGoatImportTemplateAsync() => _api.GetBytesAsync("api/tools/import/goats/template");
+    public Task<byte[]?> ExportGoatsCsvAsync() => _api.GetBytesAsync("api/tools/export/goats");
+    public Task<byte[]?> GetGoatImportTemplateAsync() => _api.GetBytesAsync("api/tools/import/goats/template");
 
     public async Task<GoatImportResult?> ImportGoatsAsync(Stream fileStream, string fileName)
     {
@@ -47,9 +47,9 @@ public class ToolsService
         resp.EnsureSuccessStatusCode();
         return await resp.Content.ReadFromJsonAsync<GoatImportResult>();
     }
-    public Task<byte[]> ExportMilkCsvAsync() => _api.GetBytesAsync("api/tools/export/milk-logs");
-    public Task<byte[]> ExportMedicalCsvAsync() => _api.GetBytesAsync("api/tools/export/medical-records");
-    public Task<byte[]> ExportFinancesCsvAsync() => _api.GetBytesAsync("api/tools/export/finances");
+    public Task<byte[]?> ExportMilkCsvAsync() => _api.GetBytesAsync("api/tools/export/milk-logs");
+    public Task<byte[]?> ExportMedicalCsvAsync() => _api.GetBytesAsync("api/tools/export/medical-records");
+    public Task<byte[]?> ExportFinancesCsvAsync() => _api.GetBytesAsync("api/tools/export/finances");
 }
 
 public class ActivityItem

@@ -170,13 +170,13 @@
                 _displayOrder,
                 _featureEnabled.Select(kvp => new AdminPlansService.PlanFeatureDto(kvp.Key, kvp.Value)).ToList());
 
-            var saved = Plan is null
+            var (saved, error) = Plan is null
                 ? await PlansApi.CreateAsync(input)
                 : await PlansApi.UpdateAsync(Plan.Id, input);
 
             if (saved is null)
             {
-                Snackbar.Add("Save failed. Check the slug is unique.", Severity.Error);
+                Snackbar.Add(error ?? "Save failed.", Severity.Error);
                 return;
             }
 

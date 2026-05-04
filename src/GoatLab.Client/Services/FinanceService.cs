@@ -26,7 +26,7 @@ public class FinanceService
     public Task<GoatPnlReport?> GetGoatPnlAsync(int goatId) => _api.GetAsync<GoatPnlReport>($"api/finance/goat/{goatId}/pnl");
     public Task<List<CategoryTotal>?> GetExpenseBreakdownAsync(int months = 12) =>
         _api.GetAsync<List<CategoryTotal>>($"api/finance/expense-breakdown?months={months}");
-    public Task<byte[]> GetTaxExportAsync(int year) => _api.GetBytesAsync($"api/finance/tax-export?year={year}");
+    public Task<byte[]?> GetTaxExportAsync(int year) => _api.GetBytesAsync($"api/finance/tax-export?year={year}");
 
     // Harvests
     public Task<List<HarvestRecord>?> GetHarvestsAsync() => _api.GetAsync<List<HarvestRecord>>("api/finance/harvests");

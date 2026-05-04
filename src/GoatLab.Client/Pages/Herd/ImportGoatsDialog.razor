@@ -95,15 +95,10 @@
 
     private async Task DownloadTemplateAsync()
     {
-        try
-        {
-            var bytes = await Tools.GetGoatImportTemplateAsync();
-            await SaveFileAsync("goat-import-template.csv", bytes, "text/csv");
-        }
-        catch (Exception ex)
-        {
-            Snackbar.Add($"Template download failed: {ex.Message}", Severity.Error);
-        }
+        var bytes = await Tools.GetGoatImportTemplateAsync();
+        // ApiService already toasted on failure; just exit quietly when null.
+        if (bytes is null) return;
+        await SaveFileAsync("goat-import-template.csv", bytes, "text/csv");
     }
 
     private async Task UploadAsync()

@@ -412,15 +412,15 @@
     private async Task ExportMedical() => await ExportCsv(ToolsSvc.ExportMedicalCsvAsync, "medical-records.csv");
     private async Task ExportFinances() => await ExportCsv(ToolsSvc.ExportFinancesCsvAsync, "finances.csv");
 
-    private async Task ExportCsv(Func<Task<byte[]>> fetcher, string fileName)
+    private async Task ExportCsv(Func<Task<byte[]?>> fetcher, string fileName)
     {
-        try
-        {
-            var bytes = await fetcher();
-            await DownloadFile(fileName, "text/csv", bytes);
-            Snackbar.Add($"{fileName} exported", Severity.Success);
-        }
-        catch { Snackbar.Add("Export failed.", Severity.Error); }
+        // ApiService already toasts on failure (parsed server message,
+        // upgrade dialog on 402, login redirect on 401) and returns null,
+        // so we just bail quietly when the bytes don't come back.
+        var bytes = await fetcher();
+        if (bytes is null) return;
+        await DownloadFile(fileName, "text/csv", bytes);
+        Snackbar.Add($"{fileName} exported", Severity.Success);
     }
 
     private async Task DownloadFile(string fileName, string contentType, byte[] bytes)
