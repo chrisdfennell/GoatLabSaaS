@@ -47,7 +47,7 @@ public class WebhooksController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<WebhookDto>> Get(int id)
     {
-        var w = await _db.Webhooks.FindAsync(id);
+        var w = await _db.Webhooks.FirstOrDefaultAsync(w => w.Id == id);
         if (w is null) return NotFound();
         return new WebhookDto(w.Id, w.Name, w.Url, w.Events, w.IsActive,
             w.CreatedAt, w.UpdatedAt, w.LastDeliveredAt, w.LastStatusCode, w.LastError);
@@ -83,7 +83,7 @@ public class WebhooksController : ControllerBase
         var error = ValidateRequest(req);
         if (error != null) return BadRequest(new { error });
 
-        var w = await _db.Webhooks.FindAsync(id);
+        var w = await _db.Webhooks.FirstOrDefaultAsync(w => w.Id == id);
         if (w is null) return NotFound();
 
         w.Name = req.Name.Trim();
@@ -99,7 +99,7 @@ public class WebhooksController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var w = await _db.Webhooks.FindAsync(id);
+        var w = await _db.Webhooks.FirstOrDefaultAsync(w => w.Id == id);
         if (w is null) return NotFound();
         _db.Webhooks.Remove(w);
         await _db.SaveChangesAsync();
@@ -109,7 +109,7 @@ public class WebhooksController : ControllerBase
     [HttpPost("{id}/test")]
     public async Task<ActionResult> Test(int id)
     {
-        var w = await _db.Webhooks.FindAsync(id);
+        var w = await _db.Webhooks.FirstOrDefaultAsync(w => w.Id == id);
         if (w is null) return NotFound();
 
         // Temporarily force subscription to "ping" so the dispatcher fans out
@@ -153,6 +153,8 @@ public class WebhooksController : ControllerBase
         if (!Uri.TryCreate(req.Url.Trim(), UriKind.Absolute, out var uri)
             || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
             return "Url must be a full http:// or https:// URL.";
+        if (IsInternalHost(uri.Host))
+            return "Url must point to a public host. Localhost and private network addresses are not allowed.";
         if (string.IsNullOrWhiteSpace(req.Events)) return "At least one event must be subscribed.";
         var requested = req.Events.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
         foreach (var e in requested)
@@ -161,6 +163,44 @@ public class WebhooksController : ControllerBase
                 return $"Unknown event type: {e}";
         }
         return null;
+    }
+
+    // Block obvious SSRF targets at registration time. We can't catch every
+    // case (DNS rebinding, internal hostnames the user knows about) without a
+    // runtime check in the dispatcher, but rejecting localhost / RFC1918 /
+    // link-local literals stops the easy mistakes.
+    private static bool IsInternalHost(string host)
+    {
+        if (string.IsNullOrWhiteSpace(host)) return true;
+        var lower = host.ToLowerInvariant();
+        if (lower is "localhost" or "ip6-localhost" or "ip6-loopback") return true;
+        if (lower.EndsWith(".localhost") || lower.EndsWith(".local") || lower.EndsWith(".internal"))
+            return true;
+        if (System.Net.IPAddress.TryParse(host, out var ip))
+        {
+            if (System.Net.IPAddress.IsLoopback(ip)) return true;
+            if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            {
+                var b = ip.GetAddressBytes();
+                // 10.0.0.0/8
+                if (b[0] == 10) return true;
+                // 172.16.0.0/12
+                if (b[0] == 172 && (b[1] & 0xF0) == 16) return true;
+                // 192.168.0.0/16
+                if (b[0] == 192 && b[1] == 168) return true;
+                // 169.254.0.0/16 link-local (also catches AWS/Azure metadata 169.254.169.254)
+                if (b[0] == 169 && b[1] == 254) return true;
+                // 0.0.0.0/8 "this network"
+                if (b[0] == 0) return true;
+            }
+            else if (ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+            {
+                // Treat any non-global v6 address as internal: link-local, ULA, loopback, unspecified.
+                if (ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal || ip.IsIPv6UniqueLocal) return true;
+                if (ip.Equals(System.Net.IPAddress.IPv6Any)) return true;
+            }
+        }
+        return false;
     }
 
     private static string NormalizeEvents(string events)

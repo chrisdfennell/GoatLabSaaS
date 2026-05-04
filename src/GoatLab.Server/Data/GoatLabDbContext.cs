@@ -227,6 +227,14 @@ public class GoatLabDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<WaitlistEntry>()
             .HasIndex(w => new { w.TenantId, w.Status, w.Priority });
 
+        // Idempotency lookup for Stripe-deposit webhook replays. Filtered
+        // unique index — most rows are NULL (manually created entries) and
+        // those don't conflict; only the populated column needs uniqueness.
+        modelBuilder.Entity<WaitlistEntry>()
+            .HasIndex(w => w.StripeCheckoutSessionId)
+            .IsUnique()
+            .HasFilter("[StripeCheckoutSessionId] IS NOT NULL");
+
         // ApiKey: unique hash for bearer lookup. Prefix indexed for UI filtering.
         modelBuilder.Entity<ApiKey>()
             .HasIndex(k => k.KeyHash).IsUnique();

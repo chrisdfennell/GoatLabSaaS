@@ -63,7 +63,7 @@ public class BreedingController : ControllerBase
     public async Task<IActionResult> Update(int id, BreedingRecord record)
     {
         if (id != record.Id) return BadRequest();
-        var existing = await _db.BreedingRecords.FindAsync(id);
+        var existing = await _db.BreedingRecords.FirstOrDefaultAsync(b => b.Id == id);
         if (existing is null) return NotFound();
 
         existing.DoeId = record.DoeId;
@@ -80,7 +80,7 @@ public class BreedingController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var record = await _db.BreedingRecords.FindAsync(id);
+        var record = await _db.BreedingRecords.FirstOrDefaultAsync(b => b.Id == id);
         if (record is null) return NotFound();
         _db.BreedingRecords.Remove(record);
         await _db.SaveChangesAsync();
@@ -120,7 +120,7 @@ public class BreedingController : ControllerBase
         _db.KiddingRecords.Add(record);
 
         // Mark breeding as confirmed when a kidding is recorded
-        var breeding = await _db.BreedingRecords.FindAsync(breedingId);
+        var breeding = await _db.BreedingRecords.FirstOrDefaultAsync(b => b.Id == breedingId);
         if (breeding != null && breeding.Outcome != BreedingOutcome.Confirmed)
             breeding.Outcome = BreedingOutcome.Confirmed;
 
@@ -162,7 +162,7 @@ public class BreedingController : ControllerBase
     public async Task<IActionResult> UpdateKiddingRecord(int id, KiddingRecord record)
     {
         if (id != record.Id) return BadRequest();
-        var existing = await _db.KiddingRecords.FindAsync(id);
+        var existing = await _db.KiddingRecords.FirstOrDefaultAsync(k => k.Id == id);
         if (existing is null) return NotFound();
 
         existing.KiddingDate = record.KiddingDate;
@@ -186,7 +186,7 @@ public class BreedingController : ControllerBase
     [HttpPost("kidding/{kiddingId}/kids")]
     public async Task<ActionResult<Kid>> AddKid(int kiddingId, Kid kid)
     {
-        var kidding = await _db.KiddingRecords.FindAsync(kiddingId);
+        var kidding = await _db.KiddingRecords.FirstOrDefaultAsync(k => k.Id == kiddingId);
         if (kidding is null) return NotFound();
 
         kid.KiddingRecordId = kiddingId;
@@ -200,7 +200,7 @@ public class BreedingController : ControllerBase
     public async Task<IActionResult> UpdateKid(int id, Kid kid)
     {
         if (id != kid.Id) return BadRequest();
-        var existing = await _db.Kids.FindAsync(id);
+        var existing = await _db.Kids.FirstOrDefaultAsync(k => k.Id == id);
         if (existing is null) return NotFound();
 
         existing.Name = kid.Name;
@@ -218,7 +218,7 @@ public class BreedingController : ControllerBase
     [HttpDelete("kids/{id}")]
     public async Task<IActionResult> DeleteKid(int id)
     {
-        var kid = await _db.Kids.FindAsync(id);
+        var kid = await _db.Kids.FirstOrDefaultAsync(k => k.Id == id);
         if (kid is null) return NotFound();
         _db.Kids.Remove(kid);
         await _db.SaveChangesAsync();
@@ -269,7 +269,7 @@ public class BreedingController : ControllerBase
     [HttpDelete("kidding/{id}")]
     public async Task<IActionResult> DeleteKiddingRecord(int id)
     {
-        var record = await _db.KiddingRecords.FindAsync(id);
+        var record = await _db.KiddingRecords.FirstOrDefaultAsync(k => k.Id == id);
         if (record is null) return NotFound();
         _db.KiddingRecords.Remove(record);
         await _db.SaveChangesAsync();
@@ -299,7 +299,7 @@ public class BreedingController : ControllerBase
     [HttpDelete("heat/{id}")]
     public async Task<IActionResult> DeleteHeatDetection(int id)
     {
-        var detection = await _db.HeatDetections.FindAsync(id);
+        var detection = await _db.HeatDetections.FirstOrDefaultAsync(h => h.Id == id);
         if (detection is null) return NotFound();
         _db.HeatDetections.Remove(detection);
         await _db.SaveChangesAsync();

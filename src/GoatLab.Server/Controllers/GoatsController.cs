@@ -203,7 +203,7 @@ public class GoatsController : ControllerBase
     {
         if (id != goat.Id) return BadRequest();
 
-        var existing = await _db.Goats.FindAsync(id);
+        var existing = await _db.Goats.FirstOrDefaultAsync(g => g.Id == id);
         if (existing is null) return NotFound();
 
         existing.Name = goat.Name;
@@ -288,7 +288,7 @@ public class GoatsController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var goat = await _db.Goats.FindAsync(id);
+        var goat = await _db.Goats.FirstOrDefaultAsync(g => g.Id == id);
         if (goat is null) return NotFound();
 
         var summary = GoatSummary(goat);
@@ -303,7 +303,7 @@ public class GoatsController : ControllerBase
     [HttpPost("{id}/photos")]
     public async Task<ActionResult<GoatPhoto>> UploadPhoto(int id, IFormFile file, [FromForm] string? caption, [FromForm] bool isPrimary = false)
     {
-        var goat = await _db.Goats.FindAsync(id);
+        var goat = await _db.Goats.FirstOrDefaultAsync(g => g.Id == id);
         if (goat is null) return NotFound();
 
         // Per-plan cap on photos per individual goat.
@@ -366,7 +366,7 @@ public class GoatsController : ControllerBase
     [HttpPost("{id}/documents")]
     public async Task<ActionResult<GoatDocument>> UploadDocument(int id, IFormFile file, [FromForm] string title, [FromForm] string? documentType)
     {
-        var goat = await _db.Goats.FindAsync(id);
+        var goat = await _db.Goats.FirstOrDefaultAsync(g => g.Id == id);
         if (goat is null) return NotFound();
 
         var uploadsDir = Path.Combine(_env.ContentRootPath, "media", "documents", id.ToString());

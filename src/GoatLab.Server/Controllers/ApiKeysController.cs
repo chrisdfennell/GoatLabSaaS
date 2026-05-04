@@ -112,7 +112,7 @@ public class ApiKeysController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Revoke(int id)
     {
-        var key = await _db.ApiKeys.FindAsync(id);
+        var key = await _db.ApiKeys.FirstOrDefaultAsync(k => k.Id == id);
         if (key is null) return NotFound();
         if (key.RevokedAt != null) return NoContent();
 

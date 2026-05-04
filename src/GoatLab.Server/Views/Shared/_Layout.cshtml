@@ -79,7 +79,7 @@
             white-space: nowrap;
         }
         /* Mobile: compress so Sign in + Start free stay on the top bar
-           instead of wrapping to a second line. "Browse breeders" hidden
+           instead of wrapping to a second line. The "Breeds" link is hidden
            below 540px since the user is usually already on a public page. */
         @@media (max-width: 600px) {
             header.site-header { padding: 10px 0; }
@@ -285,6 +285,9 @@
                         form.addEventListener('submit', function (e) {
                             if (form.dataset.recaptchaSubmitted === '1') return;
                             e.preventDefault();
+                            // Set the flag synchronously so a second click before the
+                            // token resolves can't kick off a parallel submission.
+                            form.dataset.recaptchaSubmitted = '1';
                             var action = form.getAttribute('data-recaptcha-action') || 'submit';
                             window.goatlabRecaptcha.execute(action).then(function (token) {
                                 if (token) {
@@ -297,7 +300,6 @@
                                     }
                                     input.value = token;
                                 }
-                                form.dataset.recaptchaSubmitted = '1';
                                 form.submit();
                             });
                         });
@@ -365,26 +367,47 @@
             // is anonymous: anon click → store ID locally → magic-link
             // sign-in → return to the original URL → this code auto-fires
             // the save the buyer intended.
+
+            // Skip the network round-trip on pages that have nothing to
+            // highlight and no queued pending save (most public pages).
+            var hasSaveables = document.querySelector('[data-goat-id]') !== null;
+            var hasPending = false;
+            try { hasPending = !!localStorage.getItem('goatlab.pendingSaveId'); } catch (e) { }
+            if (!hasSaveables && !hasPending) return;
+
             try {
                 var resp = await fetch('/api/buyer/saved');
                 if (!resp.ok) return;
                 var ids = await resp.json();
                 var set = new Set((Array.isArray(ids) ? ids : []).map(String));
 
-                // Flush a pending pre-signin save, if any.
+                // Flush a pending pre-signin save, if any. Validate the ID is
+                // a positive integer before sending — junk entries shouldn't
+                // hit the server.
                 var pending = null;
                 try { pending = localStorage.getItem('goatlab.pendingSaveId'); } catch (e) { }
-                if (pending && !set.has(String(pending))) {
+                var pendingId = pending ? parseInt(pending, 10) : NaN;
+                if (Number.isFinite(pendingId) && pendingId > 0 && !set.has(String(pendingId))) {
                     try {
-                        await fetch('/api/buyer/saved', {
+                        var saveResp = await fetch('/api/buyer/saved', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ goatId: parseInt(pending, 10) })
+                            body: JSON.stringify({ goatId: pendingId })
                         });
-                        set.add(String(pending));
-                    } catch (e) { /* ignore */ }
+                        // Only mark as saved if the server actually accepted it,
+                        // otherwise the UI lies about state.
+                        if (saveResp.ok) {
+                            set.add(String(pendingId));
+                            try { localStorage.removeItem('goatlab.pendingSaveId'); } catch (e) { }
+                        } else if (saveResp.status === 404 || saveResp.status === 400) {
+                            // Goat is gone or the ID was bad — don't keep retrying.
+                            try { localStorage.removeItem('goatlab.pendingSaveId'); } catch (e) { }
+                        }
+                    } catch (e) { /* network blip — leave pending for next load */ }
+                } else if (pending) {
+                    // Already saved or unparseable — drop it.
+                    try { localStorage.removeItem('goatlab.pendingSaveId'); } catch (e) { }
                 }
-                try { localStorage.removeItem('goatlab.pendingSaveId'); } catch (e) { }
 
                 if (set.size === 0) return;
                 document.querySelectorAll('[data-goat-id]').forEach(function (el) {
@@ -455,7 +478,7 @@
     <footer class="site-footer">
         <div>
             <a href="/">GoatLab</a>
-            <a href="/breeds">Browse breeders</a>
+            <a href="/breeds">Breeds</a>
             <a href="/terms">Terms</a>
             <a href="/privacy">Privacy</a>
         </div>

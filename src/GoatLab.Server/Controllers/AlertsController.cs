@@ -47,7 +47,7 @@ public class AlertsController : ControllerBase
     [HttpPost("{id}/read")]
     public async Task<IActionResult> MarkRead(int id)
     {
-        var alert = await _db.Alerts.FindAsync(id);
+        var alert = await _db.Alerts.FirstOrDefaultAsync(a => a.Id == id);
         if (alert is null) return NotFound();
         alert.ReadAt ??= DateTime.UtcNow;
         await _db.SaveChangesAsync();
@@ -57,7 +57,7 @@ public class AlertsController : ControllerBase
     [HttpPost("{id}/dismiss")]
     public async Task<IActionResult> Dismiss(int id)
     {
-        var alert = await _db.Alerts.FindAsync(id);
+        var alert = await _db.Alerts.FirstOrDefaultAsync(a => a.Id == id);
         if (alert is null) return NotFound();
         alert.DismissedAt ??= DateTime.UtcNow;
         await _db.SaveChangesAsync();

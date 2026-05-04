@@ -75,7 +75,7 @@ public class WaitlistController : ControllerBase
     public async Task<IActionResult> Update(int id, WaitlistEntry entry)
     {
         if (id != entry.Id) return BadRequest();
-        var existing = await _db.WaitlistEntries.FindAsync(id);
+        var existing = await _db.WaitlistEntries.FirstOrDefaultAsync(w => w.Id == id);
         if (existing is null) return NotFound();
         if (existing.Status is WaitlistStatus.Fulfilled or WaitlistStatus.Cancelled)
             return BadRequest(new { error = "Entry is already finalised and can't be edited." });
@@ -100,7 +100,7 @@ public class WaitlistController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var entry = await _db.WaitlistEntries.FindAsync(id);
+        var entry = await _db.WaitlistEntries.FirstOrDefaultAsync(w => w.Id == id);
         if (entry is null) return NotFound();
         _db.WaitlistEntries.Remove(entry);
         await _db.SaveChangesAsync();
@@ -110,7 +110,7 @@ public class WaitlistController : ControllerBase
     [HttpPost("{id}/offer")]
     public async Task<IActionResult> Offer(int id)
     {
-        var entry = await _db.WaitlistEntries.FindAsync(id);
+        var entry = await _db.WaitlistEntries.FirstOrDefaultAsync(w => w.Id == id);
         if (entry is null) return NotFound();
         if (entry.Status != WaitlistStatus.Waiting)
             return BadRequest(new { error = $"Can only offer a Waiting entry; this one is {entry.Status}." });
@@ -126,12 +126,12 @@ public class WaitlistController : ControllerBase
     [HttpPost("{id}/fulfill")]
     public async Task<ActionResult<Sale>> Fulfill(int id, [FromBody] FulfillRequest req)
     {
-        var entry = await _db.WaitlistEntries.FindAsync(id);
+        var entry = await _db.WaitlistEntries.FirstOrDefaultAsync(w => w.Id == id);
         if (entry is null) return NotFound();
         if (entry.Status is WaitlistStatus.Fulfilled or WaitlistStatus.Cancelled)
             return BadRequest(new { error = $"Entry is already {entry.Status}." });
 
-        var goat = await _db.Goats.FindAsync(req.GoatId);
+        var goat = await _db.Goats.FirstOrDefaultAsync(g => g.Id == req.GoatId);
         if (goat is null) return BadRequest(new { error = "Goat not found in this farm." });
 
         var deposit = entry.DepositCents / 100m;
@@ -180,7 +180,7 @@ public class WaitlistController : ControllerBase
     [HttpPost("{id}/cancel")]
     public async Task<IActionResult> Cancel(int id, [FromBody] CancelRequest req)
     {
-        var entry = await _db.WaitlistEntries.FindAsync(id);
+        var entry = await _db.WaitlistEntries.FirstOrDefaultAsync(w => w.Id == id);
         if (entry is null) return NotFound();
         if (entry.Status is WaitlistStatus.Fulfilled or WaitlistStatus.Cancelled)
             return BadRequest(new { error = $"Entry is already {entry.Status}." });
@@ -259,7 +259,7 @@ public class WaitlistController : ControllerBase
     [HttpDelete("portal-links/{tokenId}")]
     public async Task<IActionResult> RevokePortalToken(int tokenId)
     {
-        var token = await _db.BuyerAccessTokens.FindAsync(tokenId);
+        var token = await _db.BuyerAccessTokens.FirstOrDefaultAsync(t => t.Id == tokenId);
         if (token is null) return NotFound();
         if (token.RevokedAt is null)
         {

@@ -71,7 +71,7 @@ public class HealthController : ControllerBase
     public async Task<IActionResult> UpdateRecord(int id, MedicalRecord record)
     {
         if (id != record.Id) return BadRequest();
-        var existing = await _db.MedicalRecords.FindAsync(id);
+        var existing = await _db.MedicalRecords.FirstOrDefaultAsync(r => r.Id == id);
         if (existing is null) return NotFound();
 
         existing.RecordType = record.RecordType;
@@ -195,7 +195,7 @@ public class HealthController : ControllerBase
     [HttpDelete("records/{id}")]
     public async Task<IActionResult> DeleteRecord(int id)
     {
-        var record = await _db.MedicalRecords.FindAsync(id);
+        var record = await _db.MedicalRecords.FirstOrDefaultAsync(r => r.Id == id);
         if (record is null) return NotFound();
         _db.MedicalRecords.Remove(record);
         await _db.SaveChangesAsync();
@@ -300,7 +300,7 @@ public class HealthController : ControllerBase
     public async Task<IActionResult> UpdateCabinetItem(int id, MedicineCabinetItem item)
     {
         if (id != item.Id) return BadRequest();
-        var existing = await _db.MedicineCabinetItems.FindAsync(id);
+        var existing = await _db.MedicineCabinetItems.FirstOrDefaultAsync(m => m.Id == id);
         if (existing is null) return NotFound();
 
         existing.MedicationId = item.MedicationId;
@@ -317,7 +317,7 @@ public class HealthController : ControllerBase
     [HttpDelete("cabinet/{id}")]
     public async Task<IActionResult> DeleteCabinetItem(int id)
     {
-        var item = await _db.MedicineCabinetItems.FindAsync(id);
+        var item = await _db.MedicineCabinetItems.FirstOrDefaultAsync(m => m.Id == id);
         if (item is null) return NotFound();
         _db.MedicineCabinetItems.Remove(item);
         await _db.SaveChangesAsync();
@@ -346,7 +346,7 @@ public class HealthController : ControllerBase
     [HttpDelete("weights/{id}")]
     public async Task<IActionResult> DeleteWeight(int id)
     {
-        var record = await _db.WeightRecords.FindAsync(id);
+        var record = await _db.WeightRecords.FirstOrDefaultAsync(w => w.Id == id);
         if (record is null) return NotFound();
         _db.WeightRecords.Remove(record);
         await _db.SaveChangesAsync();
@@ -375,7 +375,7 @@ public class HealthController : ControllerBase
     [HttpDelete("famacha/{id}")]
     public async Task<IActionResult> DeleteFamacha(int id)
     {
-        var score = await _db.FamachaScores.FindAsync(id);
+        var score = await _db.FamachaScores.FirstOrDefaultAsync(f => f.Id == id);
         if (score is null) return NotFound();
         _db.FamachaScores.Remove(score);
         await _db.SaveChangesAsync();
@@ -404,7 +404,7 @@ public class HealthController : ControllerBase
     [HttpDelete("bcs/{id}")]
     public async Task<IActionResult> DeleteBcs(int id)
     {
-        var score = await _db.BodyConditionScores.FindAsync(id);
+        var score = await _db.BodyConditionScores.FirstOrDefaultAsync(b => b.Id == id);
         if (score is null) return NotFound();
         _db.BodyConditionScores.Remove(score);
         await _db.SaveChangesAsync();

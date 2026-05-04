@@ -80,7 +80,7 @@ public class ProtocolsController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var p = await _db.VaccinationProtocols.FindAsync(id);
+        var p = await _db.VaccinationProtocols.FirstOrDefaultAsync(p => p.Id == id);
         if (p is null) return NotFound();
         _db.VaccinationProtocols.Remove(p);
         await _db.SaveChangesAsync();
@@ -106,7 +106,7 @@ public class ProtocolsController : ControllerBase
 
         foreach (var goatId in req.GoatIds)
         {
-            var goat = await _db.Goats.FindAsync(goatId);
+            var goat = await _db.Goats.FirstOrDefaultAsync(g => g.Id == goatId);
             if (goat is null) continue;
 
             foreach (var dose in protocol.Doses.OrderBy(d => d.DayOffset))

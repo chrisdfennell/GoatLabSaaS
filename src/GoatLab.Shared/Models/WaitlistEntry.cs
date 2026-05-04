@@ -55,6 +55,12 @@ public class WaitlistEntry : ITenantOwned
 
     [MaxLength(500)]
     public string? CancelReason { get; set; }
+
+    // Stripe Checkout session id for entries created from a public-listing
+    // deposit. Used as the idempotency key when Stripe replays a webhook so
+    // we don't double-create the entry. Indexed for the lookup hot path.
+    [MaxLength(120)]
+    public string? StripeCheckoutSessionId { get; set; }
 }
 
 public enum WaitlistStatus

@@ -48,7 +48,7 @@ public class PasturesController : ControllerBase
     public async Task<IActionResult> Update(int id, Pasture pasture)
     {
         if (id != pasture.Id) return BadRequest();
-        var existing = await _db.Pastures.FindAsync(id);
+        var existing = await _db.Pastures.FirstOrDefaultAsync(p => p.Id == id);
         if (existing is null) return NotFound();
 
         existing.Name = pasture.Name;
@@ -67,7 +67,7 @@ public class PasturesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var pasture = await _db.Pastures.FindAsync(id);
+        var pasture = await _db.Pastures.FirstOrDefaultAsync(p => p.Id == id);
         if (pasture is null) return NotFound();
         _db.Pastures.Remove(pasture);
         await _db.SaveChangesAsync();
@@ -92,7 +92,7 @@ public class PasturesController : ControllerBase
         _db.PastureConditionLogs.Add(log);
 
         // Update the pasture's current condition
-        var pasture = await _db.Pastures.FindAsync(pastureId);
+        var pasture = await _db.Pastures.FirstOrDefaultAsync(p => p.Id == pastureId);
         if (pasture != null)
         {
             pasture.Condition = log.Condition;
@@ -126,7 +126,7 @@ public class PasturesController : ControllerBase
     [HttpPut("rotations/{id}/end")]
     public async Task<IActionResult> EndRotation(int id)
     {
-        var rotation = await _db.PastureRotations.FindAsync(id);
+        var rotation = await _db.PastureRotations.FirstOrDefaultAsync(r => r.Id == id);
         if (rotation is null) return NotFound();
         rotation.EndDate = DateTime.UtcNow;
         await _db.SaveChangesAsync();

@@ -402,10 +402,11 @@ public class StripeBillingService : IBillingService
                 return;
             }
 
-            // Idempotency: Stripe webhooks can fire twice. Key off the session id
-            // stored in WaitlistEntry.Notes so a retry doesn't double-book.
+            // Idempotency: Stripe webhooks can fire twice. Match against the
+            // dedicated StripeCheckoutSessionId column (filtered-unique index)
+            // so retries can't double-book.
             var existing = await _db.WaitlistEntries
-                .FirstOrDefaultAsync(w => w.TenantId == tenantId && w.Notes != null && w.Notes.Contains(session.Id), cancellationToken);
+                .FirstOrDefaultAsync(w => w.StripeCheckoutSessionId == session.Id, cancellationToken);
             if (existing is not null) return;
 
             var customer = await _db.Customers
@@ -422,22 +423,27 @@ public class StripeBillingService : IBillingService
                     CreatedAt = DateTime.UtcNow,
                 };
                 _db.Customers.Add(customer);
-                await _db.SaveChangesAsync(cancellationToken);
             }
 
             var noteText = $"Deposit via public listing for goat #{goat.Id} ({goat.Name}). Stripe session {session.Id}.";
             if (!string.IsNullOrWhiteSpace(notes)) noteText += $"\nBuyer notes: {notes}";
 
+            // Use the Customer navigation property so EF wires the FK in a
+            // single SaveChanges. Stripe replays the webhook on partial failure;
+            // splitting these into two saves risked a Customer with no
+            // WaitlistEntry (and the idempotency guard above no longer firing
+            // because Notes weren't written yet).
             var entry = new WaitlistEntry
             {
                 TenantId = tenantId,
-                CustomerId = customer.Id,
+                Customer = customer,
                 DepositCents = amountCents,
                 DepositPaid = true,
                 DepositReceivedAt = DateTime.UtcNow,
                 Priority = 0,
                 Status = WaitlistStatus.Waiting,
                 Notes = noteText,
+                StripeCheckoutSessionId = session.Id,
                 CreatedAt = DateTime.UtcNow,
             };
             _db.WaitlistEntries.Add(entry);

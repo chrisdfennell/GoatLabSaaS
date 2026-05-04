@@ -27,7 +27,7 @@ public class InventoryController : ControllerBase
     [HttpGet("suppliers/{id}")]
     public async Task<ActionResult<Supplier>> GetSupplier(int id)
     {
-        var supplier = await _db.Suppliers.FindAsync(id);
+        var supplier = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == id);
         return supplier is null ? NotFound() : supplier;
     }
 
@@ -44,7 +44,7 @@ public class InventoryController : ControllerBase
     public async Task<IActionResult> UpdateSupplier(int id, Supplier supplier)
     {
         if (id != supplier.Id) return BadRequest();
-        var existing = await _db.Suppliers.FindAsync(id);
+        var existing = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == id);
         if (existing is null) return NotFound();
 
         existing.Name = supplier.Name;
@@ -63,7 +63,7 @@ public class InventoryController : ControllerBase
     [HttpDelete("suppliers/{id}")]
     public async Task<IActionResult> DeleteSupplier(int id)
     {
-        var supplier = await _db.Suppliers.FindAsync(id);
+        var supplier = await _db.Suppliers.FirstOrDefaultAsync(s => s.Id == id);
         if (supplier is null) return NotFound();
         _db.Suppliers.Remove(supplier);
         await _db.SaveChangesAsync();
@@ -104,7 +104,7 @@ public class InventoryController : ControllerBase
     public async Task<IActionResult> UpdateFeed(int id, FeedInventory feed)
     {
         if (id != feed.Id) return BadRequest();
-        var existing = await _db.FeedInventory.FindAsync(id);
+        var existing = await _db.FeedInventory.FirstOrDefaultAsync(f => f.Id == id);
         if (existing is null) return NotFound();
 
         existing.FeedName = feed.FeedName;
@@ -125,7 +125,7 @@ public class InventoryController : ControllerBase
     [HttpDelete("feed/{id}")]
     public async Task<IActionResult> DeleteFeed(int id)
     {
-        var feed = await _db.FeedInventory.FindAsync(id);
+        var feed = await _db.FeedInventory.FirstOrDefaultAsync(f => f.Id == id);
         if (feed is null) return NotFound();
         _db.FeedInventory.Remove(feed);
         await _db.SaveChangesAsync();
@@ -150,7 +150,7 @@ public class InventoryController : ControllerBase
     [HttpPost("feed-consumption")]
     public async Task<ActionResult<FeedConsumption>> LogConsumption(FeedConsumption log)
     {
-        var feed = await _db.FeedInventory.FindAsync(log.FeedInventoryId);
+        var feed = await _db.FeedInventory.FirstOrDefaultAsync(f => f.Id == log.FeedInventoryId);
         if (feed is null) return NotFound(new { error = "Feed item not found." });
         if (log.Quantity <= 0) return BadRequest(new { error = "Quantity must be positive." });
 
@@ -200,9 +200,9 @@ public class InventoryController : ControllerBase
     [HttpDelete("feed-consumption/{id}")]
     public async Task<IActionResult> DeleteConsumption(int id)
     {
-        var log = await _db.FeedConsumptions.FindAsync(id);
+        var log = await _db.FeedConsumptions.FirstOrDefaultAsync(c => c.Id == id);
         if (log is null) return NotFound();
-        var feed = await _db.FeedInventory.FindAsync(log.FeedInventoryId);
+        var feed = await _db.FeedInventory.FirstOrDefaultAsync(f => f.Id == log.FeedInventoryId);
         if (feed != null)
         {
             feed.QuantityOnHand += log.Quantity;
@@ -237,7 +237,7 @@ public class InventoryController : ControllerBase
     public async Task<IActionResult> UpdateCabinetItem(int id, MedicineCabinetItem item)
     {
         if (id != item.Id) return BadRequest();
-        var existing = await _db.MedicineCabinetItems.FindAsync(id);
+        var existing = await _db.MedicineCabinetItems.FirstOrDefaultAsync(m => m.Id == id);
         if (existing is null) return NotFound();
 
         existing.MedicationId = item.MedicationId;
@@ -253,7 +253,7 @@ public class InventoryController : ControllerBase
     [HttpDelete("medicine/{id}")]
     public async Task<IActionResult> DeleteCabinetItem(int id)
     {
-        var item = await _db.MedicineCabinetItems.FindAsync(id);
+        var item = await _db.MedicineCabinetItems.FirstOrDefaultAsync(m => m.Id == id);
         if (item is null) return NotFound();
         _db.MedicineCabinetItems.Remove(item);
         await _db.SaveChangesAsync();

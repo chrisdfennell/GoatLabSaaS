@@ -46,7 +46,7 @@ public class BarnsController : ControllerBase
     public async Task<IActionResult> Update(int id, Barn barn)
     {
         if (id != barn.Id) return BadRequest();
-        var existing = await _db.Barns.FindAsync(id);
+        var existing = await _db.Barns.FirstOrDefaultAsync(b => b.Id == id);
         if (existing is null) return NotFound();
 
         existing.Name = barn.Name;
@@ -60,7 +60,7 @@ public class BarnsController : ControllerBase
     [HttpPatch("{id}/position")]
     public async Task<IActionResult> SetPosition(int id, [FromBody] BarnPosition pos)
     {
-        var existing = await _db.Barns.FindAsync(id);
+        var existing = await _db.Barns.FirstOrDefaultAsync(b => b.Id == id);
         if (existing is null) return NotFound();
         existing.Latitude = pos.Latitude;
         existing.Longitude = pos.Longitude;
@@ -73,7 +73,7 @@ public class BarnsController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var barn = await _db.Barns.FindAsync(id);
+        var barn = await _db.Barns.FirstOrDefaultAsync(b => b.Id == id);
         if (barn is null) return NotFound();
         _db.Barns.Remove(barn);
         await _db.SaveChangesAsync();
@@ -105,7 +105,7 @@ public class BarnsController : ControllerBase
     public async Task<IActionResult> UpdatePen(int penId, Pen pen)
     {
         if (penId != pen.Id) return BadRequest();
-        var existing = await _db.Pens.FindAsync(penId);
+        var existing = await _db.Pens.FirstOrDefaultAsync(p => p.Id == penId);
         if (existing is null) return NotFound();
 
         existing.Name = pen.Name;
@@ -118,7 +118,7 @@ public class BarnsController : ControllerBase
     [HttpDelete("pens/{penId}")]
     public async Task<IActionResult> DeletePen(int penId)
     {
-        var pen = await _db.Pens.FindAsync(penId);
+        var pen = await _db.Pens.FirstOrDefaultAsync(p => p.Id == penId);
         if (pen is null) return NotFound();
         _db.Pens.Remove(pen);
         await _db.SaveChangesAsync();

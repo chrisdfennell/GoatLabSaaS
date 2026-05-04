@@ -56,7 +56,7 @@ public class PurchasesController : ControllerBase
         }
         else if (req.Purchase.GoatId.HasValue)
         {
-            goat = await _db.Goats.FindAsync(req.Purchase.GoatId.Value);
+            goat = await _db.Goats.FirstOrDefaultAsync(g => g.Id == req.Purchase.GoatId.Value);
         }
 
         req.Purchase.CreatedAt = DateTime.UtcNow;
@@ -72,7 +72,7 @@ public class PurchasesController : ControllerBase
     public async Task<IActionResult> Update(int id, Purchase purchase)
     {
         if (id != purchase.Id) return BadRequest();
-        var existing = await _db.Purchases.FindAsync(id);
+        var existing = await _db.Purchases.FirstOrDefaultAsync(p => p.Id == id);
         if (existing is null) return NotFound();
 
         existing.PurchaseDate = purchase.PurchaseDate;
@@ -91,7 +91,7 @@ public class PurchasesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var purchase = await _db.Purchases.FindAsync(id);
+        var purchase = await _db.Purchases.FirstOrDefaultAsync(p => p.Id == id);
         if (purchase is null) return NotFound();
 
         var linked = await _db.Transactions.Where(t => t.PurchaseId == purchase.Id).ToListAsync();

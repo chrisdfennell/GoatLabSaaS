@@ -57,7 +57,7 @@ public class MilkController : ControllerBase
     public async Task<IActionResult> Update(int id, MilkLog log)
     {
         if (id != log.Id) return BadRequest();
-        var existing = await _db.MilkLogs.FindAsync(id);
+        var existing = await _db.MilkLogs.FirstOrDefaultAsync(m => m.Id == id);
         if (existing is null) return NotFound();
 
         existing.GoatId = log.GoatId;
@@ -72,7 +72,7 @@ public class MilkController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var log = await _db.MilkLogs.FindAsync(id);
+        var log = await _db.MilkLogs.FirstOrDefaultAsync(m => m.Id == id);
         if (log is null) return NotFound();
         _db.MilkLogs.Remove(log);
         await _db.SaveChangesAsync();
@@ -144,7 +144,7 @@ public class MilkController : ControllerBase
     public async Task<IActionResult> UpdateLactation(int id, Lactation lactation)
     {
         if (id != lactation.Id) return BadRequest();
-        var existing = await _db.Lactations.FindAsync(id);
+        var existing = await _db.Lactations.FirstOrDefaultAsync(l => l.Id == id);
         if (existing is null) return NotFound();
 
         existing.FreshenDate = lactation.FreshenDate;
@@ -159,7 +159,7 @@ public class MilkController : ControllerBase
     [HttpDelete("lactations/{id}")]
     public async Task<IActionResult> DeleteLactation(int id)
     {
-        var lactation = await _db.Lactations.FindAsync(id);
+        var lactation = await _db.Lactations.FirstOrDefaultAsync(l => l.Id == id);
         if (lactation is null) return NotFound();
         _db.Lactations.Remove(lactation);
         await _db.SaveChangesAsync();
@@ -186,7 +186,7 @@ public class MilkController : ControllerBase
         // Ensure GoatId is set from lactation if not provided
         if (test.GoatId == 0)
         {
-            var lactation = await _db.Lactations.FindAsync(test.LactationId);
+            var lactation = await _db.Lactations.FirstOrDefaultAsync(l => l.Id == test.LactationId);
             if (lactation != null) test.GoatId = lactation.GoatId;
         }
 
@@ -200,7 +200,7 @@ public class MilkController : ControllerBase
     public async Task<IActionResult> UpdateTestDay(int id, MilkTestDay test)
     {
         if (id != test.Id) return BadRequest();
-        var existing = await _db.MilkTestDays.FindAsync(id);
+        var existing = await _db.MilkTestDays.FirstOrDefaultAsync(t => t.Id == id);
         if (existing is null) return NotFound();
 
         existing.TestDate = test.TestDate;
@@ -219,7 +219,7 @@ public class MilkController : ControllerBase
     [HttpDelete("testdays/{id}")]
     public async Task<IActionResult> DeleteTestDay(int id)
     {
-        var test = await _db.MilkTestDays.FindAsync(id);
+        var test = await _db.MilkTestDays.FirstOrDefaultAsync(t => t.Id == id);
         if (test is null) return NotFound();
         _db.MilkTestDays.Remove(test);
         await _db.SaveChangesAsync();

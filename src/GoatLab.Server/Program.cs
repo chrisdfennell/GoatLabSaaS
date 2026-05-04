@@ -135,6 +135,21 @@ builder.Services
 // Callers send `Authorization: Bearer gl_<secret>`; ApiKeyAuthHandler hashes,
 // looks up the row, and produces a principal with the tenant_id claim.
 //
+// In production we run behind Caddy, which terminates HTTPS and forwards to
+// Kestrel over HTTP. Without this, ASP.NET sees the request as `http://...`
+// and `CookieSecurePolicy.Always` would block the auth cookie from being set.
+// Restricting to KnownNetworks/KnownProxies in this single-host VPS setup
+// would just complicate ops; we trust the loopback proxy.
+builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+        Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto |
+        Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedHost;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 // Buyer cookie scheme is a separate, lightweight auth path for marketplace
 // buyers (no tenant, no password — magic link to email). Stored under a
 // distinct cookie so a buyer signing in doesn't tangle with a seller
@@ -147,6 +162,12 @@ builder.Services
         options.Cookie.Name = "goatlab.buyer";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Lax;
+        // Always require HTTPS in production. ForwardedHeaders middleware
+        // (registered at the top of the pipeline) makes the request scheme
+        // reflect Caddy's external HTTPS so this works behind the proxy.
+        options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+            ? CookieSecurePolicy.SameAsRequest
+            : CookieSecurePolicy.Always;
         options.ExpireTimeSpan = TimeSpan.FromDays(60);
         options.SlidingExpiration = true;
         options.Events.OnRedirectToLogin = ctx =>
@@ -190,6 +211,10 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Cookie.Name = "goatlab.auth";
     options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.Lax;
+    // Same prod-HTTPS-only story as the buyer scheme.
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.SameAsRequest
+        : CookieSecurePolicy.Always;
     options.ExpireTimeSpan = TimeSpan.FromDays(30);
     options.SlidingExpiration = true;
     // API returns 401/403 instead of redirecting to a login page (WASM handles UI).
@@ -203,6 +228,14 @@ builder.Services.ConfigureApplicationCookie(options =>
         ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
         return Task.CompletedTask;
     };
+});
+
+// Antiforgery: surface the standard ASP.NET token under a custom header so
+// fetch-based POSTs from SSR pages can carry the token without rebuilding
+// FormData. Form-field name stays the default __RequestVerificationToken.
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "RequestVerificationToken";
 });
 
 // Controllers + Swagger. Global [Authorize] filter: every controller requires
@@ -395,6 +428,11 @@ using (var scope = app.Services.CreateScope())
     var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
     await SuperAdminSeeder.SeedAsync(scope.ServiceProvider, app.Configuration, logger);
 }
+
+// Honor X-Forwarded-* from Caddy so request.Scheme becomes "https" and the
+// Secure cookie policy works. Must run before any middleware that inspects
+// scheme/host (Serilog enrichment, redirects, auth).
+app.UseForwardedHeaders();
 
 app.UseSerilogRequestLogging();
 

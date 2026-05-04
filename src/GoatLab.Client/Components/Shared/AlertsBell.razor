@@ -1,6 +1,6 @@
 @inject AlertsService AlertsApi
 @inject NavigationManager Nav
-@implements IDisposable
+@implements IAsyncDisposable
 
 <MudMenu AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Dense="true" PopoverClass="alerts-menu">
     <ActivatorContent>
@@ -80,20 +80,26 @@
     private int _unread;
     private bool _loading = true;
     private System.Threading.Timer? _poll;
+    private bool _disposed;
 
     protected override async Task OnInitializedAsync()
     {
         await RefreshAsync();
         // Poll every 60s. Cheap — endpoint is ~10ms when there are no new alerts.
-        _poll = new System.Threading.Timer(async _ => await InvokeAsync(RefreshAsync),
-            null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
+        _poll = new System.Threading.Timer(async _ =>
+        {
+            if (_disposed) return;
+            await InvokeAsync(RefreshAsync);
+        }, null, TimeSpan.FromSeconds(60), TimeSpan.FromSeconds(60));
     }
 
     private async Task RefreshAsync()
     {
+        if (_disposed) return;
         try
         {
             var list = await AlertsApi.ListAsync(includeDismissed: false, limit: 20);
+            if (_disposed) return;
             _alerts = list ?? new();
             _unread = _alerts.Count(a => a.ReadAt is null);
             _loading = false;
@@ -153,5 +159,16 @@
         return $"{(int)diff.TotalDays}d ago";
     }
 
-    public void Dispose() => _poll?.Dispose();
+    public async ValueTask DisposeAsync()
+    {
+        // Set the disposed flag first so any in-flight callback bails before
+        // touching state. Then await DisposeAsync on the timer, which waits
+        // for an in-flight callback to complete (sync Dispose doesn't).
+        _disposed = true;
+        if (_poll is not null)
+        {
+            await _poll.DisposeAsync();
+            _poll = null;
+        }
+    }
 }

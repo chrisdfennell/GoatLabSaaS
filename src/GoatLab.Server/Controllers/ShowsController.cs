@@ -37,7 +37,7 @@ public class ShowsController : ControllerBase
     public async Task<IActionResult> UpdateShow(int id, ShowRecord record)
     {
         if (id != record.Id) return BadRequest();
-        var existing = await _db.ShowRecords.FindAsync(id);
+        var existing = await _db.ShowRecords.FirstOrDefaultAsync(s => s.Id == id);
         if (existing is null) return NotFound();
 
         existing.ShowDate = record.ShowDate;
@@ -56,7 +56,7 @@ public class ShowsController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteShow(int id)
     {
-        var record = await _db.ShowRecords.FindAsync(id);
+        var record = await _db.ShowRecords.FirstOrDefaultAsync(s => s.Id == id);
         if (record is null) return NotFound();
         _db.ShowRecords.Remove(record);
         await _db.SaveChangesAsync();
@@ -86,7 +86,7 @@ public class ShowsController : ControllerBase
     public async Task<IActionResult> UpdateAppraisal(int id, LinearAppraisal record)
     {
         if (id != record.Id) return BadRequest();
-        var existing = await _db.LinearAppraisals.FindAsync(id);
+        var existing = await _db.LinearAppraisals.FirstOrDefaultAsync(l => l.Id == id);
         if (existing is null) return NotFound();
 
         existing.AppraisalDate = record.AppraisalDate;
@@ -105,7 +105,7 @@ public class ShowsController : ControllerBase
     [HttpDelete("appraisals/{id}")]
     public async Task<IActionResult> DeleteAppraisal(int id)
     {
-        var record = await _db.LinearAppraisals.FindAsync(id);
+        var record = await _db.LinearAppraisals.FirstOrDefaultAsync(l => l.Id == id);
         if (record is null) return NotFound();
         _db.LinearAppraisals.Remove(record);
         await _db.SaveChangesAsync();

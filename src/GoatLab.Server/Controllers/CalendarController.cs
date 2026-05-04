@@ -53,7 +53,7 @@ public class CalendarController : ControllerBase
     public async Task<IActionResult> UpdateEvent(int id, CalendarEvent ev)
     {
         if (id != ev.Id) return BadRequest();
-        var existing = await _db.CalendarEvents.FindAsync(id);
+        var existing = await _db.CalendarEvents.FirstOrDefaultAsync(e => e.Id == id);
         if (existing is null) return NotFound();
 
         existing.Title = ev.Title;
@@ -74,7 +74,7 @@ public class CalendarController : ControllerBase
     [HttpDelete("events/{id}")]
     public async Task<IActionResult> DeleteEvent(int id)
     {
-        var ev = await _db.CalendarEvents.FindAsync(id);
+        var ev = await _db.CalendarEvents.FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
         _db.CalendarEvents.Remove(ev);
         await _db.SaveChangesAsync();
@@ -125,7 +125,7 @@ public class CalendarController : ControllerBase
     [HttpDelete("checklists/{id}")]
     public async Task<IActionResult> DeleteChecklist(int id)
     {
-        var checklist = await _db.Checklists.FindAsync(id);
+        var checklist = await _db.Checklists.FirstOrDefaultAsync(c => c.Id == id);
         if (checklist is null) return NotFound();
         _db.Checklists.Remove(checklist);
         await _db.SaveChangesAsync();
@@ -259,7 +259,7 @@ public class CalendarController : ControllerBase
     [HttpPost("events/{id}/complete")]
     public async Task<ActionResult<EventCompletion>> CompleteOccurrence(int id, [FromBody] CompleteOccurrenceRequest req)
     {
-        var ev = await _db.CalendarEvents.FindAsync(id);
+        var ev = await _db.CalendarEvents.FirstOrDefaultAsync(e => e.Id == id);
         if (ev is null) return NotFound();
 
         var existing = await _db.EventCompletions

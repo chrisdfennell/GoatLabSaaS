@@ -18,7 +18,8 @@
         <p style="margin:0;color:#6b7a70;">Signed in as <strong>@Model.Email</strong></p>
     </div>
     <form method="post" action="/api/buyer/auth/logout" id="logout-form">
-        <button type="button" class="logout-btn" onclick="(async function(){await fetch('/api/buyer/auth/logout',{method:'POST'});window.location='/marketplace';})()">Sign out</button>
+        @Html.AntiForgeryToken()
+        <button type="button" class="logout-btn" onclick="goatlabBuyerLogout()">Sign out</button>
     </form>
 </div>
 
@@ -202,6 +203,21 @@
 </style>
 
 <script>
+    // Pull the antiforgery token from the logout form so the fetch carries it
+    // in the RequestVerificationToken header. Endpoint is [ValidateAntiForgeryToken].
+    window.goatlabBuyerLogout = async function () {
+        var form = document.getElementById('logout-form');
+        var tok = form?.querySelector('input[name="__RequestVerificationToken"]')?.value;
+        try {
+            await fetch('/api/buyer/auth/logout', {
+                method: 'POST',
+                headers: tok ? { 'RequestVerificationToken': tok } : {}
+            });
+        } finally {
+            window.location = '/marketplace';
+        }
+    };
+
     window.unsaveListing = async function (btn) {
         var id = btn.getAttribute('data-id');
         if (!id) return;

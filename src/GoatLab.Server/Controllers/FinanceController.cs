@@ -55,7 +55,7 @@ public class FinanceController : ControllerBase
     public async Task<IActionResult> Update(int id, Transaction txn)
     {
         if (id != txn.Id) return BadRequest();
-        var existing = await _db.Transactions.FindAsync(id);
+        var existing = await _db.Transactions.FirstOrDefaultAsync(t => t.Id == id);
         if (existing is null) return NotFound();
 
         existing.Type = txn.Type;
@@ -73,7 +73,7 @@ public class FinanceController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var txn = await _db.Transactions.FindAsync(id);
+        var txn = await _db.Transactions.FirstOrDefaultAsync(t => t.Id == id);
         if (txn is null) return NotFound();
         _db.Transactions.Remove(txn);
         await _db.SaveChangesAsync();
@@ -131,7 +131,7 @@ public class FinanceController : ControllerBase
     [HttpGet("goat/{goatId}/pnl")]
     public async Task<ActionResult<object>> GetGoatPnl(int goatId)
     {
-        var goat = await _db.Goats.FindAsync(goatId);
+        var goat = await _db.Goats.FirstOrDefaultAsync(g => g.Id == goatId);
         if (goat is null) return NotFound();
 
         var txns = await _db.Transactions
@@ -267,7 +267,7 @@ public class FinanceController : ControllerBase
     public async Task<IActionResult> UpdateHarvest(int id, HarvestRecord record)
     {
         if (id != record.Id) return BadRequest();
-        var existing = await _db.HarvestRecords.FindAsync(id);
+        var existing = await _db.HarvestRecords.FirstOrDefaultAsync(h => h.Id == id);
         if (existing is null) return NotFound();
 
         existing.GoatId = record.GoatId;
@@ -286,7 +286,7 @@ public class FinanceController : ControllerBase
     [HttpDelete("harvests/{id}")]
     public async Task<IActionResult> DeleteHarvest(int id)
     {
-        var record = await _db.HarvestRecords.FindAsync(id);
+        var record = await _db.HarvestRecords.FirstOrDefaultAsync(h => h.Id == id);
         if (record is null) return NotFound();
         _db.HarvestRecords.Remove(record);
         await _db.SaveChangesAsync();

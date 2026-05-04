@@ -90,7 +90,7 @@ public class SalesController : ControllerBase
     public async Task<IActionResult> Update(int id, Sale sale)
     {
         if (id != sale.Id) return BadRequest();
-        var existing = await _db.Sales.FindAsync(id);
+        var existing = await _db.Sales.FirstOrDefaultAsync(s => s.Id == id);
         if (existing is null) return NotFound();
 
         existing.CustomerId = sale.CustomerId;
@@ -112,7 +112,7 @@ public class SalesController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var sale = await _db.Sales.FindAsync(id);
+        var sale = await _db.Sales.FirstOrDefaultAsync(s => s.Id == id);
         if (sale is null) return NotFound();
 
         // Remove any linked finance transaction first
@@ -207,7 +207,7 @@ public class SalesController : ControllerBase
     public async Task<IActionResult> UpdateCustomer(int id, Customer customer)
     {
         if (id != customer.Id) return BadRequest();
-        var existing = await _db.Customers.FindAsync(id);
+        var existing = await _db.Customers.FirstOrDefaultAsync(c => c.Id == id);
         if (existing is null) return NotFound();
 
         existing.Name = customer.Name;
@@ -225,7 +225,7 @@ public class SalesController : ControllerBase
     [HttpDelete("customers/{id}")]
     public async Task<IActionResult> DeleteCustomer(int id)
     {
-        var customer = await _db.Customers.FindAsync(id);
+        var customer = await _db.Customers.FirstOrDefaultAsync(c => c.Id == id);
         if (customer is null) return NotFound();
         _db.Customers.Remove(customer);
         await _db.SaveChangesAsync();

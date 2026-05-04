@@ -146,6 +146,7 @@ public class BuyerAuthController : Controller
     }
 
     [HttpPost("/api/buyer/auth/logout")]
+    [Microsoft.AspNetCore.Mvc.ValidateAntiForgeryToken]
     public async Task<IActionResult> Logout()
     {
         await HttpContext.SignOutAsync("Buyer");

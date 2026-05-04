@@ -36,7 +36,7 @@ public class MapController : ControllerBase
     public async Task<IActionResult> UpdateMarker(int id, MapMarker marker)
     {
         if (id != marker.Id) return BadRequest();
-        var existing = await _db.MapMarkers.FindAsync(id);
+        var existing = await _db.MapMarkers.FirstOrDefaultAsync(m => m.Id == id);
         if (existing is null) return NotFound();
 
         existing.Name = marker.Name;
@@ -52,7 +52,7 @@ public class MapController : ControllerBase
     [HttpPatch("markers/{id}/position")]
     public async Task<IActionResult> SetMarkerPosition(int id, [FromBody] MarkerPosition pos)
     {
-        var existing = await _db.MapMarkers.FindAsync(id);
+        var existing = await _db.MapMarkers.FirstOrDefaultAsync(m => m.Id == id);
         if (existing is null) return NotFound();
         existing.Latitude = pos.Latitude;
         existing.Longitude = pos.Longitude;
@@ -65,7 +65,7 @@ public class MapController : ControllerBase
     [HttpDelete("markers/{id}")]
     public async Task<IActionResult> DeleteMarker(int id)
     {
-        var marker = await _db.MapMarkers.FindAsync(id);
+        var marker = await _db.MapMarkers.FirstOrDefaultAsync(m => m.Id == id);
         if (marker is null) return NotFound();
         _db.MapMarkers.Remove(marker);
         await _db.SaveChangesAsync();
@@ -93,7 +93,7 @@ public class MapController : ControllerBase
     public async Task<IActionResult> UpdateGrazingArea(int id, GrazingArea area)
     {
         if (id != area.Id) return BadRequest();
-        var existing = await _db.GrazingAreas.FindAsync(id);
+        var existing = await _db.GrazingAreas.FirstOrDefaultAsync(g => g.Id == id);
         if (existing is null) return NotFound();
 
         existing.Name = area.Name;
@@ -108,7 +108,7 @@ public class MapController : ControllerBase
     [HttpDelete("grazing-areas/{id}")]
     public async Task<IActionResult> DeleteGrazingArea(int id)
     {
-        var area = await _db.GrazingAreas.FindAsync(id);
+        var area = await _db.GrazingAreas.FirstOrDefaultAsync(g => g.Id == id);
         if (area is null) return NotFound();
         _db.GrazingAreas.Remove(area);
         await _db.SaveChangesAsync();
