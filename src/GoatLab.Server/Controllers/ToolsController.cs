@@ -173,14 +173,19 @@ public class ToolsController : ControllerBase
     public IActionResult BackupMedia()
     {
         var mediaDir = Path.Combine(_env.ContentRootPath, "media");
-        if (!Directory.Exists(mediaDir))
-            return NotFound("Media directory not found");
-
         var backupDir = Path.Combine(_env.ContentRootPath, "backups");
         Directory.CreateDirectory(backupDir);
+        // Make sure the source dir exists even on a fresh install; an empty
+        // tenant has no uploads yet and we'd otherwise 404 here, which the
+        // UI translated to a confusing "Backup failed."
+        Directory.CreateDirectory(mediaDir);
 
         var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
         var zipPath = Path.Combine(backupDir, $"goatlab-media-{timestamp}.zip");
+        // Replace any prior zip with the same name to avoid IOException on
+        // rapid re-runs (same-second timestamp collisions are unlikely but
+        // also no reason to fail the request when they happen).
+        if (System.IO.File.Exists(zipPath)) System.IO.File.Delete(zipPath);
         ZipFile.CreateFromDirectory(mediaDir, zipPath);
 
         var bytes = System.IO.File.ReadAllBytes(zipPath);

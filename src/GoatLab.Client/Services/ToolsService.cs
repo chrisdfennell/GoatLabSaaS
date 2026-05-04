@@ -9,17 +9,23 @@ public class ToolsService
     public ToolsService(ApiService api) => _api = api;
 
     public Task<List<ActivityItem>?> GetActivityAsync(int count = 20) => _api.GetAsync<List<ActivityItem>>($"api/tools/activity?count={count}");
-    public async Task<byte[]> BackupDatabaseAsync()
-    {
-        var resp = await _api.Http.PostAsync("api/tools/backup/database", null);
-        resp.EnsureSuccessStatusCode();
-        return await resp.Content.ReadAsByteArrayAsync();
-    }
 
-    public async Task<byte[]> BackupMediaAsync()
+    public Task<byte[]> BackupDatabaseAsync() => PostForBytesAsync("api/tools/backup/database");
+    public Task<byte[]> BackupMediaAsync() => PostForBytesAsync("api/tools/backup/media");
+
+    // Surface the actual server response on failure so the UI can show "403"
+    // (not super-admin), "no media to back up", a SQL Server message, etc.,
+    // instead of a catch-all "Backup failed."
+    private async Task<byte[]> PostForBytesAsync(string url)
     {
-        var resp = await _api.Http.PostAsync("api/tools/backup/media", null);
-        resp.EnsureSuccessStatusCode();
+        var resp = await _api.Http.PostAsync(url, null);
+        if (!resp.IsSuccessStatusCode)
+        {
+            var body = await resp.Content.ReadAsStringAsync();
+            // Trim oversized bodies so the snackbar isn't a wall of HTML.
+            if (body.Length > 400) body = body[..400] + "…";
+            throw new BackupFailedException((int)resp.StatusCode, resp.ReasonPhrase ?? "", body);
+        }
         return await resp.Content.ReadAsByteArrayAsync();
     }
 
@@ -51,4 +57,29 @@ public class ActivityItem
     public string Type { get; set; } = string.Empty;
     public DateTime Date { get; set; }
     public string Description { get; set; } = string.Empty;
+}
+
+public sealed class BackupFailedException : Exception
+{
+    public int StatusCode { get; }
+    public string Reason { get; }
+    public string Body { get; }
+
+    public BackupFailedException(int statusCode, string reason, string body)
+        : base(BuildMessage(statusCode, reason, body))
+    {
+        StatusCode = statusCode;
+        Reason = reason;
+        Body = body;
+    }
+
+    private static string BuildMessage(int code, string reason, string body) => code switch
+    {
+        401 => "You're signed out — sign in again and retry.",
+        403 => "Backups are super-admin only.",
+        404 => string.IsNullOrWhiteSpace(body) ? "Nothing to back up." : body,
+        _   => string.IsNullOrWhiteSpace(body)
+                ? $"Backup failed ({code} {reason})."
+                : $"Backup failed ({code}): {body}",
+    };
 }
