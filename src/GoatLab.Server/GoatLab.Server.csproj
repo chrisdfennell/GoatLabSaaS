@@ -60,4 +60,8 @@
     <ProjectReference Include="..\GoatLab.Client\GoatLab.Client.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="GoatLab.Tests" />
+  </ItemGroup>
+
 </Project>

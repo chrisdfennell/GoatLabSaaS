@@ -169,7 +169,7 @@ public class WebhooksController : ControllerBase
     // case (DNS rebinding, internal hostnames the user knows about) without a
     // runtime check in the dispatcher, but rejecting localhost / RFC1918 /
     // link-local literals stops the easy mistakes.
-    private static bool IsInternalHost(string host)
+    internal static bool IsInternalHost(string host)
     {
         if (string.IsNullOrWhiteSpace(host)) return true;
         var lower = host.ToLowerInvariant();

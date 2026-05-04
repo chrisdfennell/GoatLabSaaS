@@ -121,6 +121,9 @@ public class BillingController : ControllerBase
 
     [HttpPost("webhook")]
     [AllowAnonymous]
+    // Stripe webhook payloads are well under 64KB; cap aggressively so a hostile
+    // POST can't make us buffer megabytes before the signature check fails.
+    [RequestSizeLimit(64 * 1024)]
     public async Task<IActionResult> Webhook(CancellationToken ct)
     {
         using var reader = new StreamReader(Request.Body);

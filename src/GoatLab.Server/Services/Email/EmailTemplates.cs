@@ -6,6 +6,21 @@ public static class EmailTemplates
 {
     private const string Brand = "GoatLab";
 
+    // Strip CR/LF/NUL/other control chars from a string before splicing it
+    // into a Subject or other email header. MimeKit also rejects header
+    // injection, but a sanitised value also keeps multi-line buyer names
+    // from rendering as wrapped subjects in inboxes.
+    internal static string SanitizeHeader(string? input)
+    {
+        if (string.IsNullOrEmpty(input)) return string.Empty;
+        var sb = new System.Text.StringBuilder(input.Length);
+        foreach (var ch in input)
+        {
+            if (ch == ' ' || !char.IsControl(ch)) sb.Append(ch);
+        }
+        return sb.ToString().Trim();
+    }
+
     public static (string Subject, string Html, string Text) ConfirmEmail(string displayName, string confirmationUrl) =>
     (
         Subject: $"Confirm your {Brand} account",
@@ -410,8 +425,13 @@ public static class EmailTemplates
     {
         var phoneLine = string.IsNullOrEmpty(buyerPhone) ? "" :
             $@"<p style=""margin:4px 0;color:#4a5a51;""><strong>Phone:</strong> {System.Net.WebUtility.HtmlEncode(buyerPhone)}</p>";
+        // Buyer-supplied name flows into the Subject. MailKit already rejects
+        // header injection, but defensively strip control chars so the subject
+        // can't be split into multiple lines on display either.
+        var safeBuyerName = SanitizeHeader(buyerName);
+        var safeGoatName = SanitizeHeader(goatName);
         return (
-            Subject: $"New inquiry on {goatName} from {buyerName}",
+            Subject: $"New inquiry on {safeGoatName} from {safeBuyerName}",
             Html: $@"<div style=""font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:0 auto;padding:24px;color:#1a2421;"">
   <h2 style=""color:#2e7d32;margin-bottom:4px;"">New buyer inquiry</h2>
   <p style=""margin:0 0 16px 0;color:#6b7a70;"">on <strong>{System.Net.WebUtility.HtmlEncode(goatName)}</strong></p>

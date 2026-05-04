@@ -300,9 +300,29 @@ public class GoatsController : ControllerBase
 
     // --- Photos ---
 
+    private static readonly HashSet<string> AllowedPhotoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".png", ".webp", ".gif"
+    };
+    private const long MaxPhotoBytes = 10L * 1024 * 1024;   // 10 MiB
+    private const long MaxDocumentBytes = 25L * 1024 * 1024; // 25 MiB
+    private static readonly HashSet<string> AllowedDocumentExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx"
+    };
+
     [HttpPost("{id}/photos")]
+    [RequestSizeLimit(MaxPhotoBytes)]
     public async Task<ActionResult<GoatPhoto>> UploadPhoto(int id, IFormFile file, [FromForm] string? caption, [FromForm] bool isPrimary = false)
     {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "No file uploaded." });
+        if (file.Length > MaxPhotoBytes)
+            return BadRequest(new { error = "Photo is larger than 10 MB." });
+        var ext = Path.GetExtension(file.FileName);
+        if (!AllowedPhotoExtensions.Contains(ext))
+            return BadRequest(new { error = "Unsupported file type. Use JPG, PNG, WEBP, or GIF." });
+
         var goat = await _db.Goats.FirstOrDefaultAsync(g => g.Id == id);
         if (goat is null) return NotFound();
 
@@ -321,7 +341,7 @@ public class GoatsController : ControllerBase
         var uploadsDir = Path.Combine(_env.ContentRootPath, "media", "goats", id.ToString());
         Directory.CreateDirectory(uploadsDir);
 
-        var fileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+        var fileName = $"{Guid.NewGuid()}{ext}";
         var filePath = Path.Combine(uploadsDir, fileName);
 
         await using var stream = new FileStream(filePath, FileMode.Create);
@@ -364,15 +384,24 @@ public class GoatsController : ControllerBase
     // --- Documents ---
 
     [HttpPost("{id}/documents")]
+    [RequestSizeLimit(MaxDocumentBytes)]
     public async Task<ActionResult<GoatDocument>> UploadDocument(int id, IFormFile file, [FromForm] string title, [FromForm] string? documentType)
     {
+        if (file is null || file.Length == 0)
+            return BadRequest(new { error = "No file uploaded." });
+        if (file.Length > MaxDocumentBytes)
+            return BadRequest(new { error = "Document is larger than 25 MB." });
+        var ext = Path.GetExtension(file.FileName);
+        if (!AllowedDocumentExtensions.Contains(ext))
+            return BadRequest(new { error = "Unsupported file type. Use PDF, DOC/DOCX, JPG, or PNG." });
+
         var goat = await _db.Goats.FirstOrDefaultAsync(g => g.Id == id);
         if (goat is null) return NotFound();
 
         var uploadsDir = Path.Combine(_env.ContentRootPath, "media", "documents", id.ToString());
         Directory.CreateDirectory(uploadsDir);
 
-        var fileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+        var fileName = $"{Guid.NewGuid()}{ext}";
         var filePath = Path.Combine(uploadsDir, fileName);
 
         await using var stream = new FileStream(filePath, FileMode.Create);

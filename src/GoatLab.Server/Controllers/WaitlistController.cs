@@ -134,6 +134,25 @@ public class WaitlistController : ControllerBase
         var goat = await _db.Goats.FirstOrDefaultAsync(g => g.Id == req.GoatId);
         if (goat is null) return BadRequest(new { error = "Goat not found in this farm." });
 
+        // Atomic CAS on the status column so two concurrent fulfill clicks
+        // (or two concurrent admin requests) can't both create a Sale for
+        // the same waitlist entry. ExecuteUpdateAsync returns 0 if another
+        // request beat us to flipping the status.
+        var fulfilledAt = DateTime.UtcNow;
+        var claimed = await _db.WaitlistEntries
+            .Where(w => w.Id == id
+                        && w.Status != WaitlistStatus.Fulfilled
+                        && w.Status != WaitlistStatus.Cancelled)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(w => w.Status, WaitlistStatus.Fulfilled)
+                .SetProperty(w => w.FulfilledAt, (DateTime?)fulfilledAt));
+        if (claimed == 0)
+            return BadRequest(new { error = "Entry was just fulfilled or cancelled. Refresh and try again." });
+
+        // Load the previously-tracked entity reflects pre-claim values; refresh
+        // from the DB so subsequent property writes don't undo the claim.
+        await _db.Entry(entry).ReloadAsync();
+
         var deposit = entry.DepositCents / 100m;
         var paymentStatus = entry.DepositPaid && deposit > 0 && deposit < req.SaleAmount
             ? PaymentStatus.Deposited
@@ -157,8 +176,6 @@ public class WaitlistController : ControllerBase
 
         await SyncLinkedTransactionAsync(sale);
 
-        entry.Status = WaitlistStatus.Fulfilled;
-        entry.FulfilledAt = DateTime.UtcNow;
         entry.FulfilledSaleId = sale.Id;
         entry.FulfilledGoatId = goat.Id;
         await _db.SaveChangesAsync();

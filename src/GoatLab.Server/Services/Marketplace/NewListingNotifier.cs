@@ -36,8 +36,22 @@ public class NewListingNotifier
 
     public async Task NotifyAsync(int goatId, CancellationToken ct = default)
     {
+        // Bracket the cross-tenant work so the flag is always restored, even
+        // on early returns or throws. Otherwise the next service in the same
+        // scope would silently skip tenant filtering.
         _tenantContext.BypassFilter = true;
+        try
+        {
+            await NotifyInternalAsync(goatId, ct);
+        }
+        finally
+        {
+            _tenantContext.BypassFilter = false;
+        }
+    }
 
+    private async Task NotifyInternalAsync(int goatId, CancellationToken ct)
+    {
         var goat = await _db.Goats.IgnoreQueryFilters()
             .Where(g => g.Id == goatId && g.IsListedForSale && !g.IsExternal)
             .Select(g => new
@@ -172,10 +186,12 @@ public class NewListingNotifier
         var parts = new List<string>();
         parts.Add(string.IsNullOrEmpty(breedSlug) ? "any breed" : breedSlug);
         if (!string.IsNullOrEmpty(sex)) parts.Add(sex.ToLowerInvariant());
+        // Format cents → dollars at 2dp so "1234" ¢ shows as "$12.34", not "$12".
+        // Using int division silently dropped cents in the alert-match email.
         if (minPrice.HasValue && maxPrice.HasValue)
-            parts.Add($"${minPrice / 100}-${maxPrice / 100}");
-        else if (minPrice.HasValue) parts.Add($"≥ ${minPrice / 100}");
-        else if (maxPrice.HasValue) parts.Add($"under ${maxPrice / 100}");
+            parts.Add($"${minPrice.Value / 100m:F2}-${maxPrice.Value / 100m:F2}");
+        else if (minPrice.HasValue) parts.Add($"≥ ${minPrice.Value / 100m:F2}");
+        else if (maxPrice.HasValue) parts.Add($"under ${maxPrice.Value / 100m:F2}");
         if (!string.IsNullOrEmpty(state)) parts.Add($"in {state}");
         return string.Join(" · ", parts);
     }

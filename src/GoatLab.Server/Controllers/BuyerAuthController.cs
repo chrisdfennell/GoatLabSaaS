@@ -98,11 +98,21 @@ public class BuyerAuthController : Controller
             return View("VerifyFailed");
 
         var hash = HashToken(token);
-        var row = await _db.BuyerSignInTokens
-            .FirstOrDefaultAsync(t => t.TokenHash == hash, ct);
+        var now = DateTime.UtcNow;
 
-        if (row is null || row.UsedAt is not null || row.ExpiresAt < DateTime.UtcNow)
-            return View("VerifyFailed");
+        // Atomically claim the token: only one concurrent verifier wins. The
+        // WHERE clause guards against replays (UsedAt!=null) and expired rows;
+        // ExecuteUpdateAsync returns the affected row count so we know whether
+        // we got the token first.
+        var claimed = await _db.BuyerSignInTokens
+            .Where(t => t.TokenHash == hash && t.UsedAt == null && t.ExpiresAt >= now)
+            .ExecuteUpdateAsync(s => s.SetProperty(t => t.UsedAt, now), ct);
+        if (claimed == 0) return View("VerifyFailed");
+
+        // Re-read for the email — we know the row now exists with UsedAt=now.
+        var row = await _db.BuyerSignInTokens.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.TokenHash == hash, ct);
+        if (row is null) return View("VerifyFailed");
 
         // Find-or-create the buyer account.
         var account = await _db.BuyerAccounts.FirstOrDefaultAsync(a => a.Email == row.Email, ct);
@@ -121,7 +131,6 @@ public class BuyerAuthController : Controller
             account.LastLoginAt = DateTime.UtcNow;
         }
 
-        row.UsedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
         var claims = new List<Claim>

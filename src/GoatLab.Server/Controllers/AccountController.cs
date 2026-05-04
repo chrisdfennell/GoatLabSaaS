@@ -127,8 +127,8 @@ public class AccountController : ControllerBase
         }
         else
         {
-            var slug = Slugify(req.FarmName);
-            var baseSlug = slug;
+            var baseSlug = Slugify(req.FarmName);
+            var slug = baseSlug;
             var n = 1;
             while (await _db.Tenants.AnyAsync(t => t.Slug == slug))
             {
@@ -142,9 +142,29 @@ public class AccountController : ControllerBase
                 .Select(p => (int?)p.Id)
                 .FirstOrDefaultAsync() ?? 1;
 
-            var tenant = new Tenant { Name = req.FarmName, Slug = slug, PlanId = defaultPlanId };
-            _db.Tenants.Add(tenant);
-            await _db.SaveChangesAsync();
+            // The AnyAsync check above is just a fast-path. The DB has a unique
+            // index on Tenant.Slug, and two concurrent signups with the same
+            // farm name can both pass that check before either commits. Loop
+            // here so the second one re-derives a fresh suffix and retries
+            // instead of bubbling a 500 to the user.
+            Tenant tenant;
+            var attempts = 0;
+            while (true)
+            {
+                tenant = new Tenant { Name = req.FarmName, Slug = slug, PlanId = defaultPlanId };
+                _db.Tenants.Add(tenant);
+                try
+                {
+                    await _db.SaveChangesAsync();
+                    break;
+                }
+                catch (DbUpdateException) when (attempts++ < 5)
+                {
+                    // Detach the failed entity, bump the suffix, retry.
+                    _db.Entry(tenant).State = EntityState.Detached;
+                    slug = $"{baseSlug}-{++n}";
+                }
+            }
             tenantId = tenant.Id;
 
             _db.TenantMembers.Add(new TenantMember
