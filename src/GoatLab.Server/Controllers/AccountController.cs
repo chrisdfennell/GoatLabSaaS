@@ -92,9 +92,19 @@ public class AccountController : ControllerBase
             if (!string.Equals(req.Email, invite.Email, StringComparison.OrdinalIgnoreCase))
                 return BadRequest(new { error = $"This invite is for {invite.Email}. Use that email to sign up." });
         }
-        else
+
+        // Self-host: the very first signup is the platform super-admin — no
+        // tenant, no farm-name required. They administer the deployment;
+        // subsequent users sign up with their own farm name and become tenant
+        // owners. Compute the flag BEFORE create-user so a second concurrent
+        // signup doesn't both think they're first.
+        var isFirstOssUser = invite is null
+            && _appMode.IsOss
+            && !await _userManager.Users.AnyAsync();
+
+        if (invite is null && !isFirstOssUser)
         {
-            // No invite — the standard self-serve flow needs a farm name.
+            // Standard self-serve flow needs a farm name.
             if (string.IsNullOrWhiteSpace(req.FarmName))
                 return BadRequest(new { error = "Farm name is required." });
         }
@@ -104,15 +114,8 @@ public class AccountController : ControllerBase
             UserName = req.Email,
             Email = req.Email,
             DisplayName = req.DisplayName,
+            IsSuperAdmin = isFirstOssUser,
         };
-
-        // Self-host: the very first signup becomes super-admin so the operator
-        // can manage their own deployment without manual DB tinkering. After
-        // that this branch is a no-op and subsequent signups are normal users.
-        if (_appMode.IsOss && !await _userManager.Users.AnyAsync())
-        {
-            user.IsSuperAdmin = true;
-        }
 
         var createResult = await _userManager.CreateAsync(user, req.Password);
         if (!createResult.Succeeded)
@@ -121,8 +124,14 @@ public class AccountController : ControllerBase
         // Bypass the tenant query filter while creating the user's first tenant.
         _tenantContext.BypassFilter = true;
 
-        int tenantId;
-        if (invite is not null)
+        int? tenantId = null;
+        if (isFirstOssUser)
+        {
+            // Pure platform super-admin — no tenant created, no farm dashboard
+            // visible. They can later sign up another account (or invite one)
+            // to operate a herd, or use /admin/tenants to spin one up directly.
+        }
+        else if (invite is not null)
         {
             // Invite path — attach the user to the existing tenant. No new
             // tenant created, so plan/slug logic below is skipped entirely.

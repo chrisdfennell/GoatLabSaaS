@@ -862,8 +862,14 @@ aside.mud-drawer > div {
     }
 }
 
-/* ===== Empty state ===== */
+/* ===== Empty state =====
+   Flex-column so an inline-rendered MudText (caption is <span>) followed by
+   an inline-block MudButton stacks vertically instead of sitting side-by-side. */
 .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
     text-align: center;
     padding: 48px 24px;
 }
@@ -871,6 +877,9 @@ aside.mud-drawer > div {
     font-size: 4rem !important;
     opacity: 0.3;
     margin-bottom: 16px;
+}
+.empty-state .mud-button-root {
+    margin-top: 12px;
 }
 
 /* ===== Responsive adjustments ===== */
