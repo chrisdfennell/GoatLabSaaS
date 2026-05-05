@@ -193,7 +193,14 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        if (Id.HasValue && _detail?.Id != Id) await LoadDetail();
+        if (Id.HasValue && _detail?.Id != Id)
+        {
+            // Clear before awaiting LoadDetail so the previous thread's body
+            // doesn't briefly render under the new URL while the fetch is in
+            // flight. Otherwise users see thread A's reply form on thread B.
+            _detail = null;
+            await LoadDetail();
+        }
         if (!Id.HasValue) _detail = null;
     }
 

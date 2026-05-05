@@ -48,7 +48,7 @@ public class CalendarFeedController : ControllerBase
         return File(Encoding.UTF8.GetBytes(ics), "text/calendar; charset=utf-8", $"goatlab-{tenant.Id}.ics");
     }
 
-    private static string BuildIcs(string tenantName, IReadOnlyList<CalendarEvent> events)
+    internal static string BuildIcs(string tenantName, IReadOnlyList<CalendarEvent> events)
     {
         var sb = new StringBuilder();
         sb.Append("BEGIN:VCALENDAR\r\n");
@@ -69,9 +69,15 @@ public class CalendarFeedController : ControllerBase
 
             if (ev.AllDay)
             {
-                sb.Append($"DTSTART;VALUE=DATE:{ev.Start.ToUniversalTime():yyyyMMdd}\r\n");
+                // All-day events are date-only in iCal — the time portion has
+                // no meaning. ToUniversalTime() on a Kind=Unspecified value
+                // (which is what EF Core hands back from SQL Server unless we
+                // tell it otherwise) treats it as local-time and shifts the
+                // date by the server's TZ offset, which can flip the calendar
+                // entry by a day. Format the calendar date directly instead.
+                sb.Append($"DTSTART;VALUE=DATE:{ev.Start:yyyyMMdd}\r\n");
                 var endDate = (ev.End ?? ev.Start).AddDays(1);
-                sb.Append($"DTEND;VALUE=DATE:{endDate.ToUniversalTime():yyyyMMdd}\r\n");
+                sb.Append($"DTEND;VALUE=DATE:{endDate:yyyyMMdd}\r\n");
             }
             else
             {

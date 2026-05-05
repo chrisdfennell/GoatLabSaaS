@@ -332,7 +332,11 @@ public class BreedingController : ControllerBase
     public ActionResult<object> CalculateGestation([FromQuery] DateTime breedingDate, [FromQuery] int gestationDays = 150)
     {
         var dueDate = breedingDate.AddDays(gestationDays);
-        var daysRemaining = (dueDate - DateTime.UtcNow).Days;
-        return Ok(new { breedingDate, gestationDays, estimatedDueDate = dueDate, daysRemaining = Math.Max(0, daysRemaining) });
+        // (dueDate - now).Days truncates fractional hours to zero, so a doe
+        // due in 18 hours displays as "0 days remaining." Round up so any
+        // non-negative remainder rolls up to at least 1.
+        var totalDays = (dueDate - DateTime.UtcNow).TotalDays;
+        var daysRemaining = totalDays <= 0 ? 0 : (int)Math.Ceiling(totalDays);
+        return Ok(new { breedingDate, gestationDays, estimatedDueDate = dueDate, daysRemaining });
     }
 }

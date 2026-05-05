@@ -491,7 +491,16 @@
 
         Snackbar.Add("Milk logged!", Severity.Success);
         milkAmount = 0;
-        activity = await ToolsSvc.GetActivityAsync(10);
+
+        // Refresh the trend chart and activity feed in parallel — without the
+        // chart refresh, today's bar stayed flat until the user navigated
+        // away and back.
+        var trendsTask = MilkSvc.GetTrendsAsync(days: 30);
+        var activityTask = ToolsSvc.GetActivityAsync(10);
+        await Task.WhenAll(trendsTask, activityTask);
+        milkTrends = trendsTask.Result;
+        activity = activityTask.Result;
+        BuildMilkChart();
     }
 
     private string GetGreeting()
