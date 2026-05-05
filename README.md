@@ -170,4 +170,4 @@ See `/changelog` on the live site for what shipped recently.
 
 ## License
 
-TBD — pending decision on MIT vs AGPL before going public. See `LICENSE`.
+MIT — see [LICENSE](LICENSE).

@@ -6,6 +6,6 @@ Contact: hello [at] goatlab.app
 /* SITE */
 Last update: 2026-04-18
 Standards: HTML5, CSS3, WebAssembly
-Components: Blazor WebAssembly, MudBlazor, ASP.NET Core, EF Core, PostgreSQL
+Components: Blazor WebAssembly, MudBlazor, ASP.NET Core, EF Core, SQL Server
 Software: Built with .NET, deployed on a Hostinger VPS
-Repo (open-source self-host): https://github.com/chrisdfennell/GoatLab
+Repo (MIT, self-hostable): https://github.com/chrisdfennell/GoatLabSaaS
