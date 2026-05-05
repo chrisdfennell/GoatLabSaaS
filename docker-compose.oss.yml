@@ -63,6 +63,13 @@ services:
       # Every feature is unlocked for every tenant on this instance.
       Saas__Enabled: "false"
 
+      # Hard-default to NOT requiring email confirmation. A self-hoster
+      # without SMTP configured would otherwise be locked out on the very
+      # first signup (Identity sends a confirmation link that goes nowhere,
+      # the account stays unconfirmed, login is refused). Flip the env var
+      # to `true` once you've wired SMTP and want confirmation enforced.
+      Identity__RequireConfirmedEmail: "${IDENTITY_REQUIRE_CONFIRMED_EMAIL:-false}"
+
       # === Optional integrations ===
       # Leave blank to disable; nothing in the OSS path requires these.
       GoogleMaps__ApiKey: "${GOOGLE_MAPS_API_KEY:-}"
@@ -74,7 +81,6 @@ services:
       Smtp__FromName: "${SMTP_FROM_NAME:-GoatLab}"
       Smtp__UseSsl: "${SMTP_USE_SSL:-true}"
       Smtp__AllowInvalidCertificate: "${SMTP_ALLOW_INVALID_CERT:-false}"
-      Identity__RequireConfirmedEmail: "${IDENTITY_REQUIRE_CONFIRMED_EMAIL:-false}"
       Push__VapidPublicKey: "${PUSH_VAPID_PUBLIC_KEY:-}"
       Push__VapidPrivateKey: "${PUSH_VAPID_PRIVATE_KEY:-}"
       Push__Subject: "${PUSH_SUBJECT:-mailto:admin@goatlab.local}"
