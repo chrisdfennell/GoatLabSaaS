@@ -56,15 +56,20 @@ public class GoatsController : ControllerBase
             query = query.Where(g => g.Status == status.Value);
 
         if (!string.IsNullOrWhiteSpace(search))
+        {
+            // Cap search length so a hostile/buggy client can't make us run
+            // a 50KB Contains() across eight columns.
+            var s = search.Length > 100 ? search[..100] : search;
             query = query.Where(g =>
-                g.Name.Contains(search)
-                || (g.EarTag != null && g.EarTag.Contains(search))
-                || (g.RegistrationNumber != null && g.RegistrationNumber.Contains(search))
-                || (g.TattooLeft != null && g.TattooLeft.Contains(search))
-                || (g.TattooRight != null && g.TattooRight.Contains(search))
-                || (g.ScrapieTag != null && g.ScrapieTag.Contains(search))
-                || (g.Microchip != null && g.Microchip.Contains(search))
-                || (g.BreederName != null && g.BreederName.Contains(search)));
+                g.Name.Contains(s)
+                || (g.EarTag != null && g.EarTag.Contains(s))
+                || (g.RegistrationNumber != null && g.RegistrationNumber.Contains(s))
+                || (g.TattooLeft != null && g.TattooLeft.Contains(s))
+                || (g.TattooRight != null && g.TattooRight.Contains(s))
+                || (g.ScrapieTag != null && g.ScrapieTag.Contains(s))
+                || (g.Microchip != null && g.Microchip.Contains(s))
+                || (g.BreederName != null && g.BreederName.Contains(s)));
+        }
 
         // Tag filter — matches a token within the comma-separated Tags column.
         // Wrapping the column with leading/trailing commas means a search for

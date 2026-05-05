@@ -25,7 +25,11 @@ public class AdminSearchController : ControllerBase
         if (string.IsNullOrWhiteSpace(q) || q.Trim().Length < 2)
             return new AdminSearchResponse(q ?? "", Array.Empty<AdminSearchHit>(), 0, false);
 
-        var query = q.Trim();
+        // Cap input length — anything longer than this isn't a real search,
+        // and we'd rather not run six concurrent Contains() against multi-MB
+        // inputs.
+        var trimmed = q.Trim();
+        var query = trimmed.Length > 100 ? trimmed[..100] : trimmed;
         var perCategoryCap = Math.Clamp(limit, 5, 50);
         var hits = new List<AdminSearchHit>(perCategoryCap * 6);
         var truncated = false;

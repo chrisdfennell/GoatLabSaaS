@@ -72,12 +72,16 @@
         return id;
     }
 
-    // Flush: replay each op. On 4xx/5xx the op is removed too — we don't want
-    // a poisoned record blocking the queue forever. Errors are logged.
+    // Flush: replay each op. On 4xx/5xx that's *not* an auth failure the op
+    // is removed — we don't want a poisoned record blocking the queue
+    // forever. On 401 (session expired) we KEEP the op: the user just needs
+    // to sign back in and the next flush will retry. Otherwise pasture
+    // changes silently disappear after a re-auth.
     async function flush() {
         const ops = await getAll();
         let ok = 0;
         let failed = 0;
+        let kept = 0;
         for (const op of ops) {
             try {
                 const resp = await fetch(op.url, {
@@ -85,7 +89,11 @@
                     headers: op.body ? { 'Content-Type': 'application/json' } : {},
                     body: op.body ?? undefined
                 });
-                // Remove regardless; if server rejected we don't keep retrying blindly.
+                if (resp.status === 401) {
+                    // Don't drop — user needs to re-auth, and we'll retry.
+                    kept++;
+                    break;
+                }
                 await remove(op.id);
                 if (resp.ok) ok++; else failed++;
             } catch (err) {
@@ -95,7 +103,7 @@
             }
         }
         notifyCount();
-        return { flushed: ok, failed };
+        return { flushed: ok, failed, kept };
     }
 
     const countListeners = [];

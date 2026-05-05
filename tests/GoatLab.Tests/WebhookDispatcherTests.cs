@@ -82,13 +82,87 @@ public class WebhookDispatcherTests
         Assert.Contains("goat.created", capturedBody!);
         Assert.Equal($"sha256={WebhookDispatcher.ComputeSignature(capturedBody!, subscribed.Secret)}", sigHeader);
 
+        // V2 signature: t={unix},v1={hex} where the HMAC covers `{ts}.{body}`.
+        // Verifies the timestamp is sent and is included under the MAC so a
+        // receiver can reject stale signatures.
+        var v2 = captured.Headers.GetValues("X-GoatLab-Signature-V2").Single();
+        Assert.Matches(@"^t=\d+,v1=[0-9a-f]{64}$", v2);
+        var parts = v2.Split(',');
+        var ts = parts[0]["t=".Length..];
+        var sig = parts[1]["v1=".Length..];
+        Assert.Equal(WebhookDispatcher.ComputeSignature($"{ts}.{capturedBody}", subscribed.Secret), sig);
+        Assert.Equal(ts, captured.Headers.GetValues("X-GoatLab-Timestamp").Single());
+
+        // Payload's deliveryId field equals the row's DeliveryId equals the header.
+        var headerDelivery = captured.Headers.GetValues("X-GoatLab-Delivery").Single();
+        Assert.Contains($"\"deliveryId\":\"{headerDelivery}\"", capturedBody);
+
         // Exactly one delivery row (other webhook not subscribed).
         var deliveries = db.Context.WebhookDeliveries.ToList();
         var d = Assert.Single(deliveries);
         Assert.Equal(subscribed.Id, d.WebhookId);
+        Assert.Equal(headerDelivery, d.DeliveryId);
         Assert.Equal(200, d.StatusCode);
         Assert.NotNull(d.DeliveredAt);
         Assert.Null(d.NextRetryAt);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.UnprocessableEntity)]
+    public async Task DispatchAsync_does_not_schedule_retry_on_permanent_4xx(HttpStatusCode code)
+    {
+        using var db = NewDb();
+        AddWebhook(db, "goat.created");
+        var http = new StubHttpClientFactory((req, ct) =>
+            Task.FromResult(new HttpResponseMessage(code) { Content = new StringContent("nope") }));
+
+        var dispatcher = new WebhookDispatcher(db.Context, db.Tenant, http, NullLogger<WebhookDispatcher>.Instance);
+        await dispatcher.DispatchAsync("goat.created", new { id = 1 });
+
+        var d = Assert.Single(db.Context.WebhookDeliveries);
+        Assert.Equal((int)code, d.StatusCode);
+        Assert.Null(d.NextRetryAt);
+        Assert.Contains("will not retry", d.Error);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.RequestTimeout)]      // 408
+    [InlineData((HttpStatusCode)429)]                // too many requests
+    [InlineData(HttpStatusCode.BadGateway)]
+    public async Task DispatchAsync_schedules_retry_on_transient_failures(HttpStatusCode code)
+    {
+        using var db = NewDb();
+        AddWebhook(db, "goat.created");
+        var http = new StubHttpClientFactory((req, ct) =>
+            Task.FromResult(new HttpResponseMessage(code) { Content = new StringContent("temp") }));
+
+        var dispatcher = new WebhookDispatcher(db.Context, db.Tenant, http, NullLogger<WebhookDispatcher>.Instance);
+        await dispatcher.DispatchAsync("goat.created", new { id = 1 });
+
+        var d = Assert.Single(db.Context.WebhookDeliveries);
+        Assert.Equal((int)code, d.StatusCode);
+        Assert.NotNull(d.NextRetryAt);
+    }
+
+    [Fact]
+    public async Task DispatchAsync_truncates_oversized_response_body()
+    {
+        using var db = NewDb();
+        AddWebhook(db, "goat.created");
+        // Receiver returns a 64KB body — we should buffer at most ~4KB.
+        var huge = new string('x', 64 * 1024);
+        var http = new StubHttpClientFactory((req, ct) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(huge) }));
+
+        var dispatcher = new WebhookDispatcher(db.Context, db.Tenant, http, NullLogger<WebhookDispatcher>.Instance);
+        await dispatcher.DispatchAsync("goat.created", new { id = 1 });
+
+        var d = Assert.Single(db.Context.WebhookDeliveries);
+        Assert.NotNull(d.ResponseBody);
+        Assert.True(d.ResponseBody!.Length <= 4 * 1024,
+            $"Expected ResponseBody <= 4KB, got {d.ResponseBody.Length}");
     }
 
     [Fact]

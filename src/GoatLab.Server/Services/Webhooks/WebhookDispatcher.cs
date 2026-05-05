@@ -81,24 +81,29 @@ public class WebhookDispatcher
 
         if (candidates.Count == 0) return;
 
-        var json = JsonSerializer.Serialize(new
-        {
-            @event = eventType,
-            deliveryId = Guid.NewGuid().ToString(),
-            occurredAt = DateTime.UtcNow,
-            data = payload,
-        });
+        var occurredAt = DateTime.UtcNow;
 
         foreach (var webhook in candidates)
         {
+            // Build the payload PER delivery so the embedded deliveryId
+            // matches the X-GoatLab-Delivery header — receivers should be
+            // able to dedupe on either field. Previously the JSON used a
+            // fresh GUID per dispatch fan-out, which differed from the
+            // per-row DeliveryId we sent in the header.
             var delivery = new WebhookDelivery
             {
                 TenantId = webhook.TenantId,
                 WebhookId = webhook.Id,
                 EventType = eventType,
-                Payload = json,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = occurredAt,
             };
+            delivery.Payload = JsonSerializer.Serialize(new
+            {
+                @event = eventType,
+                deliveryId = delivery.DeliveryId,
+                occurredAt,
+                data = payload,
+            });
             _db.WebhookDeliveries.Add(delivery);
             await _db.SaveChangesAsync(ct);
 
@@ -122,21 +127,36 @@ public class WebhookDispatcher
         var client = _httpFactory.CreateClient("webhooks");
         client.Timeout = TimeSpan.FromSeconds(10);
 
+        // Original signature is HMAC over the raw body — kept as-is for
+        // backward compatibility with receivers already verifying it.
+        var bodySig = ComputeSignature(delivery.Payload, webhook.Secret);
+
+        // Replay-resistant signature: HMAC over `{ts}.{payload}`, sent in a
+        // separate header so receivers can opt in to freshness checks. The
+        // timestamp is covered by the MAC, so an attacker can't extend the
+        // valid window by replacing it. Format mirrors Stripe's.
+        var ts = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        var tsSig = ComputeSignature($"{ts}.{delivery.Payload}", webhook.Secret);
+
         using var req = new HttpRequestMessage(HttpMethod.Post, webhook.Url)
         {
             Content = new StringContent(delivery.Payload, Encoding.UTF8, "application/json"),
         };
         req.Headers.Add("X-GoatLab-Event", delivery.EventType);
         req.Headers.Add("X-GoatLab-Delivery", delivery.DeliveryId);
-        req.Headers.Add("X-GoatLab-Signature", $"sha256={ComputeSignature(delivery.Payload, webhook.Secret)}");
+        req.Headers.Add("X-GoatLab-Signature", $"sha256={bodySig}");
+        req.Headers.Add("X-GoatLab-Timestamp", ts.ToString());
+        req.Headers.Add("X-GoatLab-Signature-V2", $"t={ts},v1={tsSig}");
         req.Headers.Add("User-Agent", "GoatLab-Webhooks/1.0");
 
         try
         {
-            using var resp = await client.SendAsync(req, ct);
+            // ResponseHeadersRead so we don't buffer the body just to throw
+            // most of it away. We then read at most ResponseBodyMaxBytes —
+            // a misbehaving receiver returning gigabytes can't OOM us.
+            using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
             delivery.StatusCode = (int)resp.StatusCode;
-            var body = await resp.Content.ReadAsStringAsync(ct);
-            delivery.ResponseBody = body.Length > 500 ? body[..500] : body;
+            delivery.ResponseBody = await ReadBoundedBodyAsync(resp, ct);
 
             webhook.UpdatedAt = DateTime.UtcNow;
             webhook.LastStatusCode = delivery.StatusCode;
@@ -149,10 +169,19 @@ public class WebhookDispatcher
                 delivery.Error = null;
                 webhook.LastError = null;
             }
-            else
+            else if (IsRetryable((int)resp.StatusCode))
             {
                 ScheduleRetry(delivery);
                 delivery.Error = $"HTTP {delivery.StatusCode}";
+                webhook.LastError = delivery.Error;
+            }
+            else
+            {
+                // Permanent client error (401/403/404/410/422). Retrying won't
+                // change the receiver's mind — abandon and surface so the
+                // tenant sees it on the deliveries page instead of silent rot.
+                delivery.NextRetryAt = null;
+                delivery.Error = $"HTTP {delivery.StatusCode} (will not retry)";
                 webhook.LastError = delivery.Error;
             }
         }
@@ -164,6 +193,39 @@ public class WebhookDispatcher
             webhook.UpdatedAt = DateTime.UtcNow;
             webhook.LastError = delivery.Error;
         }
+    }
+
+    private const int ResponseBodyMaxBytes = 4 * 1024;
+
+    private static async Task<string> ReadBoundedBodyAsync(HttpResponseMessage resp, CancellationToken ct)
+    {
+        try
+        {
+            await using var stream = await resp.Content.ReadAsStreamAsync(ct);
+            var buf = new byte[ResponseBodyMaxBytes];
+            int read = 0;
+            while (read < buf.Length)
+            {
+                var got = await stream.ReadAsync(buf.AsMemory(read, buf.Length - read), ct);
+                if (got == 0) break;
+                read += got;
+            }
+            return Encoding.UTF8.GetString(buf, 0, read);
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    // Retry on transient failures (network, 5xx, plus 408 timeout / 429
+    // rate-limit). Other 4xx responses are permanent — receiver said "no."
+    private static bool IsRetryable(int statusCode)
+    {
+        if (statusCode >= 500) return true;
+        if (statusCode == 408) return true; // request timeout
+        if (statusCode == 429) return true; // too many requests
+        return false;
     }
 
     private static void ScheduleRetry(WebhookDelivery delivery)
