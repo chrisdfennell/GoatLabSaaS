@@ -1,4 +1,5 @@
 using GoatLab.Server.Data;
+using GoatLab.Server.Services;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,6 +15,7 @@ namespace GoatLab.Server.Controllers;
 //                                   showing up to 6 current listings, light
 //                                   styling that doesn't clash with most sites.
 [AllowAnonymous]
+[RequiresSaas]
 public class EmbedController : Controller
 {
     private readonly GoatLabDbContext _db;

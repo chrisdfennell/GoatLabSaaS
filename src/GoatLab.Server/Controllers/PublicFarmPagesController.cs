@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using GoatLab.Server.Data;
 using GoatLab.Server.Filters;
+using GoatLab.Server.Services;
 using GoatLab.Server.Services.Billing;
 using GoatLab.Shared.DTOs;
 using GoatLab.Shared.Models;
@@ -24,6 +25,7 @@ namespace GoatLab.Server.Controllers;
 // and 303-redirects to Stripe Checkout — no JS required, identical to the
 // existing JSON path at /api/public/farms/{slug}/goats/{id}/reserve.
 [AllowAnonymous]
+[RequiresSaas]
 public class PublicFarmPagesController : Controller
 {
     private readonly GoatLabDbContext _db;

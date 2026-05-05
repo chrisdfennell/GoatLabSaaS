@@ -60,7 +60,10 @@
                          Style="margin-left:8px;height:18px;font-size:0.7rem;">@_unreadInquiries</MudChip>
             }
         </MudNavLink>
-        <MudNavLink Href="/billing" Icon="@Icons.Material.Filled.CreditCard">Billing</MudNavLink>
+        @if (_isSaas)
+        {
+            <MudNavLink Href="/billing" Icon="@Icons.Material.Filled.CreditCard">Billing</MudNavLink>
+        }
         <MudNavLink Href="/farm-settings" Icon="@Icons.Material.Filled.Agriculture">Farm settings</MudNavLink>
         <MudNavLink Href="/team" Icon="@Icons.Material.Filled.Group">Team</MudNavLink>
         <MudNavLink Href="/account/two-factor" Icon="@Icons.Material.Filled.Security">Security</MudNavLink>
@@ -78,7 +81,10 @@
         <MudNavLink Href="/admin" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Shield">Console</MudNavLink>
         <MudNavLink Href="/admin/tenants" Icon="@Icons.Material.Filled.Business">Tenants</MudNavLink>
         <MudNavLink Href="/admin/users" Icon="@Icons.Material.Filled.Person">Users</MudNavLink>
-        <MudNavLink Href="/admin/plans" Icon="@Icons.Material.Filled.Tune">Plans</MudNavLink>
+        @if (_isSaas)
+        {
+            <MudNavLink Href="/admin/plans" Icon="@Icons.Material.Filled.Tune">Plans</MudNavLink>
+        }
         <MudNavLink Href="/admin/announcements" Icon="@Icons.Material.Filled.Campaign">Announcements</MudNavLink>
         <MudNavLink Href="/admin/search" Icon="@Icons.Material.Filled.Search">Cross-tenant search</MudNavLink>
         <MudNavLink Href="/admin/email-log" Icon="@Icons.Material.Filled.Email">Email log</MudNavLink>
@@ -92,6 +98,7 @@
 @code {
     private HashSet<string> _enabledFeatures = new(StringComparer.OrdinalIgnoreCase);
     private bool _isSuperAdmin;
+    private bool _isSaas = true;
     private int _unreadInquiries;
 
     protected override async Task OnInitializedAsync()
@@ -119,6 +126,7 @@
     private void ApplyUser(GoatLab.Shared.DTOs.CurrentUserDto? user)
     {
         _isSuperAdmin = user?.IsSuperAdmin ?? false;
+        _isSaas = user?.IsSaas ?? true;
         _enabledFeatures = new HashSet<string>(
             user?.EnabledFeatures ?? Array.Empty<string>(),
             StringComparer.OrdinalIgnoreCase);

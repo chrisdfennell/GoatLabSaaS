@@ -1,3 +1,4 @@
+using GoatLab.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,6 +8,7 @@ namespace GoatLab.Server.Controllers;
 // localStorage under the key `goatlab.favorites` (set from the heart button
 // on /pub/{slug}/{goatId}). This controller just renders the shell.
 [AllowAnonymous]
+[RequiresSaas]
 public class ComparePagesController : Controller
 {
     [HttpGet("/compare")]

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using GoatLab.Server.Data;
 using GoatLab.Server.Filters;
+using GoatLab.Server.Services;
 using GoatLab.Server.Services.Email;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Authentication;
@@ -26,6 +27,7 @@ namespace GoatLab.Server.Controllers;
 // reCAPTCHA on /start so the magic-link mailer isn't an open relay for
 // abuse; verify endpoint relies on token entropy + 30-min expiry.
 [AllowAnonymous]
+[RequiresSaas]
 public class BuyerAuthController : Controller
 {
     private readonly GoatLabDbContext _db;

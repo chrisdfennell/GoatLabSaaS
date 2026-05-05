@@ -10,20 +10,30 @@ public class FeatureGate : IFeatureGate
 {
     private readonly GoatLabDbContext _db;
     private readonly ITenantContext _tenantContext;
+    private readonly IAppMode _appMode;
 
     private Plan? _cachedPlan;
     private bool _cached;
 
-    public FeatureGate(GoatLabDbContext db, ITenantContext tenantContext)
+    public FeatureGate(GoatLabDbContext db, ITenantContext tenantContext, IAppMode appMode)
     {
         _db = db;
         _tenantContext = tenantContext;
+        _appMode = appMode;
     }
 
     public async Task<Plan?> GetCurrentPlanAsync(CancellationToken cancellationToken = default)
     {
         if (_cached) return _cachedPlan;
         _cached = true;
+
+        // Self-host: synthesise an "all features, no caps" plan so callers
+        // that read plan.MaxUsers / plan.MaxGoats see "unlimited" (null) and
+        // every feature is on. Avoids needing to seed real Plan rows for OSS.
+        if (_appMode.IsOss)
+        {
+            return _cachedPlan = SelfHostPlan;
+        }
 
         if (_tenantContext.TenantId is not int tenantId)
             return _cachedPlan = null;
@@ -39,8 +49,27 @@ public class FeatureGate : IFeatureGate
         finally { _tenantContext.BypassFilter = false; }
     }
 
+    private static readonly Plan SelfHostPlan = new()
+    {
+        Id = 0,
+        Name = "Self-hosted",
+        Slug = "self-hosted",
+        IsActive = true,
+        IsPublic = false,
+        PriceMonthlyCents = 0,
+        TrialDays = 0,
+        MaxGoats = null,
+        MaxUsers = null,
+        MaxPublicListings = null,
+        MaxPhotosPerGoat = null,
+        Features = Enum.GetValues<AppFeature>()
+            .Select(f => new PlanFeature { Feature = f, Enabled = true })
+            .ToList(),
+    };
+
     public async Task<bool> IsEnabledAsync(AppFeature feature, CancellationToken cancellationToken = default)
     {
+        if (_appMode.IsOss) return true;
         var plan = await GetCurrentPlanAsync(cancellationToken);
         if (plan is null) return false;
         return plan.Features.Any(f => f.Feature == feature && f.Enabled);

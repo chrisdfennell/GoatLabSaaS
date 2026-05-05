@@ -1,6 +1,7 @@
 using System.Text;
 using System.Xml;
 using GoatLab.Server.Data;
+using GoatLab.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +18,7 @@ namespace GoatLab.Server.Controllers;
 // are sorted by Goat.UpdatedAt descending — close enough to "newest first"
 // without adding a separate ListedAt column. Cap at 50 items per feed.
 [AllowAnonymous]
+[RequiresSaas]
 public class FeedsController : Controller
 {
     private readonly GoatLabDbContext _db;

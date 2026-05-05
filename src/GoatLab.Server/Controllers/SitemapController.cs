@@ -1,6 +1,7 @@
 using System.Text;
 using System.Xml;
 using GoatLab.Server.Data;
+using GoatLab.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,7 @@ namespace GoatLab.Server.Controllers;
 // removed so this controller is the single source of truth.
 [ApiController]
 [AllowAnonymous]
+[RequiresSaas]
 public class SitemapController : ControllerBase
 {
     private readonly GoatLabDbContext _db;

@@ -1,13 +1,18 @@
-# GoatLab SaaS
+# GoatLab
 
-The hosted, multi-tenant build of GoatLab — a goat-farm management platform
-for breeders, dairy operators, and homesteaders. Live at
-**[goatlab.app](https://goatlab.app)**.
+A multi-tenant goat-farm management platform for breeders, dairy operators,
+and homesteaders. Same codebase runs in two modes:
 
-> Looking for the open-source self-hosted variant? That lives at
-> [chrisdfennell/GoatLab](https://github.com/chrisdfennell/GoatLab). This
-> repo is the SaaS edition — Stripe billing, plan-based feature gating,
-> public farm pages, and the production deployment that runs `goatlab.app`.
+- **Hosted SaaS** — [goatlab.app](https://goatlab.app). Stripe billing,
+  plan-tier feature gating, cross-tenant marketplace, public farm pages,
+  buyer accounts.
+- **Self-host (OSS)** — `docker compose -f docker-compose.oss.yml up`.
+  No Stripe, no plan tiers, every feature unlocked, marketplace + buyer
+  flows hidden. First user to register becomes super-admin.
+
+The toggle is a single config flag: `Saas:Enabled` (default `true` in the
+hosted config, `false` in the OSS compose). See [Self-hosting](#self-hosting)
+below.
 
 ## Features
 
@@ -65,7 +70,8 @@ src/
 tests/
   GoatLab.Tests/    xUnit + SQLite in-memory test DB
 docker-compose.yml         Local dev (Mailpit, mkcert HTTPS, host port maps)
-docker-compose.prod.yml    Production (Caddy + LE certs, no host ports for db)
+docker-compose.prod.yml    Hosted SaaS (Caddy + LE certs, Stripe wired)
+docker-compose.oss.yml     Self-host (no Stripe / Sentry / Brevo required)
 .env.example               Local-dev environment template
 .env.prod.example          Production environment template
 ```
@@ -127,14 +133,41 @@ disaster recovery, set `BACKUP_OFFSITE_*` env vars to ship the `.bak` to an
 S3-compatible bucket (B2 / Wasabi / Spaces / S3) — last-success state shows
 on `/admin/health` and you can fire a manual run from there.
 
+## Self-hosting
+
+If you want to run GoatLab on your own server for one farm or a small group
+of homesteads, use the OSS compose:
+
+```bash
+git clone https://github.com/chrisdfennell/GoatLabSaaS
+cd GoatLabSaaS
+cp .env.example .env
+# Set SA_PASSWORD to something strong.
+
+docker compose -f docker-compose.oss.yml up -d --build
+# Open http://localhost:8090 — the first signup is your super-admin.
+```
+
+What you get versus the hosted SaaS:
+
+- Every feature unlocked for every tenant — no plan tiers, no upgrade
+  prompts, no `[RequiresFeature]` attributes blocking anything.
+- No Stripe / Brevo / Sentry required. The stack runs without any of them
+  configured.
+- Marketplace, buyer accounts, public farm pages, deposit checkout, the
+  cross-tenant search and feeds — all hidden / 404 in OSS mode (those
+  features only make sense for a hosted multi-farm platform).
+- Local SMTP optional; the in-app message inbox works without it.
+
+If you eventually run out into the kind of deploy that needs the
+marketplace, set `Saas__Enabled=true` and the SaaS surface comes back —
+you'll just need to wire Stripe and SMTP.
+
 ## Status
 
-Active development; production is taking real money. See `/changelog` on
-the live site for what shipped recently.
+Active development; the hosted build is taking real money at goatlab.app.
+See `/changelog` on the live site for what shipped recently.
 
 ## License
 
-This repository is source-available for transparency and contributions but is
-**not** licensed for commercial reuse. The open-source build at
-[chrisdfennell/GoatLab](https://github.com/chrisdfennell/GoatLab) is what you
-want if you're looking to self-host.
+TBD — pending decision on MIT vs AGPL before going public. See `LICENSE`.

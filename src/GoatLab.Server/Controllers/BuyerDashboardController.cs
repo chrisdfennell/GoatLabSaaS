@@ -12,6 +12,7 @@ namespace GoatLab.Server.Controllers;
 // require the "Buyer" cookie scheme; anonymous browsers get redirected to
 // /buyer/sign-in or 401'd by the cookie middleware in Program.cs.
 [Authorize(AuthenticationSchemes = "Buyer")]
+[RequiresSaas]
 public class BuyerDashboardController : Controller
 {
     private readonly GoatLabDbContext _db;

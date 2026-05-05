@@ -13,6 +13,7 @@ namespace GoatLab.Server.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[RequiresSaas]
 public class BillingController : ControllerBase
 {
     private readonly GoatLabDbContext _db;

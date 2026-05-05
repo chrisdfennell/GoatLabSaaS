@@ -86,6 +86,10 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<GoatLabDbContext>(options =>
     options.UseSqlServer(connectionString, sql => sql.EnableRetryOnFailure()));
 
+// Hosted SaaS vs self-hosted OSS distinction. Singleton because the value
+// is config-driven and never changes after startup.
+builder.Services.AddSingleton<IAppMode, AppMode>();
+
 // Tenant context — scoped per request, populated by TenantContextMiddleware
 // from the authenticated user's tenant_id claim.
 builder.Services.AddScoped<ITenantContext, TenantContext>();

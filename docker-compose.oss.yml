@@ -1,0 +1,104 @@
+# GoatLab — self-host (OSS) compose.
+#
+# This is the recommended starting point for running GoatLab on your own
+# server. Differs from docker-compose.yml in:
+#   - Saas__Enabled=false: hides /billing, /admin/plans, the cross-tenant
+#     marketplace, buyer accounts, and disables plan-tier feature gating
+#     (every feature is available to every tenant on this instance).
+#   - No Stripe / Sentry / Brevo wiring required — the stack runs without
+#     any third-party SaaS configured.
+#   - First user to register becomes super-admin automatically.
+#   - WebAuthn defaults aimed at localhost; override WEBAUTHN_RP_ID and
+#     WEBAUTHN_ORIGIN to your domain in .env when you front this with a
+#     reverse proxy.
+#
+# Quick start:
+#   1. cp .env.example .env
+#   2. set SA_PASSWORD to something strong
+#   3. docker compose -f docker-compose.oss.yml up -d --build
+#   4. open http://localhost:8090 — the first signup becomes super-admin.
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: goatlab-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${SA_PASSWORD:?SA_PASSWORD must be set in .env}"
+      MSSQL_PID: "Developer"
+    ports:
+      - "${SQL_PORT:-1433}:1433"
+    volumes:
+      - goatlab-mssql:/var/opt/mssql
+      - goatlab-backups:/var/opt/mssql/backup
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  goatlab:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: goatlab
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8090}:8080"
+    volumes:
+      - goatlab-media:/app/media
+      - goatlab-backups:/app/backups
+      - goatlab-dpkeys:/root/.aspnet/DataProtection-Keys
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: "http://+:8080"
+      ConnectionStrings__DefaultConnection: "Server=sqlserver,1433;Database=GoatLab;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;Encrypt=True;"
+
+      # === Self-host mode flag ===
+      # Disables billing, plan tiers, public marketplace, buyer accounts.
+      # Every feature is unlocked for every tenant on this instance.
+      Saas__Enabled: "false"
+
+      # === Optional integrations ===
+      # Leave blank to disable; nothing in the OSS path requires these.
+      GoogleMaps__ApiKey: "${GOOGLE_MAPS_API_KEY:-}"
+      Smtp__Host: "${SMTP_HOST:-}"
+      Smtp__Port: "${SMTP_PORT:-587}"
+      Smtp__Username: "${SMTP_USERNAME:-}"
+      Smtp__Password: "${SMTP_PASSWORD:-}"
+      Smtp__FromAddress: "${SMTP_FROM_ADDRESS:-}"
+      Smtp__FromName: "${SMTP_FROM_NAME:-GoatLab}"
+      Smtp__UseSsl: "${SMTP_USE_SSL:-true}"
+      Smtp__AllowInvalidCertificate: "${SMTP_ALLOW_INVALID_CERT:-false}"
+      Identity__RequireConfirmedEmail: "${IDENTITY_REQUIRE_CONFIRMED_EMAIL:-false}"
+      Push__VapidPublicKey: "${PUSH_VAPID_PUBLIC_KEY:-}"
+      Push__VapidPrivateKey: "${PUSH_VAPID_PRIVATE_KEY:-}"
+      Push__Subject: "${PUSH_SUBJECT:-mailto:admin@goatlab.local}"
+
+      # === WebAuthn / passkeys ===
+      # Default to localhost; override when fronted by a reverse proxy:
+      #   WEBAUTHN_RP_ID=goats.example.com
+      #   WEBAUTHN_ORIGIN=https://goats.example.com
+      WebAuthn__RpId: "${WEBAUTHN_RP_ID:-localhost}"
+      WebAuthn__Origins__0: "${WEBAUTHN_ORIGIN:-http://localhost:8090}"
+
+      # === Backups ===
+      Backup__AppPath: "/app/backups"
+      Backup__SqlServerPath: "/var/opt/mssql/backup"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  goatlab-mssql:
+  goatlab-media:
+  goatlab-backups:
+  goatlab-dpkeys:

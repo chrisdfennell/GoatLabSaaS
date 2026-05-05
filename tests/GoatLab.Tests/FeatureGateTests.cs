@@ -1,7 +1,14 @@
+using GoatLab.Server.Services;
 using GoatLab.Server.Services.Plans;
 using GoatLab.Shared.Models;
 
 namespace GoatLab.Tests;
+
+internal sealed class TestAppMode : IAppMode
+{
+    public TestAppMode(bool isSaas) { IsSaas = isSaas; }
+    public bool IsSaas { get; }
+}
 
 // FeatureGate is the linchpin of all plan enforcement. These tests pin down
 // the three jobs it does: lookup the plan, answer IsEnabled, and enforce caps.
@@ -14,7 +21,7 @@ public class FeatureGateTests
         db.SeedDefaultPlans();
         db.Tenant.TenantId = null;
 
-        var gate = new FeatureGate(db.Context, db.Tenant);
+        var gate = new FeatureGate(db.Context, db.Tenant, new TestAppMode(isSaas: true));
         Assert.Null(await gate.GetCurrentPlanAsync());
     }
 
@@ -27,7 +34,7 @@ public class FeatureGateTests
         db.Context.SaveChanges();
         db.Tenant.TenantId = 1;
 
-        var gate = new FeatureGate(db.Context, db.Tenant);
+        var gate = new FeatureGate(db.Context, db.Tenant, new TestAppMode(isSaas: true));
         var plan = await gate.GetCurrentPlanAsync();
 
         Assert.NotNull(plan);
@@ -44,7 +51,7 @@ public class FeatureGateTests
         db.Context.SaveChanges();
         db.Tenant.TenantId = 1;
 
-        var gate = new FeatureGate(db.Context, db.Tenant);
+        var gate = new FeatureGate(db.Context, db.Tenant, new TestAppMode(isSaas: true));
 
         Assert.True(await gate.IsEnabledAsync(AppFeature.Goats));
         Assert.True(await gate.IsEnabledAsync(AppFeature.Health));
@@ -66,7 +73,7 @@ public class FeatureGateTests
             db.Context.Goats.Add(new Goat { Name = $"G{i}", TenantId = 1 });
         db.Context.SaveChanges();
 
-        var gate = new FeatureGate(db.Context, db.Tenant);
+        var gate = new FeatureGate(db.Context, db.Tenant, new TestAppMode(isSaas: true));
         Assert.True(await gate.CanAddGoatAsync());
     }
 
@@ -83,7 +90,7 @@ public class FeatureGateTests
             db.Context.Goats.Add(new Goat { Name = $"G{i}", TenantId = 1 });
         db.Context.SaveChanges();
 
-        var gate = new FeatureGate(db.Context, db.Tenant);
+        var gate = new FeatureGate(db.Context, db.Tenant, new TestAppMode(isSaas: true));
         Assert.False(await gate.CanAddGoatAsync());
     }
 
@@ -100,7 +107,7 @@ public class FeatureGateTests
             db.Context.Goats.Add(new Goat { Name = $"G{i}", TenantId = 1 });
         db.Context.SaveChanges();
 
-        var gate = new FeatureGate(db.Context, db.Tenant);
+        var gate = new FeatureGate(db.Context, db.Tenant, new TestAppMode(isSaas: true));
         Assert.True(await gate.CanAddGoatAsync());
     }
 }

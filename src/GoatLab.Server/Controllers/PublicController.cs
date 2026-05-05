@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using GoatLab.Server.Data;
 using GoatLab.Server.Filters;
+using GoatLab.Server.Services;
 using GoatLab.Server.Services.Billing;
 using GoatLab.Server.Services.Email;
 using GoatLab.Shared.DTOs;
@@ -19,6 +20,7 @@ namespace GoatLab.Server.Controllers;
 [ApiController]
 [AllowAnonymous]
 [Route("api/public")]
+[RequiresSaas]
 public class PublicController : ControllerBase
 {
     private readonly GoatLabDbContext _db;

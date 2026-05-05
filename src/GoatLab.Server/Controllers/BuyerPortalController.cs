@@ -1,4 +1,5 @@
 using GoatLab.Server.Data;
+using GoatLab.Server.Services;
 using GoatLab.Server.Services.ApiKeys;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -17,6 +18,7 @@ namespace GoatLab.Server.Controllers;
 [ApiController]
 [AllowAnonymous]
 [Route("api/buyer")]
+[RequiresSaas]
 public class BuyerPortalController : ControllerBase
 {
     private readonly GoatLabDbContext _db;

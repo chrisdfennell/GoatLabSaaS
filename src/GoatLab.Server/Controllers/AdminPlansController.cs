@@ -11,6 +11,7 @@ namespace GoatLab.Server.Controllers;
 [ApiController]
 [Route("api/admin/plans")]
 [Authorize(Policy = SuperAdminPolicy.Name)]
+[RequiresSaas]
 public class AdminPlansController : ControllerBase
 {
     private readonly GoatLabDbContext _db;

@@ -11,6 +11,7 @@ namespace GoatLab.Server.Controllers;
 // Admin CRUD lives in AdminPlansController.
 [ApiController]
 [Route("api/plans")]
+[RequiresSaas]
 public class PlansController : ControllerBase
 {
     private readonly GoatLabDbContext _db;

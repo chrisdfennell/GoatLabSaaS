@@ -36,6 +36,7 @@ public class AccountController : ControllerBase
     private readonly IFido2 _fido2;
     private readonly IMemoryCache _cache;
     private readonly ILogger<AccountController> _logger;
+    private readonly IAppMode _appMode;
 
     public AccountController(
         UserManager<ApplicationUser> userManager,
@@ -46,7 +47,8 @@ public class AccountController : ControllerBase
         IOptions<IdentityOptions> identityOptions,
         IFido2 fido2,
         IMemoryCache cache,
-        ILogger<AccountController> logger)
+        ILogger<AccountController> logger,
+        IAppMode appMode)
     {
         _userManager = userManager;
         _signInManager = signInManager;
@@ -57,6 +59,7 @@ public class AccountController : ControllerBase
         _fido2 = fido2;
         _cache = cache;
         _logger = logger;
+        _appMode = appMode;
     }
 
     private bool RequiresConfirmedEmail => _identityOptions.SignIn.RequireConfirmedEmail;
@@ -102,6 +105,14 @@ public class AccountController : ControllerBase
             Email = req.Email,
             DisplayName = req.DisplayName,
         };
+
+        // Self-host: the very first signup becomes super-admin so the operator
+        // can manage their own deployment without manual DB tinkering. After
+        // that this branch is a no-op and subsequent signups are normal users.
+        if (_appMode.IsOss && !await _userManager.Users.AnyAsync())
+        {
+            user.IsSuperAdmin = true;
+        }
 
         var createResult = await _userManager.CreateAsync(user, req.Password);
         if (!createResult.Succeeded)
@@ -560,10 +571,15 @@ public class AccountController : ControllerBase
         if (int.TryParse(claim, out var tid)) currentTenantId = tid;
 
         // Enabled features + billing snapshot in one tenant load. Empty when no
-        // tenant is selected.
+        // tenant is selected. In self-host mode plan tiers don't apply, so
+        // every feature is on and there is no billing snapshot to surface.
         List<string> enabledFeatures = new();
         BillingSnapshotDto? billing = null;
-        if (currentTenantId is int tenantId)
+        if (_appMode.IsOss)
+        {
+            enabledFeatures = Enum.GetNames<AppFeature>().ToList();
+        }
+        else if (currentTenantId is int tenantId)
         {
             var tenant = await _db.Tenants
                 .Include(t => t.Plan).ThenInclude(p => p!.Features)
@@ -591,7 +607,8 @@ public class AccountController : ControllerBase
             memberships,
             user.IsSuperAdmin,
             enabledFeatures,
-            billing);
+            billing,
+            _appMode.IsSaas);
     }
 
     private static IEnumerable<Claim> BuildClaims(ApplicationUser user, int? tenantId)

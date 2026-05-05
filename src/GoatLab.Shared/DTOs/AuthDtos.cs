@@ -39,7 +39,10 @@ public record CurrentUserDto(
     IReadOnlyList<string>? EnabledFeatures = null,
     // Current tenant's billing snapshot — lets the UI render trial countdowns
     // and past-due banners without a second request.
-    BillingSnapshotDto? Billing = null
+    BillingSnapshotDto? Billing = null,
+    // True for the hosted SaaS deploy (goatlab.app). False for self-hosted
+    // OSS — clients hide /billing, /admin/plans, marketplace nav, etc.
+    bool IsSaas = true
 );
 
 public record BillingSnapshotDto(

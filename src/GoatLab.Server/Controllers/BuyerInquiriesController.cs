@@ -25,6 +25,7 @@ namespace GoatLab.Server.Controllers;
 // reCAPTCHA covers the public POST surface; the rest is gated by cookie auth +
 // the standard ITenantOwned global filter.
 [ApiController]
+[RequiresSaas]
 public class BuyerInquiriesController : ControllerBase
 {
     private readonly GoatLabDbContext _db;

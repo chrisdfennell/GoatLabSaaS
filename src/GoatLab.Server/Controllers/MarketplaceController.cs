@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using GoatLab.Server.Data;
+using GoatLab.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,7 @@ namespace GoatLab.Server.Controllers;
 // breed X" constraint, so this is the page to send buyers to when they want
 // to browse everything.
 [AllowAnonymous]
+[RequiresSaas]
 public class MarketplaceController : Controller
 {
     private readonly GoatLabDbContext _db;

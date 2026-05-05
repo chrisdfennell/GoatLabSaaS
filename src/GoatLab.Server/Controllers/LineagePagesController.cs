@@ -1,6 +1,7 @@
 using GoatLab.Server.Data;
 using GoatLab.Server.Services;
 using GoatLab.Shared.Models;
+using GoatLab.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,7 @@ namespace GoatLab.Server.Controllers;
 // on a public-profile, non-deleted, non-suspended tenant. Private homestead
 // data never leaks; reg numbers shown without a link are read-only attribution.
 [AllowAnonymous]
+[RequiresSaas]
 public class LineagePagesController : Controller
 {
     private readonly GoatLabDbContext _db;

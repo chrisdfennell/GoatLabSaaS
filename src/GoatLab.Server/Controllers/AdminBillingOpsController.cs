@@ -12,6 +12,7 @@ namespace GoatLab.Server.Controllers;
 [ApiController]
 [Route("api/admin/billing")]
 [Authorize(Policy = SuperAdminPolicy.Name)]
+[RequiresSaas]
 public class AdminBillingOpsController : ControllerBase
 {
     private readonly IBillingService _billing;

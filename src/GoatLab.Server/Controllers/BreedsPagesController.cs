@@ -1,4 +1,5 @@
 using GoatLab.Server.Data;
+using GoatLab.Server.Services;
 using GoatLab.Shared.DTOs;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,6 +15,7 @@ namespace GoatLab.Server.Controllers;
 // Routes are explicit via [HttpGet] attributes, which match in the MVC endpoint
 // pipeline before MapFallbackToFile punts unmatched paths to the Blazor index.
 [AllowAnonymous]
+[RequiresSaas]
 public class BreedsPagesController : Controller
 {
     private readonly GoatLabDbContext _db;
