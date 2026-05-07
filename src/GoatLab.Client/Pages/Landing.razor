@@ -521,8 +521,9 @@
             <p>
                 Prefer to keep your farm data off the cloud? GoatLab ships as a single Docker container.
                 Deploy it on a Raspberry Pi in the barn, a NAS in the office, or a VPS — whatever you
-                already have. One <code>docker compose up</code> and the whole app is running locally,
-                with its own SQL Server database and media volume.
+                already have. Pull the prebuilt image from Docker Hub or clone the repo and build it
+                yourself — either way, one <code>docker compose up</code> and the whole app is running
+                locally with its own SQL Server database and media volume.
             </p>
             <ul class="self-host-list">
                 <li><MudIcon Icon="@Icons.Material.Filled.Check" /> Same app you see here — no feature lock-out</li>
@@ -544,25 +545,65 @@
             </div>
         </div>
 
-        <div class="self-host-terminal" aria-hidden="true">
+        <div class="self-host-terminal">
             <div class="term-topbar">
                 <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
                 <span class="term-title">~/goatlab</span>
             </div>
-            <pre class="term-body"><span class="t-muted"># clone and launch</span>
+            <div class="term-tabs" role="tablist">
+                <button type="button"
+                        class="@(_terminalTab == "hub" ? "term-tab active" : "term-tab")"
+                        role="tab"
+                        aria-selected="@(_terminalTab == "hub")"
+                        @onclick="@(() => _terminalTab = "hub")">
+                    Docker Hub
+                </button>
+                <button type="button"
+                        class="@(_terminalTab == "source" ? "term-tab active" : "term-tab")"
+                        role="tab"
+                        aria-selected="@(_terminalTab == "source")"
+                        @onclick="@(() => _terminalTab = "source")">
+                    From source
+                </button>
+            </div>
+            @if (_terminalTab == "hub")
+            {
+                <pre class="term-body"><span class="t-muted"># Pull the prebuilt image from Docker Hub</span>
 <span class="t-prompt">$</span> git clone https://github.com/chrisdfennell/GoatLabSaaS.git
 <span class="t-prompt">$</span> cd GoatLabSaaS
-<span class="t-prompt">$</span> cp .env.example .env
+<span class="t-prompt">$</span> cp .env.example .env  <span class="t-muted"># set SA_PASSWORD</span>
 <span class="t-prompt">$</span> docker compose -f docker-compose.oss.yml up -d
 <span class="t-muted">
+[+] Pulling fennch/goatlab:latest (multi-arch)
 [+] Running 3/3
- ✔ Network  goatlab_default       Created
  ✔ Container goatlab-sqlserver    Healthy
  ✔ Container goatlab              Started</span>
 
 <span class="t-prompt">$</span> open http://localhost:8090
 <span class="t-ok">  GoatLab is up. Start logging goats.</span>
 </pre>
+            }
+            else
+            {
+                <pre class="term-body"><span class="t-muted"># Clone the repo and build the image locally</span>
+<span class="t-prompt">$</span> git clone https://github.com/chrisdfennell/GoatLabSaaS.git
+<span class="t-prompt">$</span> cd GoatLabSaaS
+<span class="t-prompt">$</span> cp .env.example .env  <span class="t-muted"># set SA_PASSWORD</span>
+<span class="t-muted"># In docker-compose.oss.yml, replace:
+#   image: fennch/goatlab:latest
+# with:
+#   build: .</span>
+<span class="t-prompt">$</span> docker compose -f docker-compose.oss.yml up -d --build
+<span class="t-muted">
+[+] Building goatlab (.NET 10 + Blazor WASM)
+[+] Running 3/3
+ ✔ Container goatlab-sqlserver    Healthy
+ ✔ Container goatlab              Started</span>
+
+<span class="t-prompt">$</span> open http://localhost:8090
+<span class="t-ok">  GoatLab is up. Start logging goats.</span>
+</pre>
+            }
         </div>
     </div>
 </section>
@@ -1111,6 +1152,22 @@
         margin-left:14px; font-size:12px; color:rgba(255,255,255,0.55);
         font-family: ui-monospace, Menlo, monospace;
     }
+    .term-tabs {
+        display:flex; gap:4px; padding:8px 12px 0;
+        background:#0a1510; border-bottom:1px solid rgba(255,255,255,0.06);
+    }
+    .term-tab {
+        appearance:none; border:0; cursor:pointer;
+        background:transparent; color:rgba(255,255,255,0.55);
+        font: 600 12px/1 ui-monospace, Menlo, monospace;
+        padding:8px 14px; border-radius:6px 6px 0 0;
+        transition: background 0.15s ease, color 0.15s ease;
+    }
+    .term-tab:hover { color:#d4e5d8; background:rgba(255,255,255,0.04); }
+    .term-tab.active {
+        color:#a5d6a7; background:#0a1510;
+        box-shadow: inset 0 -2px 0 #66bb6a;
+    }
     .term-body {
         margin:0; padding:18px 20px; background:#0a1510;
         color:#d4e5d8; font-family: ui-monospace, Menlo, monospace;
@@ -1184,6 +1241,8 @@
     // docker-compose.oss.yml gives a self-host build with no Stripe / no
     // marketplace; the same image runs at goatlab.app with Saas:Enabled=true.
     private const string RepoUrl = "https://github.com/chrisdfennell/GoatLabSaaS";
+
+    private string _terminalTab = "hub";
 
     private List<BillingService.PublicPlan>? _plans;
     private List<RecentListing>? _recentListings;
