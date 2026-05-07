@@ -27,7 +27,6 @@ media/
 # Docs / misc
 *.md
 LICENSE
-run.bat
 scripts/
 Dockerfile
 docker-compose*.yml
