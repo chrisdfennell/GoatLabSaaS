@@ -14,10 +14,13 @@ You need Docker and about five minutes. GoatLab uses SQL Server 2022 as its
 database, but you don't have to install anything separately — the included
 compose file brings up both the app and the database together.
 
+Grab the two files you need (compose definition + env template) into an
+empty directory:
+
 ```bash
-git clone https://github.com/chrisdfennell/GoatLabSaaS
-cd GoatLabSaaS
-cp .env.example .env
+mkdir goatlab && cd goatlab
+curl -O https://raw.githubusercontent.com/chrisdfennell/GoatLabSaaS/main/docker-compose.oss.yml
+curl -o .env https://raw.githubusercontent.com/chrisdfennell/GoatLabSaaS/main/.env.example
 ```
 
 Open `.env` and pick a strong `SA_PASSWORD` — at least 8 characters with
@@ -33,7 +36,9 @@ docker compose -f docker-compose.oss.yml up -d
 Open http://localhost:8090. The first email you register with becomes the
 super-admin for the whole instance, so make sure it's yours.
 
-That's it — you're running.
+That's it — you're running. No need to clone the source repository unless
+you want to read or modify the code (see
+https://github.com/chrisdfennell/GoatLabSaaS for that).
 
 ## Picking a version
 

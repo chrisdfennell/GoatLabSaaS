@@ -142,13 +142,14 @@ running on `http://localhost:8090`; the first signup becomes super-admin.
 
 The published image at [`fennch/goatlab`](https://hub.docker.com/r/fennch/goatlab)
 is multi-arch (amd64 + arm64), so it runs on a regular x86 box, a Raspberry
-Pi, or an arm64 NAS without you having to build anything.
+Pi, or an arm64 NAS without you having to build anything. You don't need
+the source tree on disk for this — just two small files:
 
 ```bash
-git clone https://github.com/chrisdfennell/GoatLabSaaS
-cd GoatLabSaaS
-cp .env.example .env
-# Set SA_PASSWORD to something strong.
+mkdir goatlab && cd goatlab
+curl -O https://raw.githubusercontent.com/chrisdfennell/GoatLabSaaS/main/docker-compose.oss.yml
+curl -o .env https://raw.githubusercontent.com/chrisdfennell/GoatLabSaaS/main/.env.example
+# Set SA_PASSWORD in .env to something strong.
 
 docker compose -f docker-compose.oss.yml up -d
 ```
@@ -156,13 +157,18 @@ docker compose -f docker-compose.oss.yml up -d
 `docker-compose.oss.yml` references `fennch/goatlab:latest` by default. Pin
 a specific release by setting `GOATLAB_IMAGE_TAG=1.0.0` in `.env`.
 
-### Option B — build from source
+### Option B — clone and build from source
 
-If you want to read or modify the code before running it, swap the `image:`
-line on the `goatlab` service in `docker-compose.oss.yml` for `build: .`,
-then:
+If you want to read or modify the code before running it, clone the repo
+and swap the `image:` line on the `goatlab` service in
+`docker-compose.oss.yml` for `build: .`, then:
 
 ```bash
+git clone https://github.com/chrisdfennell/GoatLabSaaS
+cd GoatLabSaaS
+cp .env.example .env
+# Set SA_PASSWORD in .env to something strong.
+
 docker compose -f docker-compose.oss.yml up -d --build
 ```
 

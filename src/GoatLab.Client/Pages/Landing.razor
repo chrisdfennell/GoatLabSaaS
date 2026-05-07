@@ -568,10 +568,11 @@
             </div>
             @if (_terminalTab == "hub")
             {
-                <pre class="term-body"><span class="t-muted"># Pull the prebuilt image from Docker Hub</span>
-<span class="t-prompt">$</span> git clone https://github.com/chrisdfennell/GoatLabSaaS.git
-<span class="t-prompt">$</span> cd GoatLabSaaS
-<span class="t-prompt">$</span> cp .env.example .env  <span class="t-muted"># set SA_PASSWORD</span>
+                <pre class="term-body"><span class="t-muted"># Pull the prebuilt image from Docker Hub — no source tree needed</span>
+<span class="t-prompt">$</span> mkdir goatlab && cd goatlab
+<span class="t-prompt">$</span> curl -O https://raw.githubusercontent.com/chrisdfennell/GoatLabSaaS/main/docker-compose.oss.yml
+<span class="t-prompt">$</span> curl -o .env https://raw.githubusercontent.com/chrisdfennell/GoatLabSaaS/main/.env.example
+<span class="t-muted"># edit .env, set SA_PASSWORD</span>
 <span class="t-prompt">$</span> docker compose -f docker-compose.oss.yml up -d
 <span class="t-muted">
 [+] Pulling fennch/goatlab:latest (multi-arch)
