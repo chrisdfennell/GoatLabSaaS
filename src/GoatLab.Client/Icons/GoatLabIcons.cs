@@ -2,6 +2,11 @@ namespace GoatLab.Client.Icons;
 
 public static class GoatLabIcons
 {
+    // Stylized goat-head silhouette for the navbar / page-header brand mark.
+    // Designed for a 24x24 MudIcon viewBox so it reads at favicon-ish sizes.
+    // Single fill (uses currentColor / Style on the MudIcon) — keep it that way.
+    // Const name kept as "Hoof" to avoid touching 17 call sites; the path itself
+    // is now a goat head (horns + ears + chin), not hooves.
     public const string Hoof =
-        "<path d=\"M8 5C6.3 5 5 8.1 5 12C5 15.9 6.3 19 8 19C9.7 19 11 15.9 11 12C11 8.1 9.7 5 8 5M16 5C14.3 5 13 8.1 13 12C13 15.9 14.3 19 16 19C17.7 19 19 15.9 19 12C19 8.1 17.7 5 16 5Z\"/>";
+        "<path d=\"M 6 7 L 4 3 L 8 5 L 12 3 L 16 5 L 20 3 L 18 7 L 21 10 L 17 11 L 18 16 L 12 22 L 6 16 L 7 11 L 3 10 Z\"/>";
 }
