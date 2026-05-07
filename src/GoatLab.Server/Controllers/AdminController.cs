@@ -324,8 +324,12 @@ public class AdminController : ControllerBase
             {
                 try
                 {
+                    // table comes from EF model metadata (GetTableName above), not user input — safe to interpolate.
+                    // id is parameterized via {0}. Suppressing EF1002 because table names can't be SQL parameters.
+#pragma warning disable EF1002
                     await _db.Database.ExecuteSqlRawAsync(
                         $"DELETE FROM [{table}] WHERE TenantId = {{0}}", new object[] { id });
+#pragma warning restore EF1002
                     lastErrors.Remove(table);
                 }
                 catch (Exception ex)

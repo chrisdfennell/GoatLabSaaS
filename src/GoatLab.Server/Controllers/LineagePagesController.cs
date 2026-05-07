@@ -1,7 +1,6 @@
 using GoatLab.Server.Data;
 using GoatLab.Server.Services;
 using GoatLab.Shared.Models;
-using GoatLab.Server.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

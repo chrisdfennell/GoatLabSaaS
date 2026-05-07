@@ -207,6 +207,7 @@ else
 
     private async Task OpenDecline()
     {
+        if (preview is null) return;
         busy = true;
         try
         {

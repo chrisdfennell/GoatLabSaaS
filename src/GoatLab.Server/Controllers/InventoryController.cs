@@ -220,7 +220,7 @@ public class InventoryController : ControllerBase
     {
         return await _db.MedicineCabinetItems
             .Include(m => m.Medication)
-            .OrderBy(m => m.Medication.Name)
+            .OrderBy(m => m.Medication!.Name)
             .ToListAsync();
     }
 
@@ -276,7 +276,7 @@ public class InventoryController : ControllerBase
             {
                 kind = "medicine",
                 id = m.Id,
-                name = m.Medication.Name,
+                name = m.Medication!.Name,
                 quantity = m.Quantity,
                 unit = m.Unit,
                 lotNumber = m.LotNumber,

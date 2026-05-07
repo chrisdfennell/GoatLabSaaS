@@ -31,7 +31,7 @@ public class ForecastService
                         && b.Outcome != BreedingOutcome.Failed
                         && b.Outcome != BreedingOutcome.Aborted)
             .Where(b => !b.KiddingRecords.Any())
-            .Select(b => new { b.Id, b.DoeId, DoeName = b.Doe.Name, Due = b.EstimatedDueDate!.Value })
+            .Select(b => new { b.Id, b.DoeId, DoeName = b.Doe!.Name, Due = b.EstimatedDueDate!.Value })
             .OrderBy(b => b.Due)
             .ToListAsync(ct);
 

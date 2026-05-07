@@ -53,9 +53,9 @@ public class MateRecommendationService
         // Reproductive history (all-time, not windowed — we're scoring lifetime performance).
         // KiddingRecord → BreedingRecord.BuckId (nullable, so filter first).
         var kiddingAgg = await _db.KiddingRecords
-            .Where(k => k.BreedingRecord.BuckId != null
+            .Where(k => k.BreedingRecord!.BuckId != null
                         && buckIds.Contains(k.BreedingRecord.BuckId!.Value))
-            .GroupBy(k => k.BreedingRecord.BuckId!.Value)
+            .GroupBy(k => k.BreedingRecord!.BuckId!.Value)
             .Select(g => new
             {
                 BuckId = g.Key,

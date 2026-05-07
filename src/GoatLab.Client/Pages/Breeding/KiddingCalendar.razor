@@ -98,7 +98,7 @@ else
                             <div class="kc-date-small">@(b.EstimatedDueDate?.ToString("yyyy") ?? "")</div>
                         </div>
                         <div class="kc-doe">
-                            <div class="kc-doe-name">@b.Doe.Name</div>
+                            <div class="kc-doe-name">@b.Doe!.Name</div>
                             <div class="kc-doe-meta">
                                 Bred @b.BreedingDate.ToString("MMM d, yyyy")
                                 @if (b.Buck != null) { <span> · by @b.Buck.Name</span> }
@@ -253,7 +253,7 @@ else
     {
         var parameters = new DialogParameters { ["Breeding"] = b };
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        var dlg = await Dialog.ShowAsync<RecordKiddingDialog>($"Record kidding for {b.Doe.Name}", parameters, options);
+        var dlg = await Dialog.ShowAsync<RecordKiddingDialog>($"Record kidding for {b.Doe!.Name}", parameters, options);
         var result = await dlg.Result;
         if (result != null && !result.Canceled) await Load();
     }
@@ -264,7 +264,7 @@ else
         if (full == null) return;
         var parameters = new DialogParameters { ["Breeding"] = full.BreedingRecord, ["Existing"] = full };
         var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Medium, FullWidth = true };
-        var dlg = await Dialog.ShowAsync<RecordKiddingDialog>($"Kidding — {full.BreedingRecord.Doe.Name}", parameters, options);
+        var dlg = await Dialog.ShowAsync<RecordKiddingDialog>($"Kidding — {full.BreedingRecord!.Doe!.Name}", parameters, options);
         var result = await dlg.Result;
         if (result != null && !result.Canceled) await Load();
     }

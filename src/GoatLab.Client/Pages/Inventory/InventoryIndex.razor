@@ -192,7 +192,7 @@
                                 <MudIcon Icon="@Icons.Material.Filled.Vaccines" />
                             </div>
                             <div class="record-card-body">
-                                <div class="record-card-primary">@m.Medication.Name</div>
+                                <div class="record-card-primary">@m.Medication!.Name</div>
                                 <div class="record-card-secondary">
                                     @m.Quantity @m.Unit on hand
                                     @if (!string.IsNullOrEmpty(m.LotNumber)) { <span> · Lot @m.LotNumber</span> }

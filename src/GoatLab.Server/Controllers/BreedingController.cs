@@ -104,8 +104,8 @@ public class BreedingController : ControllerBase
     public async Task<ActionResult<KiddingRecord>> GetKiddingRecord(int id)
     {
         var kr = await _db.KiddingRecords
-            .Include(k => k.BreedingRecord).ThenInclude(b => b.Doe)
-            .Include(k => k.BreedingRecord).ThenInclude(b => b.Buck)
+            .Include(k => k.BreedingRecord).ThenInclude(b => b!.Doe)
+            .Include(k => k.BreedingRecord).ThenInclude(b => b!.Buck)
             .Include(k => k.Kids).ThenInclude(kid => kid.LinkedGoat)
             .FirstOrDefaultAsync(k => k.Id == id);
         return kr is null ? NotFound() : kr;
@@ -230,12 +230,12 @@ public class BreedingController : ControllerBase
     public async Task<ActionResult<Goat>> PromoteKid(int id)
     {
         var kid = await _db.Kids
-            .Include(k => k.KiddingRecord).ThenInclude(kr => kr.BreedingRecord)
+            .Include(k => k.KiddingRecord).ThenInclude(kr => kr!.BreedingRecord)
             .FirstOrDefaultAsync(k => k.Id == id);
         if (kid is null) return NotFound();
         if (kid.LinkedGoatId != null) return Conflict("Kid is already linked to a goat.");
 
-        var breeding = kid.KiddingRecord.BreedingRecord;
+        var breeding = kid.KiddingRecord!.BreedingRecord!;
         var goat = new Goat
         {
             Name = string.IsNullOrWhiteSpace(kid.Name) ? $"Kid {DateTime.UtcNow:yyyyMMdd-HHmm}" : kid.Name!,
@@ -318,7 +318,7 @@ public class BreedingController : ControllerBase
             .ToListAsync();
 
         var recentBirths = await _db.KiddingRecords
-            .Include(k => k.BreedingRecord).ThenInclude(b => b.Doe)
+            .Include(k => k.BreedingRecord).ThenInclude(b => b!.Doe)
             .Where(k => k.KiddingDate >= DateTime.UtcNow.AddDays(-30))
             .OrderByDescending(k => k.KiddingDate)
             .ToListAsync();

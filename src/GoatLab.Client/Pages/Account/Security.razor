@@ -165,7 +165,6 @@
 
     private async Task DisableTotpDialogAsync()
     {
-        var code = "";
         var result = await DialogService.ShowMessageBox("Disable 2FA?",
             "Enter a current authenticator code to confirm:",
             yesText: "Disable", cancelText: "Cancel");

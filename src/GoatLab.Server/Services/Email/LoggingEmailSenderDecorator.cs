@@ -40,7 +40,7 @@ public class LoggingEmailSenderDecorator : IAppEmailSender
             ToAddress = toAddress,
             Subject = string.IsNullOrEmpty(subject) ? null : (subject.Length > 300 ? subject[..300] : subject),
             Sender = _inner.GetType().Name,
-            BodyBytes = (htmlBody?.Length ?? 0) + (plainTextBody?.Length ?? 0),
+            BodyBytes = htmlBody.Length + (plainTextBody?.Length ?? 0),
             Status = "sent",
         };
 

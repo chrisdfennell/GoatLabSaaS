@@ -380,8 +380,8 @@ public class ReportsService
             ? new Dictionary<int, (int Count, int Born, int Alive)>()
             : (await _db.KiddingRecords.AsNoTracking()
                 .Where(k => k.KiddingDate >= start && k.KiddingDate < end
-                            && damIds.Contains(k.BreedingRecord.DoeId))
-                .Select(k => new { DoeId = k.BreedingRecord.DoeId, k.KidsBorn, k.KidsAlive })
+                            && damIds.Contains(k.BreedingRecord!.DoeId))
+                .Select(k => new { DoeId = k.BreedingRecord!.DoeId, k.KidsBorn, k.KidsAlive })
                 .ToListAsync(ct))
                 .GroupBy(k => k.DoeId)
                 .ToDictionary(

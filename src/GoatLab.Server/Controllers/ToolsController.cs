@@ -385,7 +385,7 @@ public class ToolsController : ControllerBase
         var logs = await query.OrderByDescending(m => m.Date).ToListAsync();
         var csv = ToCsv(logs.Select(l => new
         {
-            l.Id, GoatName = l.Goat.Name, Date = l.Date.ToString("yyyy-MM-dd"), AmountLbs = l.Amount, l.Notes
+            l.Id, GoatName = l.Goat!.Name, Date = l.Date.ToString("yyyy-MM-dd"), AmountLbs = l.Amount, l.Notes
         }));
         return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", "milk-logs.csv");
     }
@@ -396,7 +396,7 @@ public class ToolsController : ControllerBase
         var records = await _db.MedicalRecords.Include(r => r.Goat).Include(r => r.Medication).ToListAsync();
         var csv = ToCsv(records.Select(r => new
         {
-            r.Id, GoatName = r.Goat.Name, Type = r.RecordType.ToString(), r.Title,
+            r.Id, GoatName = r.Goat!.Name, Type = r.RecordType.ToString(), r.Title,
             Date = r.Date.ToString("yyyy-MM-dd"), Medication = r.Medication?.Name, r.Dosage, r.Notes
         }));
         return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", "medical-records.csv");
@@ -428,11 +428,11 @@ public class ToolsController : ControllerBase
             .ToListAsync();
 
         var recentMedical = await _db.MedicalRecords.Include(r => r.Goat).OrderByDescending(r => r.CreatedAt).Take(5)
-            .Select(r => new { type = "medical", date = r.CreatedAt, description = $"{r.RecordType}: {r.Goat.Name} — {r.Title}" })
+            .Select(r => new { type = "medical", date = r.CreatedAt, description = $"{r.RecordType}: {r.Goat!.Name} — {r.Title}" })
             .ToListAsync();
 
         var recentMilk = await _db.MilkLogs.Include(m => m.Goat).OrderByDescending(m => m.CreatedAt).Take(5)
-            .Select(m => new { type = "milk", date = m.CreatedAt, description = $"Milk log: {m.Goat.Name} — {m.Amount} lbs" })
+            .Select(m => new { type = "milk", date = m.CreatedAt, description = $"Milk log: {m.Goat!.Name} — {m.Amount} lbs" })
             .ToListAsync();
 
         var recentSales = await _db.Sales.Include(s => s.Customer).OrderByDescending(s => s.CreatedAt).Take(5)

@@ -283,7 +283,7 @@ public class HealthController : ControllerBase
     {
         return await _db.MedicineCabinetItems
             .Include(c => c.Medication)
-            .OrderBy(c => c.Medication.Name)
+            .OrderBy(c => c.Medication!.Name)
             .ToListAsync();
     }
 
@@ -479,7 +479,7 @@ public class HealthController : ControllerBase
             .Where(r => r.NextDueDate != null && r.NextDueDate <= now)
             .OrderBy(r => r.NextDueDate)
             .Select(r => new {
-                r.Id, r.Title, r.GoatId, goatName = r.Goat.Name, dueDate = r.NextDueDate,
+                r.Id, r.Title, r.GoatId, goatName = r.Goat!.Name, dueDate = r.NextDueDate,
                 daysOverdue = (int)(now - r.NextDueDate!.Value).TotalDays
             })
             .ToListAsync();
@@ -489,7 +489,7 @@ public class HealthController : ControllerBase
             .Where(r => r.NextDueDate != null && r.NextDueDate > now && r.NextDueDate <= now.AddDays(14))
             .OrderBy(r => r.NextDueDate)
             .Select(r => new {
-                r.Id, r.Title, r.GoatId, goatName = r.Goat.Name, dueDate = r.NextDueDate,
+                r.Id, r.Title, r.GoatId, goatName = r.Goat!.Name, dueDate = r.NextDueDate,
                 daysUntil = (int)(r.NextDueDate!.Value - now).TotalDays
             })
             .ToListAsync();
@@ -500,7 +500,7 @@ public class HealthController : ControllerBase
             .GroupBy(f => f.GoatId)
             .Select(g => g.OrderByDescending(f => f.Date).First())
             .Where(f => f.Score >= 3)
-            .Select(f => new { f.GoatId, goatName = f.Goat.Name, score = f.Score, date = f.Date })
+            .Select(f => new { f.GoatId, goatName = f.Goat!.Name, score = f.Score, date = f.Date })
             .ToList();
 
         // BCS slipping: latest BCS <= 2 OR >= 4
@@ -510,7 +510,7 @@ public class HealthController : ControllerBase
             .Select(g => g.OrderByDescending(b => b.Date).First())
             .Where(b => b.Score <= 2 || b.Score >= 4)
             .Select(b => new {
-                b.GoatId, goatName = b.Goat.Name, score = b.Score, date = b.Date,
+                b.GoatId, goatName = b.Goat!.Name, score = b.Score, date = b.Date,
                 concern = b.Score <= 2 ? "underweight" : "overweight"
             })
             .ToList();
@@ -536,7 +536,7 @@ public class HealthController : ControllerBase
                     {
                         weightAlerts.Add(new {
                             goatId = latest.GoatId,
-                            goatName = latest.Goat.Name,
+                            goatName = latest.Goat!.Name,
                             latestLbs = latest.Weight,
                             priorLbs = prior.Weight,
                             lossPct = Math.Round(lossPct, 1),
@@ -557,7 +557,7 @@ public class HealthController : ControllerBase
             .Where(m => m.ExpirationDate != null && m.ExpirationDate <= now.AddDays(30))
             .OrderBy(m => m.ExpirationDate)
             .Select(m => new {
-                m.Id, name = m.Medication.Name, expirationDate = m.ExpirationDate, m.Quantity, m.Unit,
+                m.Id, name = m.Medication!.Name, expirationDate = m.ExpirationDate, m.Quantity, m.Unit,
                 expired = m.ExpirationDate < now
             })
             .ToListAsync();
