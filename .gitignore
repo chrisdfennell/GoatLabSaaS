@@ -25,6 +25,9 @@ out/
 ## Local tooling
 .claude/
 
+## Personal scratch / one-offs (anything matching *.local.* is never committed)
+*.local.*
+
 ## NuGet
 **/packages/*
 *.nupkg
