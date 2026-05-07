@@ -286,6 +286,18 @@ aside.mud-drawer > div {
     margin-bottom: 32px;
     font-weight: 300;
 }
+
+/* Watercolor goat used as the brand mark across navbar, footer, headers,
+   empty states, etc. Sizing varies by context so each role gets its own class. */
+.appbar-brand-mark { width: 32px; height: 32px; object-fit: contain; vertical-align: middle; }
+.brand-mark { width: 32px; height: 32px; object-fit: contain; vertical-align: middle; }
+.footer-brand-mark { width: 28px; height: 28px; object-fit: contain; vertical-align: middle; }
+.avatar-brand-mark { width: 28px; height: 28px; object-fit: contain; }
+.section-header-mark { width: 28px; height: 28px; object-fit: contain; vertical-align: middle; }
+.record-card-mark { width: 24px; height: 24px; object-fit: contain; }
+.empty-state-mark { width: 64px; height: 64px; object-fit: contain; opacity: 0.55; }
+.inline-empty-mark { width: 48px; height: 48px; object-fit: contain; opacity: 0.55; }
+.brand-mark-img { width: 32px; height: 32px; object-fit: contain; }
 .splash-spinner {
     width: 40px;
     height: 40px;
