@@ -37,13 +37,19 @@ That's it — you're running.
 
 ## Picking a version
 
-By default the compose file pulls `fennch/goatlab:latest`, which always
-points at the most recent release. For production you probably want to pin
-a specific version — set `GOATLAB_IMAGE_TAG=1.0.0` in your `.env` and that
-tag will stick until you change it.
+Two kinds of tags get published:
 
-The image is multi-arch, so the same tag works on a regular x86 server, a
-Raspberry Pi, or an arm64 NAS without you having to think about it.
+- **`latest`** — moves with every release. Convenient for getting started;
+  not recommended for production because it shifts under you.
+- **`1.0.0`, `1.0.1`, …** — exact-version tags. Pin one in production so
+  upgrades only happen when you change the tag.
+
+By default the compose file pulls `fennch/goatlab:latest`. To pin a version,
+set `GOATLAB_IMAGE_TAG=1.0.0` in your `.env`.
+
+Every tag is multi-arch (`linux/amd64` + `linux/arm64`), so the same tag
+works on a regular x86 server, a Raspberry Pi, or an arm64 NAS without you
+having to think about it.
 
 ## Putting it on the internet
 
