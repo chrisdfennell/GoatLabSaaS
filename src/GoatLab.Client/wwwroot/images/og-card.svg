@@ -5,8 +5,6 @@
 
   Render to PNG:
     npx @resvg/resvg-js og-card.svg og-card.png -w 1200
-  or via headless Chrome:
-    chrome --headless --disable-gpu --screenshot=og-card.png --window-size=1200,630 file:///path/to/og-card.svg
   or via ImageMagick:
     magick -density 300 og-card.svg -resize 1200x630 og-card.png
 

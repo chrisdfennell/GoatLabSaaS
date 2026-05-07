@@ -264,6 +264,22 @@ aside.mud-drawer > div {
     width: 48px;
     height: 48px;
 }
+.splash-logo-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    overflow: hidden;
+}
+.splash-logo-mark img {
+    width: 52px;
+    height: 52px;
+    object-fit: contain;
+    display: block;
+}
 .splash-tagline {
     font-size: 1rem;
     opacity: 0.8;

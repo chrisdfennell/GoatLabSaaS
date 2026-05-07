@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  GoatLab brand icon — composes the illustrated goat from goat.svg onto the
+  same green rounded-square background used by the PWA icons.
+
+  This file is the source for the rasterized icon set. To regenerate the
+  PNGs after a tweak (palette change, crop adjustment, etc.):
+
+    cd src/GoatLab.Client/wwwroot/images
+    npx @resvg/resvg-js logo-icon.svg icon-512.png         -w 512
+    npx @resvg/resvg-js logo-icon.svg icon-192.png         -w 192
+    npx @resvg/resvg-js logo-icon.svg apple-touch-icon.png -w 180
+    npx @resvg/resvg-js logo-icon.svg favicon-32.png       -w 32
+
+  goat.svg has been edited to have a transparent background, so it composes
+  cleanly onto the green gradient below. If you change the green here, also
+  update the gradient on `og-card.svg` so the social card stays consistent.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#43a047"/>
+      <stop offset="100%" stop-color="#1b5e20"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="96" fill="url(#bgGrad)"/>
+
+  <image xlink:href="goat.svg" x="32" y="32" width="448" height="448"/>
+</svg>
