@@ -136,7 +136,10 @@ on `/admin/health` and you can fire a manual run from there.
 ## Self-hosting
 
 If you want to run GoatLab on your own server for one farm or a small group
-of homesteads, use the OSS compose:
+of homesteads, pull the prebuilt image from Docker Hub
+([`fennch/goatlab`](https://hub.docker.com/r/fennch/goatlab)) — multi-arch
+(amd64 + arm64), so it runs on a regular x86 box, a Raspberry Pi, or an
+arm64 NAS:
 
 ```bash
 git clone https://github.com/chrisdfennell/GoatLabSaaS
@@ -144,9 +147,14 @@ cd GoatLabSaaS
 cp .env.example .env
 # Set SA_PASSWORD to something strong.
 
-docker compose -f docker-compose.oss.yml up -d --build
+docker compose -f docker-compose.oss.yml up -d
 # Open http://localhost:8090 — the first signup is your super-admin.
 ```
+
+`docker-compose.oss.yml` references `fennch/goatlab:latest` by default. Pin a
+specific release by setting `GOATLAB_IMAGE_TAG=1.2.3` in `.env`. To build
+from source instead of pulling, swap the `image:` line on the `goatlab`
+service for `build: .`.
 
 What you get versus the hosted SaaS:
 

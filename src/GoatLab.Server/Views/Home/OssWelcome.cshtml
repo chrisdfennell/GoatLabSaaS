@@ -1,0 +1,161 @@
+@{
+    Layout = null;
+    var origin = $"{Context.Request.Scheme}://{Context.Request.Host}";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GoatLab — self-hosted</title>
+    <meta name="description" content="Your self-hosted GoatLab instance. Sign in or register to get started." />
+    <meta name="robots" content="noindex,nofollow" />
+    <link rel="canonical" href="@origin/" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <style>
+        * { box-sizing: border-box; }
+        html, body { margin: 0; height: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #1a2421;
+            background: linear-gradient(180deg, #f7faf6 0%, #ffffff 60%);
+            line-height: 1.5;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        a { color: #2e7d32; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        header {
+            padding: 18px 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 800;
+            font-size: 1.2rem;
+            color: #1b5e20;
+        }
+        header .icon { font-size: 1.5rem; }
+        main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .card {
+            max-width: 540px;
+            width: 100%;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 14px;
+            padding: 36px 32px;
+            box-shadow: 0 2px 18px rgba(0, 0, 0, 0.04);
+            text-align: center;
+        }
+        .eyebrow {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #2e7d32;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin: 0 0 12px 0;
+            color: #1a2421;
+        }
+        .lede {
+            color: #4a5a51;
+            margin: 0 0 28px 0;
+            font-size: 1rem;
+        }
+        .ctas {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            display: inline-block;
+            padding: 12px 22px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            border: 1px solid transparent;
+        }
+        .btn.primary {
+            background: #2e7d32;
+            color: #fff !important;
+        }
+        .btn.primary:hover { background: #1b5e20; text-decoration: none; }
+        .btn.outline {
+            background: #fff;
+            color: #2e7d32 !important;
+            border-color: #2e7d32;
+        }
+        .btn.outline:hover { background: #f1f8f1; text-decoration: none; }
+        .hint {
+            margin-top: 22px;
+            font-size: 0.85rem;
+            color: #6b7a70;
+        }
+        .hint code {
+            background: #f1f8f1;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85em;
+        }
+        footer {
+            text-align: center;
+            padding: 18px;
+            color: #8a9690;
+            font-size: 0.85rem;
+        }
+        footer a { color: #6b7a70; margin: 0 8px; }
+        a:focus-visible, .btn:focus-visible {
+            outline: 2px solid #2e7d32;
+            outline-offset: 2px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <span class="icon">🐐</span>
+        <span>GoatLab</span>
+    </header>
+
+    <main>
+        <div class="card">
+            <div class="eyebrow">Self-hosted instance</div>
+            <h1>Welcome to your GoatLab.</h1>
+            <p class="lede">
+                Herd records, health, breeding, milk, finances — running on your
+                hardware, your data. Sign in to continue, or register the first
+                account on this instance to claim super-admin.
+            </p>
+            <div class="ctas">
+                <a href="/register" class="btn primary">Register</a>
+                <a href="/login" class="btn outline">Sign in</a>
+            </div>
+            <div class="hint">
+                The first user to register on a fresh instance becomes the
+                platform super-admin automatically.
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <a href="https://github.com/chrisdfennell/GoatLabSaaS" target="_blank" rel="noopener">Source</a>
+        ·
+        <a href="/privacy">Privacy</a>
+        ·
+        <a href="/terms">Terms</a>
+        <div style="margin-top: 6px; opacity: 0.8;">© @DateTime.UtcNow.Year GoatLab. MIT licensed.</div>
+    </footer>
+</body>
+</html>

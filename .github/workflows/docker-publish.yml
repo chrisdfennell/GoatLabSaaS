@@ -1,0 +1,73 @@
+name: Publish Docker image
+
+# Builds and pushes the GoatLab image to Docker Hub as `fennch/goatlab`.
+# Triggered by version tags (v1.2.3 -> :1.2.3 + :latest) and on demand via
+# the Actions UI. Multi-arch (amd64 + arm64) so self-hosters on a Raspberry
+# Pi or arm64 NAS can `docker compose pull` the same tag.
+#
+# Required repo secrets:
+#   DOCKERHUB_USERNAME  -> fennch
+#   DOCKERHUB_TOKEN     -> a Docker Hub access token with read+write to the
+#                          `goatlab` repo. Generate at hub.docker.com →
+#                          Account → Security → New Access Token.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag to publish (defaults to "latest" only)'
+        required: false
+        default: ''
+
+jobs:
+  publish:
+    name: Build and push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (for arm64 emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Compute tags
+        id: tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="fennch/goatlab"
+          TAGS="${IMAGE}:latest"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            TAGS="${IMAGE}:${VERSION},${TAGS}"
+          elif [[ -n "${{ github.event.inputs.tag }}" ]]; then
+            TAGS="${IMAGE}:${{ github.event.inputs.tag }},${TAGS}"
+          fi
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
