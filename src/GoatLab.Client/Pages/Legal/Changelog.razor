@@ -18,6 +18,20 @@
 
         <article class="cl-entry">
             <header>
+                <span class="cl-date">2026-05-08</span>
+                <span class="cl-tag cl-tag-improvement">Improvement</span>
+            </header>
+            <h2>Brand refresh + reliability polish</h2>
+            <ul>
+                <li><strong>New brand mark.</strong> Watercolor goat replaces the abstract icon in the navbar, footer, splash, and PWA install icons. The same goat appears as a heritage seal lockup on marketing surfaces and the social card.</li>
+                <li><strong>Self-host is two curls.</strong> Self-hosters no longer clone the whole repo — grab <code>docker-compose.oss.yml</code> and <code>.env.example</code> directly from the repo and you're running. The Docker Hub image gets multi-arch builds (amd64 + arm64) on every release tag.</li>
+                <li><strong>Admin console doesn't hang silently anymore.</strong> Every admin page surfaces a real error message if an API call blips, instead of an indefinite spinner. Tenant + user search filters as you type.</li>
+                <li><strong>Smaller polish.</strong> Pricing section shows a graceful fallback when the billing API is briefly unavailable. Footer brand mark links to home. Dashboard activity feed got a more detailed goat silhouette. Audit-log target links no longer dead-end on entries that don't have a detail page.</li>
+            </ul>
+        </article>
+
+        <article class="cl-entry">
+            <header>
                 <span class="cl-date">2026-05-07</span>
                 <span class="cl-tag cl-tag-feature">Feature</span>
             </header>
