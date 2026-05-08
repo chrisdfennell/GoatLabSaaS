@@ -391,6 +391,13 @@ else if (depositStatus == "cancel")
                 $@((dep / 100m).ToString("N0")) deposit · Stripe payment · refundable per @Model.FarmName's policy.
                 On success you'll go on @Model.FarmName's waitlist with the deposit recorded.
             </p>
+            @* Error from a prior submit attempt (TempData survives the redirect-after-post).
+               Rendered inside the dialog so it's visible the moment the dialog re-opens,
+               not just buried in the page-top alert. *@
+            @if (!string.IsNullOrEmpty(reserveError))
+            {
+                <div class="alert alert-error" style="margin:0 0 12px 0;">@reserveError</div>
+            }
             <label>
                 <span>Your email *</span>
                 <input type="email" name="BuyerEmail" required autocomplete="email" />
@@ -413,6 +420,17 @@ else if (depositStatus == "cancel")
             </div>
         </form>
     </dialog>
+    @if (!string.IsNullOrEmpty(reserveError))
+    {
+        @* Re-open the dialog so the buyer sees the error inline rather than a
+           lonely alert at the top of the page after Stripe sent them back. *@
+        <script>
+            (function () {
+                var dlg = document.getElementById('reserve-dialog');
+                if (dlg && typeof dlg.showModal === 'function') dlg.showModal();
+            })();
+        </script>
+    }
 }
 
 <style>

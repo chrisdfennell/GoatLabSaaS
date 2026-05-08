@@ -30,11 +30,13 @@ public class PublicFarmPagesController : Controller
 {
     private readonly GoatLabDbContext _db;
     private readonly IBillingService _billing;
+    private readonly ILogger<PublicFarmPagesController> _log;
 
-    public PublicFarmPagesController(GoatLabDbContext db, IBillingService billing)
+    public PublicFarmPagesController(GoatLabDbContext db, IBillingService billing, ILogger<PublicFarmPagesController> log)
     {
         _db = db;
         _billing = billing;
+        _log = log;
     }
 
     [HttpGet("/pub/{slug}")]
@@ -156,7 +158,15 @@ public class PublicFarmPagesController : Controller
         ViewData["FarmSlug"] = tenant.Slug;
         ViewData["DepositStatus"] = string.IsNullOrEmpty(deposit) ? null : deposit;
         ViewData["Canonical"] = canonical;
-        ViewData["Title"] = $"{goat.Name} — {goat.Breed ?? "goat"} for sale at {tenant.Name}";
+        // Title built so each goat at the same farm produces a unique string
+        // in Google SERPs — name + breed + age (when known) + price (when set).
+        // "{Farm} for sale" tail is consistent for branding, but the prefix
+        // varies enough that two listings at the same farm don't dedupe.
+        var titleAge = goat.DateOfBirth.HasValue ? $" {AgeString(goat.DateOfBirth.Value)}" : "";
+        var titlePrice = goat.AskingPriceCents.HasValue
+            ? $" — ${(goat.AskingPriceCents.Value / 100m):N0}"
+            : "";
+        ViewData["Title"] = $"{goat.Name} — {goat.Breed ?? "goat"}{titleAge}{titlePrice} for sale at {tenant.Name}";
         ViewData["Description"] = $"{goat.Name}{ageBit} {goat.Gender}{priceBit}. Listed for sale by {tenant.Name}" +
             (string.IsNullOrEmpty(tenant.Location) ? "" : $" in {tenant.Location}") +
             ". Pedigree, photos, and contact details on GoatLab.";
@@ -198,8 +208,21 @@ public class PublicFarmPagesController : Controller
         var origin = $"{Request.Scheme}://{Request.Host}";
         var req = new PublicReservationRequest(form.BuyerEmail, form.BuyerName, form.BuyerPhone, form.Notes);
 
-        var url = await _billing.CreateDepositCheckoutSessionAsync(
-            tenant, goat, depositCents.Value, req, origin, ct);
+        // Stripe API outage / network blip / config mismatch shouldn't bubble
+        // an unhandled exception into a buyer-facing 500. Catch and redirect
+        // with a friendly TempData error so the dialog re-opens with context.
+        string url;
+        try
+        {
+            url = await _billing.CreateDepositCheckoutSessionAsync(
+                tenant, goat, depositCents.Value, req, origin, ct);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Stripe checkout session creation failed for goat {GoatId} on tenant {TenantId}", goatId, tenant.Id);
+            TempData["ReserveError"] = "We couldn't start the Stripe checkout right now. Please try again in a minute, or contact the seller directly.";
+            return RedirectToAction(nameof(Show), new { slug, goatId });
+        }
 
         // 303 See Other so a browser cleanly switches from POST to GET when
         // following the redirect to Stripe Checkout.

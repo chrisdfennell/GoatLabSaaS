@@ -32,17 +32,20 @@ public class BuyerInquiriesController : ControllerBase
     private readonly ITenantContext _tenantContext;
     private readonly IAppEmailSender _email;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ILogger<BuyerInquiriesController> _log;
 
     public BuyerInquiriesController(
         GoatLabDbContext db,
         ITenantContext tenantContext,
         IAppEmailSender email,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        ILogger<BuyerInquiriesController> log)
     {
         _db = db;
         _tenantContext = tenantContext;
         _email = email;
         _userManager = userManager;
+        _log = log;
     }
 
     public record SendInquiryRequest(string BuyerName, string BuyerEmail, string? BuyerPhone, string Message);
@@ -159,10 +162,15 @@ public class BuyerInquiriesController : ControllerBase
                     goat.Name, tenant.Name, req.Message.Trim(), inboxUrl);
                 await _email.SendAsync(notifyEmail!, subject, html, text, ct);
             }
-            catch
+            catch (Exception ex)
             {
-                // Swallow — the inquiry is already saved and the seller can
-                // see it on their next inbox load.
+                // Don't fail the request — the inquiry IS saved and the seller
+                // can see it on their next inbox load. But log loudly so ops
+                // notice when SMTP is broken; otherwise inquiries silently
+                // pile up while the seller wonders why nobody's contacting them.
+                _log.LogError(ex,
+                    "Failed to send buyer-inquiry notification to {NotifyEmail} for inquiry {InquiryId} on goat {GoatId}",
+                    notifyEmail, inquiry.Id, goat.Id);
             }
         }
 

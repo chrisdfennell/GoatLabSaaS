@@ -43,9 +43,11 @@ public class MarketplaceController : Controller
                      || minPrice.HasValue || maxPrice.HasValue
                      || !string.IsNullOrWhiteSpace(state)
                      || !string.IsNullOrWhiteSpace(sort);
-        // 5-min cache when filters are active, 30 min on the bare page so the
-        // hot landing path stays cheap.
-        Response.Headers.CacheControl = anyFilter ? "public, max-age=300" : "public, max-age=1800";
+        // 5-min cache either way. Was 30 min on the bare page but that meant
+        // a buyer who saw a goat 5 min ago could click through and find it
+        // already sold / delisted with no cache turnover. Conversion >
+        // CDN load.
+        Response.Headers.CacheControl = "public, max-age=300";
 
         var raw = await _db.Goats.IgnoreQueryFilters()
             .Where(g => g.IsListedForSale && !g.IsExternal
@@ -228,7 +230,11 @@ public class MarketplaceController : Controller
     {
         Response.Headers.CacheControl = "public, max-age=300";
 
-        var rows = await _db.Tenants.IgnoreQueryFilters()
+        // Two separate queries instead of a correlated subquery per row —
+        // one trip for tenant rows, one for listing-counts grouped by
+        // tenant id. Then merge in memory. Scales linearly with farm count
+        // instead of producing one COUNT subquery per pinned farm.
+        var tenants = await _db.Tenants.IgnoreQueryFilters()
             .Where(t => t.PublicProfileEnabled
                      && t.DeletedAt == null
                      && t.SuspendedAt == null
@@ -236,19 +242,29 @@ public class MarketplaceController : Controller
                      && t.PublicLongitude != null)
             .Select(t => new
             {
+                t.Id,
                 t.Slug,
                 t.Name,
                 t.Location,
                 Lat = t.PublicLatitude!.Value,
                 Lng = t.PublicLongitude!.Value,
-                ListingCount = _db.Goats.IgnoreQueryFilters()
-                    .Count(g => g.TenantId == t.Id && g.IsListedForSale && !g.IsExternal)
             })
-            .Where(r => r.ListingCount > 0)
             .ToListAsync(ct);
 
-        return rows
-            .Select(r => new FarmPinDto(r.Slug, r.Name, r.Location, r.Lat, r.Lng, r.ListingCount))
+        if (tenants.Count == 0) return new List<FarmPinDto>();
+
+        var tenantIds = tenants.Select(t => t.Id).ToList();
+        var counts = await _db.Goats.IgnoreQueryFilters()
+            .Where(g => tenantIds.Contains(g.TenantId)
+                     && g.IsListedForSale
+                     && !g.IsExternal)
+            .GroupBy(g => g.TenantId)
+            .Select(g => new { TenantId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.TenantId, x => x.Count, ct);
+
+        return tenants
+            .Where(t => counts.GetValueOrDefault(t.Id, 0) > 0)
+            .Select(t => new FarmPinDto(t.Slug, t.Name, t.Location, t.Lat, t.Lng, counts[t.Id]))
             .ToList();
     }
 

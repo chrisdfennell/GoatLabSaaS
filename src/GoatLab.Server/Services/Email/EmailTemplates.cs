@@ -487,7 +487,7 @@ public static class EmailTemplates
   </p>
   <p style=""font-size:12px;color:#6b7a70;"">If you didn't ask to sign in, you can ignore this email — your address ({System.Net.WebUtility.HtmlEncode(email)}) won't be added to anything.</p>
 </div>",
-            Text: $"Sign in to {Brand} by visiting:\n{verifyUrl}\n\nLink expires in {expiresInMinutes} minutes. If you didn't request this, you can ignore the email."
+            Text: $"Sign in to {Brand}\n\nClick the link below (or copy/paste it into your browser) to sign in to your buyer dashboard:\n\n{verifyUrl}\n\nThe link expires in {expiresInMinutes} minutes and can only be used once.\n\nIf you didn't request this, ignore the email — your address ({email}) won't be added to anything."
         );
     }
 
