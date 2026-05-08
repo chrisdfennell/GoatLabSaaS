@@ -44,7 +44,12 @@
             </MudText>
 
             <MudDivider Class="my-4" />
-            <MudText Typo="Typo.h6" Class="mb-2">Public farm page</MudText>
+            <div class="d-flex align-center mb-2" style="gap:10px;">
+                <MudText Typo="Typo.h6" Style="margin:0;">Public farm page</MudText>
+                <MudLink Href="/help#public-profile" Target="_blank" Underline="Underline.Hover" Typo="Typo.caption" Color="Color.Primary">
+                    How does this work?
+                </MudLink>
+            </div>
             <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
                 When on, anyone with the link can see goats you've marked "for sale".
                 URL: <MudLink Href="@PublicFarmUrl" Target="_blank">@PublicFarmUrl</MudLink>
@@ -60,8 +65,12 @@
             {
                 <MudNumericField @bind-Value="_publicDepositPercent" Label="Online deposit percent" Min="0" Max="100" Step="5"
                                  HelperText="Set above 0 to show a 'Reserve with deposit' button on each listing. Collects that percent of the asking price via Stripe. 0 disables the flow (contact button only)."
-                                 Adornment="Adornment.End" AdornmentText="%" Class="mb-4"
+                                 Adornment="Adornment.End" AdornmentText="%" Class="mb-1"
                                  Disabled="@(!_publicProfileEnabled)" />
+                <MudLink Href="/help#deposits" Target="_blank" Underline="Underline.Hover" Typo="Typo.caption"
+                         Color="Color.Primary" Class="mb-4 d-inline-block">
+                    How reservations &amp; deposits work →
+                </MudLink>
             }
             else
             {
