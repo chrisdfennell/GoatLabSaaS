@@ -296,6 +296,20 @@ aside.mud-drawer > div {
 .footer-brand-mark { width: 28px; height: 28px; object-fit: contain; vertical-align: middle; }
 .empty-state-mark { width: 64px; height: 64px; object-fit: contain; opacity: 0.5; margin-bottom: 16px; }
 .inline-empty-mark { width: 48px; height: 48px; object-fit: contain; opacity: 0.5; margin-bottom: 8px; }
+
+/* Detailed goat silhouette used in the dashboard activity feed for
+   "Added goat: X" items. Sized to match a default MudListItem icon
+   so the row aligns with neighbour items that still use MudIcon. */
+.activity-goat-icon {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+/* Tint dark in light mode, light in dark mode so the silhouette reads
+   on both backgrounds. CSS filter is a one-line trick for monochrome
+   silhouettes; the source file stays a single black-fill SVG. */
+.mud-theme-dark .activity-goat-icon { filter: invert(1) brightness(0.9); }
 .splash-spinner {
     width: 40px;
     height: 40px;

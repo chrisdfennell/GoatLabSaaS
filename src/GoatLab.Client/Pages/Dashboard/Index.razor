@@ -323,12 +323,30 @@
                 <MudList T="string" Dense>
                     @foreach (var item in activity.Take(8))
                     {
-                        <MudListItem Icon="@GetActivityIcon(item.Type)" IconColor="@GetActivityColor(item.Type)">
-                            <div class="d-flex justify-space-between align-center" style="width:100%;">
-                                <MudText Typo="Typo.body2" Style="line-height:1.4;">@item.Description</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="white-space:nowrap;margin-left:8px;">@FormatRelativeTime(item.Date)</MudText>
-                            </div>
-                        </MudListItem>
+                        @if (item.Type == "goat_added")
+                        {
+                            @* Custom render so the activity feed can use the detailed goat2.svg
+                               silhouette, which can't be passed through MudListItem's Icon=
+                               (that param accepts a single SVG path string only). *@
+                            <MudListItem>
+                                <div class="d-flex align-center" style="width:100%;gap:12px;">
+                                    <img src="images/goat2.svg" alt="" class="activity-goat-icon" />
+                                    <div class="d-flex justify-space-between align-center" style="flex:1;">
+                                        <MudText Typo="Typo.body2" Style="line-height:1.4;">@item.Description</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="white-space:nowrap;margin-left:8px;">@FormatRelativeTime(item.Date)</MudText>
+                                    </div>
+                                </div>
+                            </MudListItem>
+                        }
+                        else
+                        {
+                            <MudListItem Icon="@GetActivityIcon(item.Type)" IconColor="@GetActivityColor(item.Type)">
+                                <div class="d-flex justify-space-between align-center" style="width:100%;">
+                                    <MudText Typo="Typo.body2" Style="line-height:1.4;">@item.Description</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Style="white-space:nowrap;margin-left:8px;">@FormatRelativeTime(item.Date)</MudText>
+                                </div>
+                            </MudListItem>
+                        }
                     }
                 </MudList>
             }
