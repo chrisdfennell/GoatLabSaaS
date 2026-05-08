@@ -298,18 +298,20 @@ aside.mud-drawer > div {
 .inline-empty-mark { width: 48px; height: 48px; object-fit: contain; opacity: 0.5; margin-bottom: 8px; }
 
 /* Detailed goat silhouette used in the dashboard activity feed for
-   "Added goat: X" items. Sized to match a default MudListItem icon
-   so the row aligns with neighbour items that still use MudIcon. */
+   "Added goat: X" items. Uses CSS mask-image so the SVG's shape acts
+   as a stencil and `background-color` paints it — picks up the same
+   primary-green as neighbour MudListItem icons (medical/milk/sale)
+   that get tinted via IconColor="Color.Primary". */
 .activity-goat-icon {
+    display: inline-block;
     width: 24px;
     height: 24px;
-    object-fit: contain;
     flex-shrink: 0;
+    background-color: #2e7d32;
+    -webkit-mask: url(/images/goat2.svg) center / contain no-repeat;
+            mask: url(/images/goat2.svg) center / contain no-repeat;
 }
-/* Tint dark in light mode, light in dark mode so the silhouette reads
-   on both backgrounds. CSS filter is a one-line trick for monochrome
-   silhouettes; the source file stays a single black-fill SVG. */
-.mud-theme-dark .activity-goat-icon { filter: invert(1) brightness(0.9); }
+.mud-theme-dark .activity-goat-icon { background-color: #81c784; }
 .splash-spinner {
     width: 40px;
     height: 40px;
