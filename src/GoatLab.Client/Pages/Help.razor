@@ -8,316 +8,508 @@
     <meta name="description" content="How to use GoatLab — adding goats, listing for sale, taking reservations, vet share-links, transfers, and more." />
 </HeadContent>
 
-<section class="help-page">
+@* ---------- HERO ---------- *@
+<section class="help-hero">
     <div class="container">
-        <h1>Help</h1>
+        <div class="eyebrow">
+            <MudIcon Icon="@Icons.Material.Filled.HelpOutline" Style="font-size:16px;" />
+            <span>Help &amp; how-to</span>
+        </div>
+        <h1>How GoatLab works.</h1>
         <p class="lede">
-            How to do common things in GoatLab. Use the table of contents to jump around;
-            each section is small enough to read in under a minute. Missing something?
-            <MudLink Href="https://github.com/chrisdfennell/GoatLabSaaS/issues" Target="_blank" rel="noopener">Open an issue on GitHub</MudLink>
-            and we'll add it.
-        </p>
-
-        <nav class="help-toc" aria-label="Help table of contents">
-            <strong>Jump to:</strong>
-            <a href="#getting-started">Getting started</a>
-            <a href="#add-goats">Adding goats</a>
-            <a href="#health">Health records</a>
-            <a href="#breeding">Breeding &amp; kidding</a>
-            <a href="#milk">Milk tracking</a>
-            <a href="#listing">Listing a goat for sale</a>
-            <a href="#public-profile">Public farm page</a>
-            <a href="#deposits">Reservations &amp; Stripe deposits</a>
-            <a href="#waitlist">Buyer waitlist</a>
-            <a href="#inquiries">Buyer messages</a>
-            <a href="#vet-shares">Vet share-links</a>
-            <a href="#transfers">Farm-to-farm transfers</a>
-            <a href="#alerts">Smart alerts &amp; push</a>
-            <a href="#reports">Reports &amp; forecasts</a>
-            <a href="#api">API &amp; webhooks</a>
-            <a href="#self-host">Self-hosting</a>
-        </nav>
-
-        <article id="getting-started">
-            <h2>Getting started</h2>
-            <p>
-                After signing up, you land on the <strong>dashboard</strong>. The onboarding checklist
-                at the top walks you through the first few steps. The shortest path to getting value:
-            </p>
-            <ol>
-                <li><strong>Set your farm name + location</strong> in <MudLink Href="/farm-settings">Farm settings</MudLink>. The location shows up on your public listings and feeds the <code>state=</code> filter on the marketplace.</li>
-                <li><strong>Pick units</strong> — pounds or kilograms — same place. Affects how weights, feed, and milk display everywhere.</li>
-                <li><strong>Invite helpers</strong> if anyone else logs animals: <MudLink Href="/farm-settings/members">Members</MudLink>. Each gets their own login; permissions are role-based.</li>
-                <li><strong>Add your first goat</strong> (see below). Even one goat unlocks the rest of the app.</li>
-            </ol>
-        </article>
-
-        <article id="add-goats">
-            <h2>Adding goats</h2>
-            <p>Two ways:</p>
-            <ul>
-                <li><strong>One at a time:</strong> <MudLink Href="/herd/new">Herd → Add goat</MudLink>. Name, ear tag, breed, gender, date of birth. Photos and documents come later — you can save with the basics.</li>
-                <li><strong>Bulk import:</strong> <MudLink Href="/tools/import">Tools → Import</MudLink>. Drag in a CSV. The importer accepts ADGA / AGS exports and a generic columns layout — column mapping happens before commit so you can fix mismatches.</li>
-            </ul>
-            <p>
-                <strong>Pedigree:</strong> if you enter a sire/dam by registration number that
-                another GoatLab farm has marked public, the lineage page links back to that farm
-                automatically. Useful for buyers verifying provenance.
-            </p>
-        </article>
-
-        <article id="health">
-            <h2>Health records</h2>
-            <p>
-                Every goat has a <strong>Health</strong> tab. Add medical records (vaccinations,
-                dewormings, vet visits, treatments) and weights. Each record can have a
-                <em>next due date</em> — that's what feeds the alerts system below.
-            </p>
-            <ul>
-                <li><strong>FAMACHA scoring</strong> for parasite load. The dashboard's "at-risk" widget pulls from these.</li>
-                <li><strong>Body condition scoring</strong> for over/underweight flags.</li>
-                <li><strong>Withdrawal periods</strong> on medications block sales and milk logging until the hold expires (so you don't accidentally ship a recently-treated goat or contaminated milk).</li>
-            </ul>
-            <p>
-                Need to share history with a vet? See <a href="#vet-shares">vet share-links</a>.
-            </p>
-        </article>
-
-        <article id="breeding">
-            <h2>Breeding &amp; kidding</h2>
-            <ol>
-                <li><strong>Heat detection:</strong> log heats on a doe to predict her next cycle.</li>
-                <li><strong>Breeding records:</strong> pair doe + buck + date. GoatLab calculates the estimated due date (150 days for most breeds, configurable per breed).</li>
-                <li><strong>Kidding records:</strong> when she kids, fill the kid count, sex, vigor, and weights. Kids can be promoted to full goat records (with the parents pre-filled) once you decide which to keep.</li>
-                <li><strong>Mate recommendations:</strong> for each doe, GoatLab ranks every intact buck in your herd by projected offspring COI plus daughter production. Useful for line-breeding decisions.</li>
-            </ol>
-        </article>
-
-        <article id="milk">
-            <h2>Milk tracking</h2>
-            <p>
-                Daily milk logs per doe → trends per goat, per herd, per lactation. Test days
-                (with butterfat, protein, SCC if you DHIR) live alongside the daily logs.
-                Reports → Insights → Milk gives you 30 / 60 / 90-day trend charts and a
-                cost-per-gallon tile if you also track feed.
-            </p>
-        </article>
-
-        <article id="listing">
-            <h2>Listing a goat for sale</h2>
-            <p>Two switches matter:</p>
-            <ol>
-                <li><strong>Enable your <a href="#public-profile">public farm page</a></strong> in Farm settings. Without it, no listing surfaces externally.</li>
-                <li>On the goat's detail page, flip <strong>"List for sale"</strong> on. Set an asking price (optional but recommended — listings without a price filter to "Inquire" only and convert worse).</li>
-            </ol>
-            <p>
-                <strong>Photos sell.</strong> A listing with 5+ photos lands a buyer 3-4× more
-                often than one with a single photo. Use the photo grid on the goat's detail
-                page to upload multiple — the first one (or whichever you mark "primary")
-                becomes the cover image on the marketplace card.
-            </p>
-            <p>
-                Once listed, the goat appears on your <code>/pub/{your-farm}/{goat}</code> page,
-                shows up in <MudLink Href="/marketplace">marketplace</MudLink> and breed search,
-                and gets indexed by Google with structured data so it's eligible for rich results.
-            </p>
-        </article>
-
-        <article id="public-profile">
-            <h2>Public farm page</h2>
-            <p>
-                Lives at <code>/pub/{your-slug}</code>. Buyers land here from the marketplace,
-                breed directory, Google, or anywhere you share the URL. To enable:
-            </p>
-            <ol>
-                <li>Go to <MudLink Href="/farm-settings">Farm settings</MudLink> → <strong>Public profile</strong> → flip on.</li>
-                <li>Set your slug (your URL — keep it short and memorable).</li>
-                <li>Optionally drop a <strong>map pin</strong> on the embedded map so buyers using map view see your location. Available on Farm and Dairy plans.</li>
-                <li>Optionally enable <strong>custom branding</strong> (accent color + welcome message) — Dairy plan.</li>
-            </ol>
-        </article>
-
-        <article id="deposits">
-            <h2>Reservations &amp; Stripe deposits</h2>
-            <p>
-                Buyers can reserve a goat by paying a refundable deposit through Stripe Checkout.
-                The deposit is recorded against your <a href="#waitlist">waitlist</a>; you set the
-                refund policy in your farm description.
-            </p>
-            <ol>
-                <li><strong>Connect Stripe:</strong> Farm settings → Billing &amp; payouts. Onboarding sends you to Stripe to verify identity and bank info.</li>
-                <li><strong>Set deposit %</strong> on Farm settings. Default is 0 (no online deposits — buyers can still inquire). 10–25% is typical for goats.</li>
-                <li><strong>Listing must have an asking price</strong> — the deposit is a percentage of that price.</li>
-            </ol>
-            <p>
-                A buyer who clicks <strong>Reserve</strong> on a listing fills name + email,
-                lands on Stripe Checkout, and on success ends up on your waitlist with the
-                deposit recorded against their account.
-            </p>
-        </article>
-
-        <article id="waitlist">
-            <h2>Buyer waitlist</h2>
-            <p>
-                <MudLink Href="/waitlist">Buyer waitlist</MudLink> is your CRM for interested
-                buyers. Each entry has breed/sex preferences, deposit amount (if any), priority,
-                and notes. You can:
-            </p>
-            <ul>
-                <li>Add buyers manually (pre-existing customers from before GoatLab).</li>
-                <li>Auto-enroll buyers from Stripe deposits (see above).</li>
-                <li>Convert a waitlist entry to a sale in one click — pulls the deposit forward as a credit.</li>
-                <li>Send the buyer a magic-link to a portal where they see their place in line.</li>
-            </ul>
-        </article>
-
-        <article id="inquiries">
-            <h2>Buyer messages</h2>
-            <p>
-                When a buyer fills the contact form on a listing, you get an email and the thread
-                appears in <MudLink Href="/inquiries">Inquiries</MudLink>. Reply in the inbox or
-                directly to the email — both surfaces stay in sync. Mark a thread "Sold" or
-                "Closed" when it's resolved to keep the inbox tidy.
-            </p>
-        </article>
-
-        <article id="vet-shares">
-            <h2>Vet share-links</h2>
-            <p>
-                From any goat's detail page, click <strong>Share with vet</strong> to mint a
-                time-bounded URL the vet can open without signing up. They see medical history,
-                weights, FAMACHA, and body condition, and can leave a note that lands on the
-                goat's timeline. Default expiry is 30 days; revoke any time.
-                Available on Farm and Dairy plans.
-            </p>
-        </article>
-
-        <article id="transfers">
-            <h2>Farm-to-farm transfers</h2>
-            <p>
-                Selling a goat to another GoatLab farm? <strong>Transfer</strong> moves the
-                animal — pedigree, medical history, weights, milk records, photos — to the
-                buyer's herd in one click. The buyer accepts via a token link sent to their
-                email. The seller's record stays as historical reference.
-                Available on Farm and Dairy plans.
-            </p>
-        </article>
-
-        <article id="alerts">
-            <h2>Smart alerts &amp; push</h2>
-            <p>
-                <MudLink Href="/alerts">Alerts</MudLink> watches your herd for things you'd
-                otherwise forget:
-            </p>
-            <ul>
-                <li>Overdue medications based on each record's <em>next due date</em>.</li>
-                <li>Upcoming kiddings within the next 14 days.</li>
-                <li>Weight drops &gt; 10% in 30 days.</li>
-                <li>Low feed inventory (if you track feed).</li>
-                <li>FAMACHA scores trending high.</li>
-            </ul>
-            <p>
-                Delivery options: in-app banner, email digest (daily 8am local), and Web Push.
-                Push needs a one-time browser permission grant — install GoatLab as a PWA on
-                your phone (Chrome/Safari "Add to home screen") to get them in the barn.
-            </p>
-        </article>
-
-        <article id="reports">
-            <h2>Reports &amp; forecasts</h2>
-            <p>
-                <MudLink Href="/reports">Reports</MudLink> has six built-in reports:
-                P&amp;L, milk trends, kidding, mortality, parasite/FAMACHA, and health spend.
-                Each renders as a chart + a downloadable CSV.
-            </p>
-            <p>
-                Forecasts (Farm + Dairy) project the next 30 / 60 / 90 days for kidding load,
-                expected milk volume, and cash flow based on trailing averages.
-            </p>
-        </article>
-
-        <article id="api">
-            <h2>API &amp; webhooks</h2>
-            <p>
-                Integrate GoatLab with your other tools (registries, accounting, custom dashboards):
-            </p>
-            <ul>
-                <li><strong>API keys:</strong> Farm settings → API. Generate a key (one-shot reveal — copy it). Authenticate any endpoint with <code>Authorization: Bearer goatlab_…</code>.</li>
-                <li><strong>Webhooks:</strong> subscribe to events (goat created, sale closed, kidding logged, medical record). HMAC-SHA256 signatures, automatic retries with exponential backoff.</li>
-            </ul>
-            <p>Available on Farm and Dairy plans.</p>
-        </article>
-
-        <article id="self-host">
-            <h2>Self-hosting</h2>
-            <p>
-                GoatLab is open source. The same code that runs goatlab.app runs on your own
-                server. Two-file install:
-            </p>
-            <pre><code>mkdir goatlab &amp;&amp; cd goatlab
-curl -O https://raw.githubusercontent.com/chrisdfennell/GoatLabSaaS/main/docker-compose.oss.yml
-curl -o .env https://raw.githubusercontent.com/chrisdfennell/GoatLabSaaS/main/.env.example
-docker compose -f docker-compose.oss.yml up -d</code></pre>
-            <p>
-                Source: <MudLink Href="https://github.com/chrisdfennell/GoatLabSaaS" Target="_blank" rel="noopener">github.com/chrisdfennell/GoatLabSaaS</MudLink>.
-                Image: <MudLink Href="https://hub.docker.com/r/fennch/goatlab" Target="_blank" rel="noopener">hub.docker.com/r/fennch/goatlab</MudLink>.
-                In self-host mode, every feature is on for every tenant — no plan tiers, no
-                Stripe/marketplace surface (unless you flip <code>Saas:Enabled=true</code>).
-            </p>
-        </article>
-
-        <p class="help-footer">
-            Still stuck? Open an issue at
+            Each section reads in under a minute. Use the directory below to jump straight to
+            what you need. Missing something? Open an issue at
             <MudLink Href="https://github.com/chrisdfennell/GoatLabSaaS/issues" Target="_blank" rel="noopener">github.com/chrisdfennell/GoatLabSaaS/issues</MudLink>
-            — same place we triage bugs. Faster than email.
+            and we'll add it.
         </p>
     </div>
 </section>
 
+@* ---------- TOC ---------- *@
+<section class="help-toc-section">
+    <div class="container">
+        <div class="help-toc-grid">
+            @foreach (var (id, label, icon) in TocEntries)
+            {
+                <a class="help-toc-pill" href="#@id">
+                    <span class="help-toc-pill-icon"><MudIcon Icon="@icon" Style="font-size:18px;" /></span>
+                    <span>@label</span>
+                </a>
+            }
+        </div>
+    </div>
+</section>
+
+@* ---------- SECTIONS ---------- *@
+<section class="help-articles">
+    <div class="container">
+
+        <article id="getting-started" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.RocketLaunch" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Getting started</h2>
+                <p>
+                    After signing up, you land on the <strong>dashboard</strong>. The onboarding checklist
+                    at the top walks you through the first few steps. The shortest path to getting value:
+                </p>
+                <ol>
+                    <li><strong>Set your farm name + location</strong> in <MudLink Href="/farm-settings">Farm settings</MudLink>. The location shows up on your public listings and feeds the <code>state=</code> filter on the marketplace.</li>
+                    <li><strong>Pick units</strong> — pounds or kilograms — same place. Affects how weights, feed, and milk display everywhere.</li>
+                    <li><strong>Invite helpers</strong> if anyone else logs animals: <MudLink Href="/team">Team</MudLink>. Each gets their own login; permissions are role-based.</li>
+                    <li><strong>Add your first goat</strong> (see below). Even one goat unlocks the rest of the app.</li>
+                </ol>
+            </div>
+        </article>
+
+        <article id="add-goats" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@GoatLabIcons.Hoof" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Adding goats</h2>
+                <p>Two ways:</p>
+                <ul>
+                    <li><strong>One at a time:</strong> <MudLink Href="/herd/new">Herd → Add goat</MudLink>. Name, ear tag, breed, gender, date of birth. Photos and documents come later — you can save with the basics.</li>
+                    <li><strong>Bulk import:</strong> <MudLink Href="/tools">Tools → Import</MudLink>. Drag in a CSV. The importer accepts ADGA / AGS exports and a generic columns layout — column mapping happens before commit so you can fix mismatches.</li>
+                </ul>
+                <p>
+                    <strong>Pedigree:</strong> if you enter a sire/dam by registration number that
+                    another GoatLab farm has marked public, the lineage page links back to that farm
+                    automatically. Useful for buyers verifying provenance.
+                </p>
+            </div>
+        </article>
+
+        <article id="health" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.LocalHospital" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Health records</h2>
+                <p>
+                    Every goat has a <strong>Health</strong> tab. Add medical records (vaccinations,
+                    dewormings, vet visits, treatments) and weights. Each record can have a
+                    <em>next due date</em> — that's what feeds the alerts system below.
+                </p>
+                <ul>
+                    <li><strong>FAMACHA scoring</strong> for parasite load. The dashboard's "at-risk" widget pulls from these.</li>
+                    <li><strong>Body condition scoring</strong> for over/underweight flags.</li>
+                    <li><strong>Withdrawal periods</strong> on medications block sales and milk logging until the hold expires (so you don't accidentally ship a recently-treated goat or contaminated milk).</li>
+                </ul>
+                <p>
+                    Need to share history with a vet? See <a href="#vet-shares">vet share-links</a>.
+                </p>
+            </div>
+        </article>
+
+        <article id="breeding" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.Favorite" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Breeding &amp; kidding</h2>
+                <ol>
+                    <li><strong>Heat detection:</strong> log heats on a doe to predict her next cycle.</li>
+                    <li><strong>Breeding records:</strong> pair doe + buck + date. GoatLab calculates the estimated due date (150 days for most breeds, configurable per breed).</li>
+                    <li><strong>Kidding records:</strong> when she kids, fill the kid count, sex, vigor, and weights. Kids can be promoted to full goat records (with the parents pre-filled) once you decide which to keep.</li>
+                    <li><strong>Mate recommendations:</strong> for each doe, GoatLab ranks every intact buck in your herd by projected offspring COI plus daughter production. Useful for line-breeding decisions.</li>
+                </ol>
+            </div>
+        </article>
+
+        <article id="milk" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.WaterDrop" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Milk tracking</h2>
+                <p>
+                    Daily milk logs per doe → trends per goat, per herd, per lactation. Test days
+                    (with butterfat, protein, SCC if you DHIR) live alongside the daily logs.
+                    Reports → Insights → Milk gives you 30 / 60 / 90-day trend charts and a
+                    cost-per-gallon tile if you also track feed.
+                </p>
+            </div>
+        </article>
+
+        <article id="listing" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.Sell" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Listing a goat for sale</h2>
+                <p>Two switches matter:</p>
+                <ol>
+                    <li><strong>Enable your <a href="#public-profile">public farm page</a></strong> in Farm settings. Without it, no listing surfaces externally.</li>
+                    <li>On the goat's detail page, flip <strong>"List for sale"</strong> on. Set an asking price (optional but recommended — listings without a price filter to "Inquire" only and convert worse).</li>
+                </ol>
+                <p>
+                    <strong>Photos sell.</strong> A listing with 5+ photos lands a buyer 3-4× more
+                    often than one with a single photo. Use the photo grid on the goat's detail
+                    page to upload multiple — the first one (or whichever you mark "primary")
+                    becomes the cover image on the marketplace card.
+                </p>
+                <p>
+                    Once listed, the goat appears on your <code>/pub/{your-farm}/{goat}</code> page,
+                    shows up in <MudLink Href="/marketplace">marketplace</MudLink> and breed search,
+                    and gets indexed by Google with structured data so it's eligible for rich results.
+                </p>
+            </div>
+        </article>
+
+        <article id="public-profile" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.Public" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Public farm page</h2>
+                <p>
+                    Lives at <code>/pub/{your-slug}</code>. Buyers land here from the marketplace,
+                    breed directory, Google, or anywhere you share the URL. To enable:
+                </p>
+                <ol>
+                    <li>Go to <MudLink Href="/farm-settings">Farm settings</MudLink> → <strong>Public profile</strong> → flip on.</li>
+                    <li>Set your slug (your URL — keep it short and memorable).</li>
+                    <li>Optionally drop a <strong>map pin</strong> on the embedded map so buyers using map view see your location. Available on Farm and Dairy plans.</li>
+                    <li>Optionally enable <strong>custom branding</strong> (accent color + welcome message) — Dairy plan.</li>
+                </ol>
+            </div>
+        </article>
+
+        <article id="deposits" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.CreditCard" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Reservations &amp; Stripe deposits</h2>
+                <p>
+                    Buyers can reserve a goat by paying a refundable deposit through Stripe Checkout.
+                    The deposit is recorded against your <a href="#waitlist">waitlist</a>; you set the
+                    refund policy in your farm description.
+                </p>
+                <ol>
+                    <li><strong>Connect Stripe:</strong> Farm settings → Billing &amp; payouts. Onboarding sends you to Stripe to verify identity and bank info.</li>
+                    <li><strong>Set deposit %</strong> on Farm settings. Default is 0 (no online deposits — buyers can still inquire). 10–25% is typical for goats.</li>
+                    <li><strong>Listing must have an asking price</strong> — the deposit is a percentage of that price.</li>
+                </ol>
+                <p>
+                    A buyer who clicks <strong>Reserve</strong> on a listing fills name + email,
+                    lands on Stripe Checkout, and on success ends up on your waitlist with the
+                    deposit recorded against their account.
+                </p>
+            </div>
+        </article>
+
+        <article id="waitlist" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.HourglassTop" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Buyer waitlist</h2>
+                <p>
+                    <MudLink Href="/waitlist">Buyer waitlist</MudLink> is your CRM for interested
+                    buyers. Each entry has breed/sex preferences, deposit amount (if any), priority,
+                    and notes. You can:
+                </p>
+                <ul>
+                    <li>Add buyers manually (pre-existing customers from before GoatLab).</li>
+                    <li>Auto-enroll buyers from Stripe deposits (see above).</li>
+                    <li>Convert a waitlist entry to a sale in one click — pulls the deposit forward as a credit.</li>
+                    <li>Send the buyer a magic-link to a portal where they see their place in line.</li>
+                </ul>
+            </div>
+        </article>
+
+        <article id="inquiries" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.Forum" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Buyer messages</h2>
+                <p>
+                    When a buyer fills the contact form on a listing, you get an email and the thread
+                    appears in <MudLink Href="/inquiries">Inquiries</MudLink>. Reply in the inbox or
+                    directly to the email — both surfaces stay in sync. Mark a thread "Sold" or
+                    "Closed" when it's resolved to keep the inbox tidy.
+                </p>
+            </div>
+        </article>
+
+        <article id="vet-shares" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.MedicalServices" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Vet share-links</h2>
+                <p>
+                    From any goat's detail page, click <strong>Share with vet</strong> to mint a
+                    time-bounded URL the vet can open without signing up. They see medical history,
+                    weights, FAMACHA, and body condition, and can leave a note that lands on the
+                    goat's timeline. Default expiry is 30 days; revoke any time.
+                    Available on Farm and Dairy plans.
+                </p>
+            </div>
+        </article>
+
+        <article id="transfers" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.SwapHoriz" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Farm-to-farm transfers</h2>
+                <p>
+                    Selling a goat to another GoatLab farm? <strong>Transfer</strong> moves the
+                    animal — pedigree, medical history, weights, milk records, photos — to the
+                    buyer's herd in one click. The buyer accepts via a token link sent to their
+                    email. The seller's record stays as historical reference.
+                    Available on Farm and Dairy plans.
+                </p>
+            </div>
+        </article>
+
+        <article id="alerts" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.Notifications" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Smart alerts &amp; push</h2>
+                <p>
+                    <MudLink Href="/alerts">Alerts</MudLink> watches your herd for things you'd
+                    otherwise forget:
+                </p>
+                <ul>
+                    <li>Overdue medications based on each record's <em>next due date</em>.</li>
+                    <li>Upcoming kiddings within the next 14 days.</li>
+                    <li>Weight drops &gt; 10% in 30 days.</li>
+                    <li>Low feed inventory (if you track feed).</li>
+                    <li>FAMACHA scores trending high.</li>
+                </ul>
+                <p>
+                    Delivery options: in-app banner, email digest (daily 8am local), and Web Push.
+                    Push needs a one-time browser permission grant — install GoatLab as a PWA on
+                    your phone (Chrome/Safari "Add to home screen") to get them in the barn.
+                </p>
+            </div>
+        </article>
+
+        <article id="reports" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.BarChart" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Reports &amp; forecasts</h2>
+                <p>
+                    <MudLink Href="/reports">Reports</MudLink> has six built-in reports:
+                    P&amp;L, milk trends, kidding, mortality, parasite/FAMACHA, and health spend.
+                    Each renders as a chart + a downloadable CSV.
+                </p>
+                <p>
+                    Forecasts (Farm + Dairy) project the next 30 / 60 / 90 days for kidding load,
+                    expected milk volume, and cash flow based on trailing averages.
+                </p>
+            </div>
+        </article>
+
+        <article id="api" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.Webhook" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>API &amp; webhooks</h2>
+                <p>
+                    Integrate GoatLab with your other tools (registries, accounting, custom dashboards):
+                </p>
+                <ul>
+                    <li><strong>API keys:</strong> Farm settings → API. Generate a key (one-shot reveal — copy it). Authenticate any endpoint with <code>Authorization: Bearer goatlab_…</code>.</li>
+                    <li><strong>Webhooks:</strong> subscribe to events (goat created, sale closed, kidding logged, medical record). HMAC-SHA256 signatures, automatic retries with exponential backoff.</li>
+                </ul>
+                <p>Available on Farm and Dairy plans.</p>
+            </div>
+        </article>
+
+        <article id="self-host" class="help-card">
+            <div class="help-card-icon"><MudIcon Icon="@Icons.Material.Filled.Storage" Style="font-size:24px;" /></div>
+            <div class="help-card-body">
+                <h2>Self-hosting</h2>
+                <p>
+                    GoatLab is open source. The same code that runs goatlab.app runs on your own
+                    server. Two-file install:
+                </p>
+                <div class="help-terminal">
+                    <div class="help-terminal-bar">
+                        <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+                        <span class="help-terminal-title">~/goatlab</span>
+                    </div>
+                    <pre><span class="t-prompt">$</span> mkdir goatlab &amp;&amp; cd goatlab
+<span class="t-prompt">$</span> curl -O https://raw.githubusercontent.com/chrisdfennell/GoatLabSaaS/main/docker-compose.oss.yml
+<span class="t-prompt">$</span> curl -o .env https://raw.githubusercontent.com/chrisdfennell/GoatLabSaaS/main/.env.example
+<span class="t-prompt">$</span> docker compose -f docker-compose.oss.yml up -d</pre>
+                </div>
+                <p style="margin-top:14px;">
+                    Source: <MudLink Href="https://github.com/chrisdfennell/GoatLabSaaS" Target="_blank" rel="noopener">github.com/chrisdfennell/GoatLabSaaS</MudLink>.
+                    Image: <MudLink Href="https://hub.docker.com/r/fennch/goatlab" Target="_blank" rel="noopener">hub.docker.com/r/fennch/goatlab</MudLink>.
+                    In self-host mode every feature is on for every tenant — no plan tiers, no
+                    Stripe/marketplace surface (unless you flip <code>Saas:Enabled=true</code>).
+                </p>
+            </div>
+        </article>
+
+        <div class="help-footer">
+            <MudIcon Icon="@Icons.Material.Filled.SupportAgent" Style="font-size:24px;color:#2e7d32;" />
+            <div>
+                <strong>Still stuck?</strong>
+                Open an issue at
+                <MudLink Href="https://github.com/chrisdfennell/GoatLabSaaS/issues" Target="_blank" rel="noopener">github.com/chrisdfennell/GoatLabSaaS/issues</MudLink>.
+                Same place we triage bugs — faster than email.
+            </div>
+        </div>
+    </div>
+</section>
+
 <style>
-    .help-page { padding: 60px 0 80px; background: #fff; color: #1a2421; }
-    .help-page h1 { font-size: 36px; font-weight: 800; letter-spacing: -1px; margin: 0 0 8px; }
-    .help-page .lede { font-size: 17px; color: #3a4a3e; line-height: 1.6; margin: 0 0 28px; max-width: 720px; }
+    /* Page background gets a soft top fade like Landing's hero, then white. */
+    .help-hero {
+        background:
+            radial-gradient(1100px 360px at 50% 0%, rgba(102,187,106,0.15), transparent),
+            #fff;
+        padding: 80px 0 32px;
+        text-align: center;
+    }
+    .help-hero .container { max-width: 880px; padding: 0 28px; margin: 0 auto; }
+    .help-hero .eyebrow {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: rgba(46,125,50,0.10); color: #2e7d32;
+        padding: 6px 14px; border-radius: 999px;
+        font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
+        margin-bottom: 18px;
+    }
+    .help-hero h1 {
+        font-size: 48px; font-weight: 800; letter-spacing: -1.5px;
+        color: #102a1a; margin: 0 0 14px;
+    }
+    .help-hero .lede {
+        font-size: 18px; line-height: 1.65; color: #3a4a3e;
+        max-width: 640px; margin: 0 auto;
+    }
+    @@media (max-width: 720px) {
+        .help-hero { padding: 56px 0 24px; }
+        .help-hero h1 { font-size: 34px; }
+    }
 
-    .help-toc {
-        background: #f8faf8; border: 1px solid rgba(46, 125, 50, 0.18);
-        border-radius: 12px; padding: 16px 20px; margin: 0 0 36px;
-        font-size: 14px; line-height: 1.9;
+    /* TOC: pill grid that auto-fits. */
+    .help-toc-section { padding: 12px 0 24px; background: #fff; }
+    .help-toc-section .container { max-width: 1080px; padding: 0 28px; margin: 0 auto; }
+    .help-toc-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 10px;
     }
-    .help-toc strong { display: inline-block; margin-right: 8px; color: #102a1a; }
-    .help-toc a {
-        display: inline-block; margin-right: 12px;
-        color: #2e7d32; text-decoration: none; font-weight: 500;
+    .help-toc-pill {
+        display: inline-flex; align-items: center; gap: 10px;
+        padding: 10px 14px; border-radius: 10px;
+        background: #f5faf6; border: 1px solid rgba(46,125,50,0.18);
+        color: #1a2e1f; text-decoration: none; font-weight: 600; font-size: 14px;
+        transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
     }
-    .help-toc a:hover { text-decoration: underline; }
+    .help-toc-pill:hover {
+        background: #e8f5e9; border-color: #66bb6a; transform: translateY(-1px);
+        text-decoration: none;
+    }
+    .help-toc-pill-icon {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 28px; height: 28px; border-radius: 8px;
+        background: rgba(46,125,50,0.12); color: #2e7d32;
+        flex-shrink: 0;
+    }
 
-    .help-page article {
-        scroll-margin-top: 80px; /* so anchor jumps clear the sticky nav */
-        padding: 18px 0; border-top: 1px solid rgba(0, 0, 0, 0.06);
+    /* Section cards. */
+    .help-articles { padding: 32px 0 80px; background: #fff; }
+    .help-articles .container { max-width: 880px; padding: 0 28px; margin: 0 auto; }
+    .help-card {
+        scroll-margin-top: 80px; /* clear the sticky site nav on anchor jumps */
+        display: flex; gap: 18px;
+        background: #fff;
+        border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 16px;
+        padding: 28px;
+        margin-bottom: 18px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
-    .help-page article:first-of-type { border-top: 0; padding-top: 0; }
-    .help-page h2 {
-        font-size: 24px; font-weight: 700; letter-spacing: -0.5px;
+    .help-card:hover {
+        border-color: rgba(46,125,50,0.35);
+        box-shadow: 0 10px 28px -16px rgba(16,42,26,0.18);
+    }
+    .help-card-icon {
+        flex-shrink: 0;
+        width: 48px; height: 48px; border-radius: 12px;
+        display: flex; align-items: center; justify-content: center;
+        background: linear-gradient(135deg, rgba(46,125,50,0.10), rgba(102,187,106,0.18));
+        color: #2e7d32;
+    }
+    .help-card-body { flex: 1; min-width: 0; }
+    .help-card h2 {
+        font-size: 22px; font-weight: 700; letter-spacing: -0.4px;
         color: #102a1a; margin: 0 0 12px;
     }
-    .help-page p, .help-page li { font-size: 15px; line-height: 1.65; color: #2a3a2e; }
-    .help-page p { margin: 0 0 12px; }
-    .help-page ul, .help-page ol { margin: 0 0 14px; padding-left: 22px; }
-    .help-page li { margin-bottom: 6px; }
-    .help-page code {
-        background: rgba(46, 125, 50, 0.08); color: #1b5e20;
-        padding: 1px 6px; border-radius: 4px;
-        font-family: ui-monospace, Menlo, monospace; font-size: 0.9em;
+    .help-card p, .help-card li {
+        font-size: 15.5px; line-height: 1.65; color: #2a3a2e;
     }
-    .help-page pre {
-        background: #0f1f13; color: #d4e5d8;
-        padding: 14px 18px; border-radius: 10px;
-        font-family: ui-monospace, Menlo, monospace; font-size: 13px;
-        overflow-x: auto; margin: 8px 0 14px;
+    .help-card p { margin: 0 0 12px; }
+    .help-card ul, .help-card ol { margin: 0 0 12px; padding-left: 22px; }
+    .help-card li { margin-bottom: 6px; }
+    .help-card code {
+        background: rgba(46,125,50,0.10); color: #1b5e20;
+        padding: 1.5px 6px; border-radius: 5px;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 0.9em;
     }
-    .help-page pre code { background: transparent; color: inherit; padding: 0; font-size: inherit; }
+    .help-card a { color: #2e7d32; }
+
+    @@media (max-width: 720px) {
+        .help-card { flex-direction: column; gap: 14px; padding: 22px; border-radius: 14px; }
+        .help-card-icon { width: 40px; height: 40px; }
+        .help-card h2 { font-size: 20px; }
+    }
+
+    /* Terminal-style code block (matches the self-host section on Landing). */
+    .help-terminal {
+        background: #0a1510;
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.08);
+        overflow: hidden;
+        margin: 6px 0 4px;
+    }
+    .help-terminal-bar {
+        display: flex; align-items: center; gap: 6px;
+        background: #12241a; padding: 9px 14px;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .help-terminal-bar .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .help-terminal-bar .dot.r { background: #ff5f56; }
+    .help-terminal-bar .dot.y { background: #ffbd2e; }
+    .help-terminal-bar .dot.g { background: #27c93f; }
+    .help-terminal-title {
+        margin-left: 12px; font-size: 12px; color: rgba(255,255,255,0.55);
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+    }
+    .help-terminal pre {
+        margin: 0; padding: 16px 18px;
+        background: #0a1510; color: #d4e5d8;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 13px; line-height: 1.7;
+        white-space: pre-wrap; word-break: break-word;
+    }
+    .help-terminal pre .t-prompt { color: #66bb6a; font-weight: 700; }
+
+    /* Footer card */
     .help-footer {
-        margin-top: 36px; padding-top: 18px; border-top: 1px solid rgba(0, 0, 0, 0.08);
-        font-size: 14px; color: #6b7a70;
+        display: flex; align-items: flex-start; gap: 14px;
+        background: linear-gradient(135deg, rgba(46,125,50,0.06), rgba(102,187,106,0.10));
+        border: 1px solid rgba(46,125,50,0.20);
+        border-radius: 14px;
+        padding: 18px 22px;
+        margin-top: 24px;
+        font-size: 15px; color: #2a3a2e; line-height: 1.6;
     }
+    .help-footer strong { color: #102a1a; display: block; margin-bottom: 2px; }
+    .help-footer a { color: #2e7d32; }
+
+    html { scroll-behavior: smooth; }
 </style>
+
+@code {
+    // Single source of truth for the table-of-contents pills + scroll anchors.
+    // Adding a new section: drop a new article in the body with id="…" and add
+    // a matching tuple here in the order you want it shown in the directory.
+    private static readonly (string Id, string Label, string Icon)[] TocEntries = new[]
+    {
+        ("getting-started", "Getting started",       Icons.Material.Filled.RocketLaunch),
+        ("add-goats",       "Adding goats",          GoatLabIcons.Hoof),
+        ("health",          "Health records",        Icons.Material.Filled.LocalHospital),
+        ("breeding",        "Breeding & kidding",    Icons.Material.Filled.Favorite),
+        ("milk",            "Milk tracking",         Icons.Material.Filled.WaterDrop),
+        ("listing",         "Listing for sale",      Icons.Material.Filled.Sell),
+        ("public-profile",  "Public farm page",      Icons.Material.Filled.Public),
+        ("deposits",        "Reservations",          Icons.Material.Filled.CreditCard),
+        ("waitlist",        "Buyer waitlist",        Icons.Material.Filled.HourglassTop),
+        ("inquiries",       "Buyer messages",        Icons.Material.Filled.Forum),
+        ("vet-shares",      "Vet share-links",       Icons.Material.Filled.MedicalServices),
+        ("transfers",       "Farm-to-farm transfers",Icons.Material.Filled.SwapHoriz),
+        ("alerts",          "Smart alerts",          Icons.Material.Filled.Notifications),
+        ("reports",         "Reports & forecasts",   Icons.Material.Filled.BarChart),
+        ("api",             "API & webhooks",        Icons.Material.Filled.Webhook),
+        ("self-host",       "Self-hosting",          Icons.Material.Filled.Storage),
+    };
+}

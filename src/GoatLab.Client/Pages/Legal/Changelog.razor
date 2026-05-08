@@ -8,19 +8,34 @@
     <meta name="description" content="What's new in GoatLab — feature releases, improvements, and bug fixes." />
 </HeadContent>
 
-<section class="legal-page">
+@* ---------- HERO ---------- *@
+<section class="cl-hero">
     <div class="container">
-        <h1>Changelog</h1>
-        <p class="effective">What we've shipped recently. New entries on top.</p>
+        <div class="eyebrow">
+            <MudIcon Icon="@Icons.Material.Filled.NewReleases" Style="font-size:16px;" />
+            <span>Changelog</span>
+        </div>
+        <h1>What we've shipped recently.</h1>
+        <p class="lede">
+            New entries on top. Anything tagged <strong>Feature</strong> is something you can do
+            today that you couldn't yesterday. <strong>Improvement</strong> means existing flows
+            got faster, smarter, or less broken.
+        </p>
+    </div>
+</section>
 
-        @* When you ship something user-visible, prepend a new <article class="cl-entry"> here.
+@* ---------- ENTRIES ---------- *@
+<section class="cl-entries">
+    <div class="container">
+
+        @* When you ship something user-visible, prepend a new <article class="cl-card"> here.
            Keep entries concise — one sentence per bullet, link to docs/blog from the site if needed. *@
 
-        <article class="cl-entry">
-            <header>
+        <article class="cl-card">
+            <div class="cl-card-meta">
                 <span class="cl-date">2026-05-08</span>
                 <span class="cl-tag cl-tag-improvement">Improvement</span>
-            </header>
+            </div>
             <h2>Brand refresh + reliability polish</h2>
             <ul>
                 <li><strong>New brand mark.</strong> Watercolor goat replaces the abstract icon in the navbar, footer, splash, and PWA install icons. The same goat appears as a heritage seal lockup on marketing surfaces and the social card.</li>
@@ -30,11 +45,11 @@
             </ul>
         </article>
 
-        <article class="cl-entry">
-            <header>
+        <article class="cl-card">
+            <div class="cl-card-meta">
                 <span class="cl-date">2026-05-07</span>
                 <span class="cl-tag cl-tag-feature">Feature</span>
-            </header>
+            </div>
             <h2>GoatLab is now open source — self-host on your own hardware</h2>
             <ul>
                 <li><strong>MIT-licensed source on <a href="https://github.com/chrisdfennell/GoatLabSaaS" target="_blank" rel="noopener">GitHub</a>.</strong> Pull the prebuilt image from <a href="https://hub.docker.com/r/fennch/goatlab" target="_blank" rel="noopener">Docker Hub</a> (multi-arch, runs on a Raspberry Pi or arm64 NAS) or clone the repo and build from source — both paths run the same app you see here.</li>
@@ -43,11 +58,11 @@
             </ul>
         </article>
 
-        <article class="cl-entry">
-            <header>
+        <article class="cl-card">
+            <div class="cl-card-meta">
                 <span class="cl-date">2026-04-30</span>
                 <span class="cl-tag cl-tag-feature">Feature</span>
-            </header>
+            </div>
             <h2>Searchable marketplace, vet share-links, cross-farm lineage</h2>
             <ul>
                 <li><strong>Filterable breed pages:</strong> <a href="/breeds">/breeds/{breed}</a> now shows individual goats with filters (sex, price, state, sort). Each listing card links straight to the goat detail.</li>
@@ -57,11 +72,11 @@
             </ul>
         </article>
 
-        <article class="cl-entry">
-            <header>
+        <article class="cl-card">
+            <div class="cl-card-meta">
                 <span class="cl-date">2026-04-27</span>
                 <span class="cl-tag cl-tag-feature">Feature</span>
-            </header>
+            </div>
             <h2>Goat timeline view, faster public listings, search-friendly farm pages</h2>
             <ul>
                 <li>Every goat has a new <strong>Timeline</strong> tab that combines medical records, weights, FAMACHA scores, milk production, breeding events, kiddings, shows, photos, and status changes into one chronological scroll — grouped by month and color-coded by severity.</li>
@@ -71,11 +86,11 @@
             </ul>
         </article>
 
-        <article class="cl-entry">
-            <header>
+        <article class="cl-card">
+            <div class="cl-card-meta">
                 <span class="cl-date">2026-04-26</span>
                 <span class="cl-tag cl-tag-improvement">Improvement</span>
-            </header>
+            </div>
             <h2>Accurate mortality timestamps + admin backup visibility</h2>
             <ul>
                 <li>Mortality reports now use the goat's actual status-change moment instead of approximating from <code>UpdatedAt</code>.</li>
@@ -84,11 +99,11 @@
             </ul>
         </article>
 
-        <article class="cl-entry">
-            <header>
+        <article class="cl-card">
+            <div class="cl-card-meta">
                 <span class="cl-date">2026-04-25</span>
                 <span class="cl-tag cl-tag-feature">Feature</span>
-            </header>
+            </div>
             <h2>Farm-to-farm transfers, mate recommendations, breed directory</h2>
             <ul>
                 <li>Send a goat (and its medical/weight/milk/photo history) to another GoatLab farm via a secure token link.</li>
@@ -98,11 +113,11 @@
             </ul>
         </article>
 
-        <article class="cl-entry">
-            <header>
+        <article class="cl-card">
+            <div class="cl-card-meta">
                 <span class="cl-date">2026-04-22</span>
                 <span class="cl-tag cl-tag-feature">Feature</span>
-            </header>
+            </div>
             <h2>Online reservations, QR ear-tag sheets, withdrawal tracking</h2>
             <ul>
                 <li>Public listings can take a Stripe-Checkout deposit to reserve an animal — buyer goes straight onto the seller's waitlist with the deposit recorded.</li>
@@ -111,11 +126,11 @@
             </ul>
         </article>
 
-        <article class="cl-entry">
-            <header>
+        <article class="cl-card">
+            <div class="cl-card-meta">
                 <span class="cl-date">2026-04-19</span>
                 <span class="cl-tag cl-tag-feature">Feature</span>
-            </header>
+            </div>
             <h2>Buyer waitlist, deposits, and a buyer portal</h2>
             <ul>
                 <li>Track interested buyers with breed/sex preferences, deposit amounts, and priority. Convert to a sale in one click.</li>
@@ -124,11 +139,11 @@
             </ul>
         </article>
 
-        <article class="cl-entry">
-            <header>
+        <article class="cl-card">
+            <div class="cl-card-meta">
                 <span class="cl-date">2026-04-18</span>
                 <span class="cl-tag cl-tag-feature">Feature</span>
-            </header>
+            </div>
             <h2>API keys, outbound webhooks, feed consumption</h2>
             <ul>
                 <li>Generate tenant API keys (one-shot reveal) and authenticate against the same endpoints your browser uses.</li>
@@ -137,11 +152,11 @@
             </ul>
         </article>
 
-        <article class="cl-entry">
-            <header>
+        <article class="cl-card">
+            <div class="cl-card-meta">
                 <span class="cl-date">2026-04-17</span>
                 <span class="cl-tag cl-tag-feature">Feature</span>
-            </header>
+            </div>
             <h2>Reports, forecasting, and progeny rollups</h2>
             <ul>
                 <li>Six new reports on the Insights tab: P&amp;L, milk trends, kidding, mortality, parasite/FAMACHA, health spend.</li>
@@ -150,34 +165,100 @@
             </ul>
         </article>
 
-        <p class="cl-footer">
-            Need something that's not here?
-            <a href="mailto:@LegalSettingsService.Or(_settings?.ContactEmail, "CONTACT EMAIL")">Email us</a>
-            and we'll add it to the roadmap.
-        </p>
+        <div class="cl-footer-card">
+            <MudIcon Icon="@Icons.Material.Filled.Lightbulb" Style="font-size:24px;color:#2e7d32;" />
+            <div>
+                <strong>Need something that's not here?</strong>
+                <a href="mailto:@LegalSettingsService.Or(_settings?.ContactEmail, "CONTACT EMAIL")">Email us</a>
+                and we'll add it to the roadmap.
+            </div>
+        </div>
     </div>
 </section>
 
 <style>
-    .legal-page { padding: 80px 0; background: #fff; color: #1a2421; }
-    .legal-page .container { max-width: 760px; margin: 0 auto; padding: 0 24px; line-height: 1.6; }
-    .legal-page h1 { font-size: 32px; margin-bottom: 8px; }
-    .legal-page .effective { color: #6b7a70; font-size: 14px; margin-bottom: 32px; }
-    .legal-page a { color: #2e7d32; }
-    .legal-page code { background: #f0f0f0; padding: 1px 4px; border-radius: 3px; font-size: 0.92em; }
+    .cl-hero {
+        background:
+            radial-gradient(1100px 360px at 50% 0%, rgba(102,187,106,0.15), transparent),
+            #fff;
+        padding: 80px 0 32px;
+        text-align: center;
+    }
+    .cl-hero .container { max-width: 880px; padding: 0 28px; margin: 0 auto; }
+    .cl-hero .eyebrow {
+        display: inline-flex; align-items: center; gap: 8px;
+        background: rgba(46,125,50,0.10); color: #2e7d32;
+        padding: 6px 14px; border-radius: 999px;
+        font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
+        margin-bottom: 18px;
+    }
+    .cl-hero h1 {
+        font-size: 48px; font-weight: 800; letter-spacing: -1.5px;
+        color: #102a1a; margin: 0 0 14px;
+    }
+    .cl-hero .lede {
+        font-size: 18px; line-height: 1.65; color: #3a4a3e;
+        max-width: 640px; margin: 0 auto;
+    }
+    @@media (max-width: 720px) {
+        .cl-hero { padding: 56px 0 24px; }
+        .cl-hero h1 { font-size: 34px; }
+    }
 
-    .cl-entry { border-top: 1px solid #e3e8e4; padding: 24px 0; }
-    .cl-entry:first-of-type { border-top: 0; padding-top: 0; }
-    .cl-entry header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-    .cl-entry h2 { font-size: 22px; margin: 4px 0 12px 0; color: #102a1a; }
-    .cl-entry ul { margin: 0; padding-left: 22px; }
-    .cl-entry ul li { margin-bottom: 6px; }
-    .cl-date { font-size: 13px; color: #6b7a70; font-variant-numeric: tabular-nums; }
-    .cl-tag { font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; font-weight: 600; }
-    .cl-tag-feature { background: #e6f4ea; color: #1b5e20; }
+    .cl-entries { padding: 24px 0 80px; background: #fff; }
+    .cl-entries .container { max-width: 880px; padding: 0 28px; margin: 0 auto; }
+
+    .cl-card {
+        background: #fff;
+        border: 1px solid rgba(0,0,0,0.08);
+        border-radius: 16px;
+        padding: 26px 28px;
+        margin-bottom: 18px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .cl-card:hover {
+        border-color: rgba(46,125,50,0.35);
+        box-shadow: 0 10px 28px -16px rgba(16,42,26,0.18);
+    }
+    .cl-card-meta { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .cl-card h2 {
+        font-size: 22px; font-weight: 700; letter-spacing: -0.4px;
+        color: #102a1a; margin: 4px 0 12px;
+    }
+    .cl-card ul { margin: 0; padding-left: 22px; }
+    .cl-card li { margin-bottom: 6px; font-size: 15.5px; line-height: 1.65; color: #2a3a2e; }
+    .cl-card a { color: #2e7d32; }
+    .cl-card code {
+        background: rgba(46,125,50,0.10); color: #1b5e20;
+        padding: 1.5px 6px; border-radius: 5px;
+        font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.9em;
+    }
+
+    .cl-date { font-size: 13px; color: #6b7a70; font-variant-numeric: tabular-nums; font-weight: 500; }
+    .cl-tag {
+        font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase;
+        padding: 3px 10px; border-radius: 999px; font-weight: 700;
+    }
+    .cl-tag-feature     { background: #e6f4ea; color: #1b5e20; }
     .cl-tag-improvement { background: #e3f2fd; color: #0d47a1; }
-    .cl-tag-fix { background: #fff3e0; color: #b25400; }
-    .cl-footer { margin-top: 32px; padding-top: 20px; border-top: 1px solid #e3e8e4; color: #6b7a70; }
+    .cl-tag-fix         { background: #fff3e0; color: #b25400; }
+
+    .cl-footer-card {
+        display: flex; align-items: flex-start; gap: 14px;
+        background: linear-gradient(135deg, rgba(46,125,50,0.06), rgba(102,187,106,0.10));
+        border: 1px solid rgba(46,125,50,0.20);
+        border-radius: 14px;
+        padding: 18px 22px;
+        margin-top: 24px;
+        font-size: 15px; color: #2a3a2e; line-height: 1.6;
+    }
+    .cl-footer-card strong { color: #102a1a; display: block; margin-bottom: 2px; }
+    .cl-footer-card a { color: #2e7d32; }
+
+    @@media (max-width: 720px) {
+        .cl-card { padding: 22px; border-radius: 14px; }
+        .cl-card h2 { font-size: 19px; }
+    }
 </style>
 
 @code {
