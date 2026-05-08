@@ -20,7 +20,13 @@
                    Disabled="_busy">Search</MudButton>
     </div>
 
-    @if (_results is not null)
+    @if (_searchError is not null)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mt-4">
+            Search failed. @_searchError
+        </MudAlert>
+    }
+    else if (_results is not null)
     {
         @if (_results.Hits.Count == 0)
         {
@@ -64,13 +70,16 @@
 @code {
     private string _query = "";
     private AdminSearchResponse? _results;
+    private string? _searchError;
     private bool _busy;
 
     private async Task Run()
     {
         if (string.IsNullOrWhiteSpace(_query) || _query.Trim().Length < 2) return;
         _busy = true;
+        _searchError = null;
         try { _results = await Ops.SearchAsync(_query, 25); }
+        catch (Exception ex) { _searchError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _busy = false; }
     }
 }

@@ -23,7 +23,13 @@
         For unit test results, see the CI pipeline.
     </MudText>
 
-    @if (_report is null)
+    @if (_loadError is not null)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+            Couldn't load health report. @_loadError
+        </MudAlert>
+    }
+    else if (_report is null)
     {
         <MudProgressCircular Indeterminate="true" />
     }
@@ -125,6 +131,7 @@
 @code {
     private AdminHealthService.Report? _report;
     private bool _busy;
+    private string? _loadError;
     private string _replayEventId = "";
     private GoatLab.Shared.DTOs.StripeReplayResultDto? _replayResult;
 
@@ -143,8 +150,10 @@
 
     private async Task LoadAsync()
     {
+        _loadError = null;
         _busy = true;
         try { _report = await HealthApi.GetAsync(); }
+        catch (Exception ex) { _loadError = $"{ex.GetType().Name}: {ex.Message}"; }
         finally { _busy = false; }
     }
 

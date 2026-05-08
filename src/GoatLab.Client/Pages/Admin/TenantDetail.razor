@@ -47,7 +47,13 @@
     }
 </div>
 
-@if (detail is null)
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+        Couldn't load tenant. @_loadError
+    </MudAlert>
+}
+else if (detail is null)
 {
     <MudProgressLinear Indeterminate Color="Color.Primary" />
 }
@@ -57,7 +63,7 @@ else
     {
         <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Class="mb-3"
                   ShowCloseIcon="false">
-            <b>Suspended @detail.SuspendedAt?.ToLocalTime().ToString("MMM d, yyyy") :</b>
+            <b>Suspended @detail.SuspendedAt?.ToLocalTime().ToString("MMM d, yyyy"):</b>
             @(detail.SuspensionReason ?? "no reason given")
         </MudAlert>
     }
@@ -330,15 +336,22 @@ else
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
+    private string? _loadError;
+
     private async Task LoadAsync()
     {
-        detail = await Admin.GetTenantDetailAsync(Id);
-        if (detail is not null)
+        _loadError = null;
+        try
         {
-            _notesDraft = detail.Notes ?? string.Empty;
-            _tagDraft = detail.Tag ?? string.Empty;
-            _flagsDraft = detail.FeatureFlags.ToDictionary(kv => kv.Key, kv => kv.Value);
+            detail = await Admin.GetTenantDetailAsync(Id);
+            if (detail is not null)
+            {
+                _notesDraft = detail.Notes ?? string.Empty;
+                _tagDraft = detail.Tag ?? string.Empty;
+                _flagsDraft = detail.FeatureFlags.ToDictionary(kv => kv.Key, kv => kv.Value);
+            }
         }
+        catch (Exception ex) { _loadError = $"{ex.GetType().Name}: {ex.Message}"; }
     }
 
     private async Task OpenRenameAsync()

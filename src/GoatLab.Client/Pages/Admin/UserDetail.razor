@@ -36,7 +36,13 @@
     }
 </div>
 
-@if (detail is null)
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+        Couldn't load user. @_loadError
+    </MudAlert>
+}
+else if (detail is null)
 {
     <MudProgressLinear Indeterminate Color="Color.Primary" />
 }
@@ -176,11 +182,17 @@ else
     [Parameter] public string Id { get; set; } = string.Empty;
 
     private AdminUserDetail? detail;
+    private string? _loadError;
     private bool IsLocked => detail?.LockoutEnd is { } e && e > DateTimeOffset.UtcNow;
 
     protected override async Task OnParametersSetAsync() => await LoadAsync();
 
-    private async Task LoadAsync() => detail = await Admin.GetUserDetailAsync(Id);
+    private async Task LoadAsync()
+    {
+        _loadError = null;
+        try { detail = await Admin.GetUserDetailAsync(Id); }
+        catch (Exception ex) { _loadError = $"{ex.GetType().Name}: {ex.Message}"; }
+    }
 
     private async Task ToggleSuperAdminAsync(bool value)
     {

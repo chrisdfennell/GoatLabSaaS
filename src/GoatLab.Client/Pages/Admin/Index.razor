@@ -30,7 +30,13 @@
     }
 </div>
 
-@if (metrics is null)
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="mb-4">
+        Couldn't load admin data. @_loadError
+    </MudAlert>
+}
+else if (metrics is null)
 {
     <MudProgressLinear Indeterminate Color="Color.Primary" Class="mb-4" />
 }
@@ -128,12 +134,17 @@ else
     private List<ChartSeries> _series = new();
     private string[] _labels = Array.Empty<string>();
     private readonly ChartOptions _opts = new() { YAxisTicks = 1, LineStrokeWidth = 2 };
+    private string? _loadError;
 
     protected override async Task OnInitializedAsync()
     {
-        metrics = await Admin.GetMetricsAsync();
-        maintenance = await Admin.GetMaintenanceAsync();
-        await LoadTimeseriesAsync();
+        try
+        {
+            metrics = await Admin.GetMetricsAsync();
+            maintenance = await Admin.GetMaintenanceAsync();
+            await LoadTimeseriesAsync();
+        }
+        catch (Exception ex) { _loadError = $"{ex.GetType().Name}: {ex.Message}"; }
     }
 
     private async Task SetMaintenanceAsync(bool enabled)

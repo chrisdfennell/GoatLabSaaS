@@ -18,7 +18,13 @@
                StartIcon="@Icons.Material.Filled.Download" OnClick="ExportAsync">Export CSV</MudButton>
 </div>
 
-@if (data is null)
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+        Couldn't load audit log. @_loadError
+    </MudAlert>
+}
+else if (data is null)
 {
     <MudProgressLinear Indeterminate Color="Color.Primary" />
 }
@@ -44,15 +50,18 @@ else
                 </MudChip>
             </MudTd>
             <MudTd>
-                @if (context.TargetType is not null)
+                @if (context.TargetType is null)
                 {
-                    <MudLink Href="@TargetLink(context)">
-                        @context.TargetType #@context.TargetId
-                    </MudLink>
+                    <span>—</span>
+                }
+                else if (TargetLink(context) is { } link)
+                {
+                    <MudLink Href="@link">@context.TargetType #@context.TargetId</MudLink>
                 }
                 else
                 {
-                    <span>—</span>
+                    @* No detail page for this target type — render plain text instead of a dead link *@
+                    <span>@context.TargetType #@context.TargetId</span>
                 }
             </MudTd>
             <MudTd>
@@ -76,6 +85,7 @@ else
 
 @code {
     private AdminAuditPage? data;
+    private string? _loadError;
     private const int PageSize = 50;
     private bool HasNext => data is not null && data.Page * data.PageSize < data.TotalRows;
 
@@ -83,7 +93,9 @@ else
 
     private async Task GoToAsync(int p)
     {
-        data = await Admin.GetAuditAsync(p, PageSize);
+        _loadError = null;
+        try { data = await Admin.GetAuditAsync(p, PageSize); }
+        catch (Exception ex) { _loadError = $"{ex.GetType().Name}: {ex.Message}"; }
     }
 
     private async Task ExportAsync()
@@ -108,10 +120,10 @@ else
         _ => Color.Default,
     };
 
-    private static string TargetLink(AdminAuditRow row) => row.TargetType switch
+    private static string? TargetLink(AdminAuditRow row) => row.TargetType switch
     {
         "Tenant" => $"/admin/tenants/{row.TargetId}",
         "User" => $"/admin/users/{row.TargetId}",
-        _ => "#",
+        _ => null,
     };
 }

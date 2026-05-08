@@ -20,7 +20,13 @@
         plans appear on the landing page and in-app billing picker. Changes are live immediately.
     </MudText>
 
-    @if (_plans is null)
+    @if (_loadError is not null)
+    {
+        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+            Couldn't load plans. @_loadError
+        </MudAlert>
+    }
+    else if (_plans is null)
     {
         <MudProgressCircular Indeterminate="true" />
     }
@@ -68,10 +74,16 @@
 
 @code {
     private List<AdminPlansService.AdminPlan>? _plans;
+    private string? _loadError;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
-    private async Task LoadAsync() => _plans = await PlansApi.GetAllAsync();
+    private async Task LoadAsync()
+    {
+        _loadError = null;
+        try { _plans = await PlansApi.GetAllAsync(); }
+        catch (Exception ex) { _loadError = $"{ex.GetType().Name}: {ex.Message}"; }
+    }
 
     private static string FormatPrice(int cents)
         => cents == 0 ? "Free" : $"${cents / 100m:0.00}";
@@ -109,7 +121,7 @@
     {
         var confirm = await DialogService.ShowMessageBox(
             "Delete plan?",
-            $"Remove the plan '{plan.Name}'? It has {plan.TenantCount} tenant(s) on it.",
+            $"Remove the plan '{plan.Name}'? This cannot be undone.",
             yesText: "Delete",
             cancelText: "Cancel");
         if (confirm != true) return;

@@ -11,11 +11,18 @@
     <MudSpacer />
     <MudTextField @bind-Value="search" Placeholder="Search name or slug"
                   Variant="Variant.Outlined" Margin="Margin.Dense"
+                  Immediate="true" DebounceInterval="200"
                   Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                   Style="max-width:320px;" />
 </div>
 
-@if (tenants is null)
+@if (_loadError is not null)
+{
+    <MudAlert Severity="Severity.Error" Variant="Variant.Outlined">
+        Couldn't load tenants. @_loadError
+    </MudAlert>
+}
+else if (tenants is null)
 {
     <MudProgressLinear Indeterminate Color="Color.Primary" />
 }
@@ -49,6 +56,7 @@ else
 @code {
     private List<AdminTenantRow>? tenants;
     private string search = string.Empty;
+    private string? _loadError;
 
     private IEnumerable<AdminTenantRow> Filtered =>
         tenants is null ? Array.Empty<AdminTenantRow>()
@@ -59,7 +67,8 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        tenants = await Admin.GetTenantsAsync();
+        try { tenants = await Admin.GetTenantsAsync(); }
+        catch (Exception ex) { _loadError = $"{ex.GetType().Name}: {ex.Message}"; }
     }
 
     private void OnRowClick(TableRowClickEventArgs<AdminTenantRow> args)
