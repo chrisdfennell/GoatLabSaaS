@@ -1,9 +1,11 @@
 @page "/farm-settings"
+@implements IAsyncDisposable
 @using GoatLab.Shared.Models
 @inject TenantSettingsService SettingsApi
 @inject CookieAuthStateProvider AuthState
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <PageTitle>Farm settings — GoatLab</PageTitle>
 
@@ -73,20 +75,27 @@
             {
                 <MudText Typo="Typo.subtitle2" Class="mb-1">Map pin (optional)</MudText>
                 <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-2 d-block">
-                    Drop a pin so your farm shows up on the marketplace map view. Right-click your barn in
-                    <MudLink Href="https://www.google.com/maps" Target="_blank">Google Maps</MudLink>
-                    and click the lat/lng to copy, then paste below. Leave blank to stay off the map.
+                    Click the map to drop a pin on your barn. Drag the pin to fine-tune. Leave blank to stay off the marketplace map view.
                 </MudText>
-                <MudGrid Class="mb-3">
-                    <MudItem xs="6">
-                        <MudNumericField T="double?" @bind-Value="_publicLatitude" Label="Latitude" Min="-90" Max="90" Step="0.0001"
-                                         HelperText="-90 to 90" Disabled="@(!_publicProfileEnabled)" />
-                    </MudItem>
-                    <MudItem xs="6">
-                        <MudNumericField T="double?" @bind-Value="_publicLongitude" Label="Longitude" Min="-180" Max="180" Step="0.0001"
-                                         HelperText="-180 to 180" Disabled="@(!_publicProfileEnabled)" />
-                    </MudItem>
-                </MudGrid>
+                <div id="@PinPickerElementId" class="pin-picker-map mb-1"
+                     style="@(_publicProfileEnabled ? "" : "opacity:0.4;pointer-events:none;")"></div>
+                <div class="d-flex align-center mb-3" style="gap:12px;">
+                    @if (_publicLatitude.HasValue && _publicLongitude.HasValue)
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-family:ui-monospace,monospace;">
+                            @_publicLatitude.Value.ToString("F5"), @_publicLongitude.Value.ToString("F5")
+                        </MudText>
+                        <MudButton Variant="Variant.Text" Color="Color.Default" Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Clear" OnClick="ClearPinAsync"
+                                   Disabled="@(!_publicProfileEnabled)">
+                            Clear pin
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">No pin set — click the map to add one.</MudText>
+                    }
+                </div>
             }
             else
             {
@@ -191,6 +200,13 @@
     private string? _error;
     private bool _busy;
 
+    // Pin-picker map state. The element id is fixed since only one picker
+    // can exist on this page at a time. _pinPickerInitialized guards against
+    // re-initializing on every render.
+    private const string PinPickerElementId = "farm-settings-pin-picker";
+    private bool _pinPickerInitialized;
+    private DotNetObjectReference<FarmSettings>? _selfRef;
+
     private string PublicFarmUrl => _settings is null
         ? ""
         : $"{Nav.BaseUri.TrimEnd('/')}/pub/{_settings.Slug}";
@@ -261,6 +277,49 @@
         _publicLongitude = _settings.PublicLongitude;
         _publicAccentColor = _settings.PublicAccentColor;
         _publicWelcomeMessage = _settings.PublicWelcomeMessage;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Initialize the pin picker once, after the map div is in the DOM.
+        // _canMapPin gates the div's existence; without it, skip.
+        if (_pinPickerInitialized || !_canMapPin || _settings is null) return;
+        _pinPickerInitialized = true;
+        _selfRef ??= DotNetObjectReference.Create(this);
+        try
+        {
+            await JS.InvokeVoidAsync("leafletInterop.initPinPicker",
+                PinPickerElementId, _publicLatitude, _publicLongitude, _selfRef);
+        }
+        catch
+        {
+            // First render fires before Leaflet's CSS/JS is guaranteed in
+            // some hot-reload scenarios. Reset the guard so the next render
+            // gets another shot.
+            _pinPickerInitialized = false;
+        }
+    }
+
+    [JSInvokable]
+    public Task OnPinDropped(double lat, double lng)
+    {
+        _publicLatitude = lat;
+        _publicLongitude = lng;
+        StateHasChanged();
+        return Task.CompletedTask;
+    }
+
+    private async Task ClearPinAsync()
+    {
+        _publicLatitude = null;
+        _publicLongitude = null;
+        try { await JS.InvokeVoidAsync("leafletInterop.clearPinPicker"); } catch { }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("leafletInterop.disposePinPicker"); } catch { }
+        _selfRef?.Dispose();
     }
 
     private async Task SaveAsync()

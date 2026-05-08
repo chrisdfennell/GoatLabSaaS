@@ -9,6 +9,13 @@ window.leafletInterop = (function () {
     let isMeasuring = false;
     let dotNetRef = null;
 
+    // Standalone state for the pin-picker map used by farm settings.
+    // Kept separate from `map` so the picker doesn't fight with the main
+    // farm map when both modules are alive on the same SPA session.
+    let pinPickerMap = null;
+    let pinPickerMarker = null;
+    let pinPickerDotNet = null;
+
     // Tile layers
     const tileLayers = {
         osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -280,6 +287,70 @@ window.leafletInterop = (function () {
                 map = null;
                 drawnItems = null;
                 markers = {};
+            }
+        },
+
+        // Pin-picker map used by Farm Settings. Click anywhere to drop the
+        // pin; drag the marker for fine adjustments. The .NET callback
+        // gets (lat, lng) on every change. lat/lng args may be null to
+        // start without a pin (centered on contiguous US).
+        initPinPicker: function (elementId, lat, lng, dotNetObjRef) {
+            if (pinPickerMap) {
+                pinPickerMap.remove();
+                pinPickerMap = null;
+                pinPickerMarker = null;
+            }
+
+            pinPickerDotNet = dotNetObjRef;
+            const hasPin = lat != null && lng != null;
+            const center = hasPin ? [lat, lng] : [39.5, -98.35];
+            const zoom = hasPin ? 13 : 4;
+
+            pinPickerMap = L.map(elementId).setView(center, zoom);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(pinPickerMap);
+
+            const handleNewPos = (newLat, newLng) => {
+                if (pinPickerDotNet) {
+                    pinPickerDotNet.invokeMethodAsync('OnPinDropped', newLat, newLng);
+                }
+            };
+
+            const placeOrMove = (newLat, newLng) => {
+                if (pinPickerMarker) {
+                    pinPickerMarker.setLatLng([newLat, newLng]);
+                } else {
+                    pinPickerMarker = L.marker([newLat, newLng], { draggable: true }).addTo(pinPickerMap);
+                    pinPickerMarker.on('dragend', (e) => {
+                        const p = e.target.getLatLng();
+                        handleNewPos(p.lat, p.lng);
+                    });
+                }
+            };
+
+            if (hasPin) placeOrMove(lat, lng);
+
+            pinPickerMap.on('click', (e) => {
+                placeOrMove(e.latlng.lat, e.latlng.lng);
+                handleNewPos(e.latlng.lat, e.latlng.lng);
+            });
+        },
+
+        clearPinPicker: function () {
+            if (pinPickerMarker && pinPickerMap) {
+                pinPickerMap.removeLayer(pinPickerMarker);
+                pinPickerMarker = null;
+            }
+        },
+
+        disposePinPicker: function () {
+            if (pinPickerMap) {
+                pinPickerMap.remove();
+                pinPickerMap = null;
+                pinPickerMarker = null;
+                pinPickerDotNet = null;
             }
         }
     };

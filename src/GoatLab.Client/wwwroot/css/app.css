@@ -301,6 +301,18 @@ aside.mud-drawer > div {
    that needs the extra pixels to read. */
 .drawer-brand-seal { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0; }
 
+/* Embedded Leaflet pin-picker on Farm Settings. Fixed height so the
+   map has somewhere to render before tiles load; rounded so it sits
+   inside the section paper without fighting its border radius. */
+.pin-picker-map {
+    width: 100%;
+    height: 280px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    cursor: crosshair;
+}
+
 /* Detailed goat silhouette used in the dashboard activity feed for
    "Added goat: X" items. Uses CSS mask-image so the SVG's shape acts
    as a stencil and `background-color` paints it — picks up the same
