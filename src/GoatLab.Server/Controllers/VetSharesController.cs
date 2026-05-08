@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using GoatLab.Server.Data;
 using GoatLab.Server.Services.Email;
+using GoatLab.Server.Services.Plans;
 using GoatLab.Server.Services.Vet;
 using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -15,6 +16,7 @@ namespace GoatLab.Server.Controllers;
 [ApiController]
 [Route("api/vet-shares")]
 [Authorize(AuthenticationSchemes = "Identity.Application")]
+[RequiresFeature(AppFeature.VetShareLinks)]
 public class VetSharesController : ControllerBase
 {
     private readonly VetShareLinkService _service;

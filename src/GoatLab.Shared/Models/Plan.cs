@@ -43,6 +43,22 @@ public enum AppFeature
     // custom welcome message that render on /pub/{slug}. Lets serious
     // breeders make their farm page feel branded instead of generic-green.
     CustomBranding = 23,
+
+    // Vet share-link generation — produce a one-time URL that grants a vet
+    // read-only access to a goat's medical/weight/FAMACHA history without
+    // requiring an account. Premium upsell — Homestead handles this off-platform.
+    VetShareLinks = 24,
+
+    // Farm-to-farm goat transfer — moves a goat with full history (medical,
+    // weight, milk, photos, pedigree) to another tenant via signed token.
+    // Premium upsell since the value scales with the network.
+    GoatTransfers = 25,
+
+    // Mate recommendation engine — ranks intact bucks for each doe by
+    // projected offspring COI plus daughter production stats. Was bundled
+    // under CoiCalculator; split out so admins can offer COI without giving
+    // away the recommendation engine (or vice versa).
+    MateRecommendations = 26,
 }
 
 public class Plan

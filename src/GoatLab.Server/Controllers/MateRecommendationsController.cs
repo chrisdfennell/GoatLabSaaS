@@ -8,7 +8,7 @@ namespace GoatLab.Server.Controllers;
 
 [ApiController]
 [Route("api/mate-recommendations")]
-[RequiresFeature(AppFeature.CoiCalculator)]
+[RequiresFeature(AppFeature.MateRecommendations)]
 public class MateRecommendationsController : ControllerBase
 {
     private readonly MateRecommendationService _svc;

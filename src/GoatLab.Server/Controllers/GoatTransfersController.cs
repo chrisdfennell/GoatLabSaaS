@@ -1,6 +1,8 @@
 using GoatLab.Server.Data.Auth;
+using GoatLab.Server.Services.Plans;
 using GoatLab.Server.Services.Transfers;
 using GoatLab.Shared.DTOs;
+using GoatLab.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -9,6 +11,7 @@ namespace GoatLab.Server.Controllers;
 
 [ApiController]
 [Route("api/transfers")]
+[RequiresFeature(AppFeature.GoatTransfers)]
 public class GoatTransfersController : ControllerBase
 {
     private readonly GoatTransferService _svc;

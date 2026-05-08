@@ -38,6 +38,17 @@
                 <MudNumericField @bind-Value="_displayOrder" Label="Display order" />
             </MudItem>
 
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="int?" @bind-Value="_maxPublicListings"
+                                 Label="Max public listings (blank = unlimited)" Min="0"
+                                 HelperText="Cap on goats this plan can list publicly at once. Free Homestead = 3." />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField T="int?" @bind-Value="_maxPhotosPerGoat"
+                                 Label="Max photos per goat (blank = unlimited)" Min="0"
+                                 HelperText="Listings with more photos sell faster — real upgrade trigger." />
+            </MudItem>
+
             <MudItem xs="6">
                 <MudSwitch @bind-Value="_isPublic" Label="Public (shown on pricing page)" Color="Color.Primary" />
             </MudItem>
@@ -87,9 +98,10 @@
     private static readonly (string Label, AppFeature[] Features)[] NamedGroups = new[]
     {
         ("Core",          new[] { AppFeature.Goats, AppFeature.Health, AppFeature.Breeding, AppFeature.Milk, AppFeature.Barns }),
-        ("Production",    new[] { AppFeature.Sales, AppFeature.Finance, AppFeature.Inventory, AppFeature.Calendar, AppFeature.Map, AppFeature.ShowRecords, AppFeature.BuyerWaitlist }),
+        ("Production",    new[] { AppFeature.Sales, AppFeature.Finance, AppFeature.Inventory, AppFeature.Calendar, AppFeature.Map, AppFeature.ShowRecords }),
         ("Reports",       new[] { AppFeature.CareGuide, AppFeature.AdvancedReports, AppFeature.DataExport, AppFeature.Forecasting }),
-        ("Breeding tools",new[] { AppFeature.CoiCalculator }),
+        ("Breeding tools",new[] { AppFeature.CoiCalculator, AppFeature.MateRecommendations }),
+        ("Marketplace",   new[] { AppFeature.BuyerWaitlist, AppFeature.MarketplaceMapPin, AppFeature.StripeDeposits, AppFeature.GoatTransfers, AppFeature.VetShareLinks, AppFeature.CustomBranding }),
         ("Notifications", new[] { AppFeature.SmartAlerts, AppFeature.PushNotifications, AppFeature.PdfDocuments }),
         ("Integrations",  new[] { AppFeature.WebhooksAndApi }),
     };
@@ -116,6 +128,8 @@
     private int _trialDays;
     private int? _maxGoats;
     private int? _maxUsers;
+    private int? _maxPublicListings;
+    private int? _maxPhotosPerGoat;
     private int _displayOrder;
     private bool _isPublic = true;
     private bool _isActive = true;
@@ -135,6 +149,8 @@
             _trialDays = Plan.TrialDays;
             _maxGoats = Plan.MaxGoats;
             _maxUsers = Plan.MaxUsers;
+            _maxPublicListings = Plan.MaxPublicListings;
+            _maxPhotosPerGoat = Plan.MaxPhotosPerGoat;
             _displayOrder = Plan.DisplayOrder;
             _isPublic = Plan.IsPublic;
             _isActive = Plan.IsActive;
@@ -165,6 +181,8 @@
                 _trialDays,
                 _maxGoats,
                 _maxUsers,
+                _maxPublicListings,
+                _maxPhotosPerGoat,
                 _isPublic,
                 _isActive,
                 _displayOrder,

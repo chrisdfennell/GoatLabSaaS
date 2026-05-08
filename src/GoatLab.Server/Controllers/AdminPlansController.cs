@@ -34,6 +34,8 @@ public class AdminPlansController : ControllerBase
         int TrialDays,
         int? MaxGoats,
         int? MaxUsers,
+        int? MaxPublicListings,
+        int? MaxPhotosPerGoat,
         bool IsPublic,
         bool IsActive,
         int DisplayOrder,
@@ -49,6 +51,8 @@ public class AdminPlansController : ControllerBase
         int TrialDays,
         int? MaxGoats,
         int? MaxUsers,
+        int? MaxPublicListings,
+        int? MaxPhotosPerGoat,
         bool IsPublic,
         bool IsActive,
         int DisplayOrder,
@@ -104,6 +108,8 @@ public class AdminPlansController : ControllerBase
             TrialDays = input.TrialDays,
             MaxGoats = input.MaxGoats,
             MaxUsers = input.MaxUsers,
+            MaxPublicListings = input.MaxPublicListings,
+            MaxPhotosPerGoat = input.MaxPhotosPerGoat,
             IsPublic = input.IsPublic,
             IsActive = input.IsActive,
             DisplayOrder = input.DisplayOrder,
@@ -136,6 +142,8 @@ public class AdminPlansController : ControllerBase
         plan.TrialDays = input.TrialDays;
         plan.MaxGoats = input.MaxGoats;
         plan.MaxUsers = input.MaxUsers;
+        plan.MaxPublicListings = input.MaxPublicListings;
+        plan.MaxPhotosPerGoat = input.MaxPhotosPerGoat;
         plan.IsPublic = input.IsPublic;
         plan.IsActive = input.IsActive;
         plan.DisplayOrder = input.DisplayOrder;
@@ -180,6 +188,8 @@ public class AdminPlansController : ControllerBase
         p.TrialDays,
         p.MaxGoats,
         p.MaxUsers,
+        p.MaxPublicListings,
+        p.MaxPhotosPerGoat,
         p.IsPublic,
         p.IsActive,
         p.DisplayOrder,

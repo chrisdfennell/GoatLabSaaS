@@ -44,6 +44,7 @@ public sealed class TestDb : IDisposable
             {
                 AppFeature.Goats, AppFeature.Health, AppFeature.Breeding, AppFeature.Milk,
                 AppFeature.Calendar, AppFeature.Map, AppFeature.CareGuide, AppFeature.Barns,
+                AppFeature.DataExport, AppFeature.BuyerWaitlist,
             }),
             BuildPlan(2, "Farm", "farm", 1900, null, 3, 14, new[]
             {
