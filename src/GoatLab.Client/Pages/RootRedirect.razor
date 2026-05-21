@@ -1,0 +1,15 @@
+@page "/"
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@inject NavigationManager Nav
+
+@* "/" is owned by the server: HomeController renders the SSR marketing page for
+   anonymous visitors (so crawlers/agents see real content, not a WASM spinner)
+   and redirects authenticated users to /dashboard. This component only runs
+   when the SPA is already loaded and the user navigates to "/" client-side —
+   e.g. clicking the GoatLab brand on the login/register page. Forcing a full
+   load hands the route back to the server. No loop: the server never serves the
+   SPA shell at "/", so we don't bounce back here. *@
+@code {
+    protected override void OnInitialized()
+        => Nav.NavigateTo("/", forceLoad: true);
+}
