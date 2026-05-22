@@ -324,8 +324,8 @@ aside.mud-drawer > div {
     height: 24px;
     flex-shrink: 0;
     background-color: #2e7d32;
-    -webkit-mask: url(/images/goat2.svg) center / contain no-repeat;
-            mask: url(/images/goat2.svg) center / contain no-repeat;
+    -webkit-mask: url(/images/goat2.svg?v=2) center / contain no-repeat;
+            mask: url(/images/goat2.svg?v=2) center / contain no-repeat;
 }
 .mud-theme-dark .activity-goat-icon { background-color: #81c784; }
 .splash-spinner {

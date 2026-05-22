@@ -18,7 +18,7 @@
     <MudAppBar Elevation="0" Color="Color.Primary" Class="px-2">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
                        OnClick="@ToggleDrawer" />
-        <img src="images/goat.svg" alt="" class="appbar-brand-mark ml-2 mr-1" />
+        <img src="images/goat.svg?v=2" alt="" class="appbar-brand-mark ml-2 mr-1" />
         <MudText Typo="Typo.h6" Class="ml-1" Style="font-weight:700;letter-spacing:-0.5px;">GoatLab</MudText>
         <MudSpacer />
         <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
@@ -64,7 +64,7 @@
     <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="0"
                Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md">
         <div class="pa-3 d-flex align-center" style="gap:10px;">
-            <img src="images/logo-seal.png" alt="" class="drawer-brand-seal" />
+            <img src="images/logo-seal.png?v=2" alt="" class="drawer-brand-seal" />
             <div>
                 <MudText Typo="Typo.subtitle1" Style="font-weight:600;line-height:1.2;">GoatLab</MudText>
                 <MudText Typo="Typo.caption" Color="Color.Secondary">Herd Management</MudText>
